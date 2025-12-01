@@ -4,7 +4,7 @@ Profiles allow you to use different compilers and generators with isolated build
 
 ## Visual Studio Profiles (Windows)
 
-Build with Visual Studio 17 2022 (multi-config generator - supports Debug/Release in same build):
+Build with Visual Studio 18 2026 (multi-config generator - supports Debug/Release in same build):
 
 ```powershell
 # Install dependencies (one command supports all configurations)
