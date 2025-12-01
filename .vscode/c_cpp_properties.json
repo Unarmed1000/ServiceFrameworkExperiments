@@ -2,7 +2,7 @@
     "version": 4,
     "configurations": [
         {
-            "name": "default-Debug",
+            "name": "windows-vs2026-Debug",
             "configurationProvider": "ms-vscode.cmake-tools",
             "includePath": [
                 "${workspaceFolder}/**",
@@ -33,7 +33,7 @@
             "intelliSenseMode": "windows-msvc-x64"
         },
         {
-            "name": "default-Release",
+            "name": "windows-vs2026-Release",
             "configurationProvider": "ms-vscode.cmake-tools",
             "includePath": [
                 "${workspaceFolder}/**",
@@ -51,7 +51,7 @@
             "intelliSenseMode": "windows-msvc-x64"
         },
         {
-            "name": "default-MinSizeRel",
+            "name": "windows-vs2026-MinSizeRel",
             "configurationProvider": "ms-vscode.cmake-tools",
             "includePath": [
                 "${workspaceFolder}/**",
@@ -69,7 +69,7 @@
             "intelliSenseMode": "windows-msvc-x64"
         },
         {
-            "name": "default-RelWithDebInfo",
+            "name": "windows-vs2026-RelWithDebInfo",
             "configurationProvider": "ms-vscode.cmake-tools",
             "includePath": [
                 "${workspaceFolder}/**",

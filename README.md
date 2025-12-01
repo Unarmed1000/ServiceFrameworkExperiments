@@ -119,11 +119,11 @@ Profiles allow you to use different generators (Visual Studio, Ninja, etc.) with
 
 ```powershell
 # Visual Studio multi-config (supports Debug/Release in same build)
-conan install . --profile=profiles/vs-debug --output-folder=build/vs --build=missing
+conan install . --profile=profiles/windows-vs-debug --output-folder=build/vs --build=missing
 
 # Ninja single-config (requires separate build directories per configuration)
-conan install . --profile=profiles/ninja-debug --output-folder=build/ninja-debug --build=missing
-conan install . --profile=profiles/ninja-release --output-folder=build/ninja-release --build=missing
+conan install . --profile=profiles/windows-ninja-debug --output-folder=build/ninja-debug --build=missing
+conan install . --profile=profiles/windows-ninja-release --output-folder=build/ninja-release --build=missing
 ```
 
 **Note:** When adding new build directories, add the corresponding include to `CMakeUserPresets.json`:

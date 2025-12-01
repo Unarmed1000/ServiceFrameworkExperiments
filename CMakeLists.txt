@@ -42,9 +42,25 @@ else()
     message(STATUS "Using explicitly selected Conan profile: ${CONAN_PROFILE}")
 endif()
 
+# Determine output folder based on preset name (from CMAKE_PRESET_NAME if available)
+# Default to "default" for backward compatibility
+if(DEFINED ENV{CMAKE_PRESET_NAME})
+    set(CONAN_OUTPUT_FOLDER "build/$ENV{CMAKE_PRESET_NAME}")
+elseif(CMAKE_GENERATOR MATCHES "Visual Studio")
+    set(CONAN_OUTPUT_FOLDER "build/windows-vs2026")
+elseif(CMAKE_GENERATOR MATCHES "Ninja")
+    if(WIN32)
+        set(CONAN_OUTPUT_FOLDER "build/windows-ninja")
+    else()
+        set(CONAN_OUTPUT_FOLDER "build/ubuntu-ninja")
+    endif()
+else()
+    set(CONAN_OUTPUT_FOLDER "build/default")
+endif()
+
 # Paths for Conan configuration
-set(CONAN_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/build/default/build/generators/conan_toolchain.cmake")
-set(CONAN_HASH_FILE "${CMAKE_SOURCE_DIR}/build/default/build/.conan_config_hash.json")
+set(CONAN_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/${CONAN_OUTPUT_FOLDER}/build/generators/conan_toolchain.cmake")
+set(CONAN_HASH_FILE "${CMAKE_SOURCE_DIR}/${CONAN_OUTPUT_FOLDER}/.conan_config_hash.json")
 set(CONAN_PROFILE_PATH "${CMAKE_SOURCE_DIR}/${CONAN_PROFILE}")
 
 # Check if Conan configuration has changed
@@ -80,7 +96,7 @@ if(NEED_CONAN_INSTALL)
     # Run conan install
     execute_process(
         COMMAND conan install .
-            --output-folder=build/default
+            --output-folder=${CONAN_OUTPUT_FOLDER}
             --profile=${CONAN_PROFILE}
             --build=missing
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

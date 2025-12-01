@@ -2,13 +2,13 @@
 
 Profiles allow you to use different compilers and generators with isolated build directories.
 
-## Visual Studio Profiles
+## Visual Studio Profiles (Windows)
 
 Build with Visual Studio 17 2022 (multi-config generator - supports Debug/Release in same build):
 
 ```powershell
 # Install dependencies (one command supports all configurations)
-conan install . --profile=profiles/vs-debug --output-folder=build/vs --build=missing
+conan install . --profile=profiles/windows-vs-debug --output-folder=build/vs --build=missing
 
 # Configure CMake
 cmake --preset conan-default
@@ -25,18 +25,18 @@ cmake --build build/vs --config Release
 ]
 ```
 
-## Ninja Profiles
+## Ninja Profiles (Windows)
 
-Build with Ninja (single-config generator - requires separate build directories):
+Build with Ninja on Windows (single-config generator - requires separate build directories):
 
 ```powershell
 # Debug build
-conan install . --profile=profiles/ninja-debug --output-folder=build/ninja-debug --build=missing
+conan install . --profile=profiles/windows-ninja-debug --output-folder=build/ninja-debug --build=missing
 cmake --preset conan-default
 cmake --build build/ninja-debug
 
 # Release build
-conan install . --profile=profiles/ninja-release --output-folder=build/ninja-release --build=missing
+conan install . --profile=profiles/windows-ninja-release --output-folder=build/ninja-release --build=missing
 cmake --preset conan-default
 cmake --build build/ninja-release
 ```
@@ -47,6 +47,22 @@ cmake --build build/ninja-release
     "build/ninja-debug/generators/CMakePresets.json",
     "build/ninja-release/generators/CMakePresets.json"
 ]
+```
+
+## Ninja Profiles (Ubuntu)
+
+Build with Ninja on Ubuntu (single-config generator):
+
+```bash
+# Debug build
+conan install . --profile=profiles/ubuntu-ninja-debug --output-folder=build/ubuntu-ninja-debug --build=missing
+cmake --preset ubuntu-ninja
+cmake --build build/ubuntu-ninja/build
+
+# Release build
+conan install . --profile=profiles/ubuntu-ninja-release --output-folder=build/ubuntu-ninja-release --build=missing
+cmake --preset ubuntu-ninja
+cmake --build build/ubuntu-ninja/build
 ```
 
 ## Notes
