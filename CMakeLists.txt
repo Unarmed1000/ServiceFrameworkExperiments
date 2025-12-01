@@ -253,7 +253,7 @@ add_executable(test2
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Service/IServiceControl.hpp
     include/Test2/Framework/Service/IServiceFactory.hpp
-    include/Test2/Framework/Service/ServiceCreationInfo.hpp
+    include/Test2/Framework/Service/ServiceCreateInfo.hpp
     include/Test2/Framework/Service/ServiceDescription.hpp
     include/Test2/Framework/Service/ServiceInitResult.hpp
     include/Test2/Framework/Service/ServiceProcessResult.hpp
@@ -278,7 +278,7 @@ source_group("Header Files\\Test2\\Framework\\Service" FILES
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Service/IServiceControl.hpp
     include/Test2/Framework/Service/IServiceFactory.hpp
-    include/Test2/Framework/Service/ServiceCreationInfo.hpp
+    include/Test2/Framework/Service/ServiceCreateInfo.hpp
     include/Test2/Framework/Service/ServiceDescription.hpp
     include/Test2/Framework/Service/ServiceInitResult.hpp
     include/Test2/Framework/Service/ServiceProcessResult.hpp
@@ -318,7 +318,7 @@ add_executable(test_service_registry
     src/Test2/Registry/ServiceRegistryTest.cpp
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Service/IServiceFactory.hpp
-    include/Test2/Framework/Service/ServiceCreationInfo.hpp
+    include/Test2/Framework/Service/ServiceCreateInfo.hpp
     include/Test2/Framework/Provider/ServiceProvider.hpp
     include/Test2/Framework/Registry/IServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp

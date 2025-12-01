@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_SERVICECREATIONINFO_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_SERVICECREATIONINFO_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ServiceCreateInfo_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ServiceCreateInfo_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -17,11 +17,11 @@
 
 namespace Test2
 {
-  struct ServiceCreationInfo
+  struct ServiceCreateInfo
   {
     ServiceProvider Provider;
 
-    explicit ServiceCreationInfo(ServiceProvider provider)
+    explicit ServiceCreateInfo(ServiceProvider provider)
       : Provider(std::move(provider))
     {
     }
