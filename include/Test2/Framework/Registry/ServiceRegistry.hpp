@@ -124,6 +124,19 @@ namespace Test2
       return ServiceThreadGroupId(groupId);
     }
 
+    /// @brief Retrieves the main service thread group identifier.
+    ///
+    /// The main thread group is the primary execution context for services that need to run
+    /// on the main application thread. This returns a reserved thread group ID (0) that is
+    /// distinct from dynamically created thread groups (which start from 1).
+    ///
+    /// @return The ServiceThreadGroupId for the main thread group.
+    ServiceThreadGroupId GetMainServiceThreadGroupId() override
+    {
+      spdlog::debug("ServiceRegistry::GetMainServiceThreadGroupId: returning main thread group ID 0");
+      return ServiceThreadGroupId(0);
+    }
+
     /// @brief Extracts all registered service factories and their metadata.
     ///
     /// This method transfers ownership of all registered factories to the caller as a vector

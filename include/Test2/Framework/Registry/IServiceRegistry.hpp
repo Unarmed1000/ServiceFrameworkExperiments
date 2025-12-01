@@ -55,6 +55,15 @@ namespace Test2
     ///
     /// @return A new unique ServiceThreadGroupId for organizing services.
     virtual ServiceThreadGroupId CreateServiceThreadGroupId() = 0;
+
+    /// @brief Retrieves the main service thread group identifier.
+    ///
+    /// The main thread group is the primary execution context for services that need to run
+    /// on the main application thread. This is typically used for services that require
+    /// main thread access or need to coordinate with the primary application lifecycle.
+    ///
+    /// @return The ServiceThreadGroupId for the main thread group.
+    virtual ServiceThreadGroupId GetMainServiceThreadGroupId() = 0;
   };
 
 }
