@@ -14,6 +14,7 @@
 //****************************************************************************************************************************************************
 
 #include <Common/SpdLogHelper.hpp>
+#include <Test2/Framework/Host/InvalidServiceFactoryException.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/io_context.hpp>
@@ -81,6 +82,30 @@ namespace Test2
     const boost::asio::io_context& GetIoContext() const
     {
       return *m_ioContext;
+    }
+
+    boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, const ServicePriority currentPriority)
+    {
+      // Validate service factories
+      for (const auto& serviceRecord : services)
+      {
+        if (!serviceRecord.Factory)
+        {
+          throw InvalidServiceFactoryException(serviceRecord.ServiceName);
+        }
+      }
+
+      std::vector<boost::asio::awaitable<void>> startTasks(services.size());
+      for (const auto& serviceRecord : services)
+      {
+        co_await call(
+          [serviceRecord]()
+          {
+            spdlog::info("[StartService] {}", serviceRecord.ServiceName);
+            return Config::START_SERVICE_DELAY_MS / 1000.0;    // Return startup time in seconds
+          });
+      }
+      co_return;
     }
 
   protected:

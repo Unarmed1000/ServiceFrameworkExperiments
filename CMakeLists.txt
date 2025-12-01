@@ -219,7 +219,7 @@ configure_target(main_app)
 
 # Executable 2: Test program 1 - Service Framework (Google Test)
 add_executable(test1
-    src/Test1/ServiceFrameworkTest.cpp
+    UnitTest/Test1/ServiceFrameworkTest.cpp
     include/Common/ComplexData.hpp
     include/Test1/ServiceBase.hpp
     include/Test1/AddService.hpp
@@ -244,7 +244,7 @@ source_group("Header Files\\Test1" FILES
     include/Test1/CalculatorService.hpp
     include/Test1/ComplexService.hpp
 )
-source_group("Source Files\\Test1" FILES src/Test1/ServiceFrameworkTest.cpp)
+source_group("Source Files\\UnitTest\\Test1" FILES UnitTest/Test1/ServiceFrameworkTest.cpp)
 
 # Executable 3: Test program 2
 add_executable(test2
@@ -315,7 +315,7 @@ configure_target(test3)
 
 # Executable 5: ServiceRegistry test
 add_executable(test_service_registry
-    src/Test2/Registry/ServiceRegistryTest.cpp
+    UnitTest/Test2/Registry/ServiceRegistryTest.cpp
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Service/IServiceFactory.hpp
     include/Test2/Framework/Service/ServiceCreateInfo.hpp
@@ -329,3 +329,15 @@ add_executable(test_service_registry
 )
 configure_target(test_service_registry)
 target_include_directories(test_service_registry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_service_registry PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Registry" FILES UnitTest/Test2/Registry/ServiceRegistryTest.cpp)
+
+# Executable 6: AggregateException test
+add_executable(test_aggregate_exception
+    UnitTest/Common/AggregateExceptionTest.cpp
+    include/Common/AggregateException.hpp
+)
+configure_target(test_aggregate_exception)
+target_include_directories(test_aggregate_exception PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_aggregate_exception PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Common" FILES UnitTest/Common/AggregateExceptionTest.cpp)
