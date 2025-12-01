@@ -264,6 +264,9 @@ add_executable(test2
     include/Test2/Framework/Registry/IServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
     include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
+    include/Test2/Framework/Registry/ServiceRegistry.hpp
+    include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
+    include/Test2/Framework/Registry/ServiceRegistryException.hpp
     include/Test2/Framework/Manager/IServiceManager.hpp
     include/Test2/Services/AddService.hpp
 )
@@ -292,6 +295,9 @@ source_group("Header Files\\Test2\\Framework\\Registry" FILES
     include/Test2/Framework/Registry/IServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
     include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
+    include/Test2/Framework/Registry/ServiceRegistry.hpp
+    include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
+    include/Test2/Framework/Registry/ServiceRegistryException.hpp
 )
 source_group("Header Files\\Test2\\Framework\\Manager" FILES
     include/Test2/Framework/Manager/IServiceManager.hpp
@@ -306,3 +312,20 @@ source_group("Source Files\\Test2\\Service\\Provider" FILES
 # Executable 4: Test program 3
 add_executable(test3 src/test3.cpp)
 configure_target(test3)
+
+# Executable 5: ServiceRegistry test
+add_executable(test_service_registry
+    src/Test2/Registry/ServiceRegistryTest.cpp
+    include/Test2/Framework/Service/IService.hpp
+    include/Test2/Framework/Service/IServiceFactory.hpp
+    include/Test2/Framework/Service/ServiceCreationInfo.hpp
+    include/Test2/Framework/Provider/ServiceProvider.hpp
+    include/Test2/Framework/Registry/IServiceRegistry.hpp
+    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
+    include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
+    include/Test2/Framework/Registry/ServiceRegistry.hpp
+    include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
+    include/Test2/Framework/Registry/ServiceRegistryException.hpp
+)
+configure_target(test_service_registry)
+target_include_directories(test_service_registry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)

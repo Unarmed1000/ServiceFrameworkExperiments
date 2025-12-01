@@ -13,20 +13,16 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/ServiceDescription.hpp>
-#include <utility>
+#include <Test2/Framework/Service/IServiceControl.hpp>
 
 namespace Test2
 {
   struct ServiceCreateInfo;
 
-  class ASyncServiceBase
+  class ASyncServiceBase : IServiceControl
   {
-    ServiceDescription m_description;
-
   public:
-    ASyncServiceBase(const ServiceCreateInfo& creationInfo, ServiceDescription description)
-      : m_description(std::move(description))
+    ASyncServiceBase(const ServiceCreateInfo& /*creationInfo*/)
     {
     }
   };

@@ -54,7 +54,7 @@ namespace Test2
     /// the same thread group may share execution resources or coordination mechanisms.
     ///
     /// @return A new unique ServiceThreadGroupId for organizing services.
-    virtual ServiceThreadGroupId CreateServiceThreadGroupId() const = 0;
+    virtual ServiceThreadGroupId CreateServiceThreadGroupId() = 0;
   };
 
 }

@@ -26,8 +26,8 @@ namespace Test1
   class AddService : public AsyncServiceBase
   {
   public:
-    AddService(ServiceCreateInfo creationInfo)
-      : AsyncServiceBase(creationInfo, "AddService")
+    AddService(const ServiceCreateInfo& creationInfo)
+      : AsyncServiceBase(creationInfo)
     {
     }
 
