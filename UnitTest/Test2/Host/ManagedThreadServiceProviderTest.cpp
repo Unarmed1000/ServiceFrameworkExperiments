@@ -151,6 +151,7 @@ using namespace Test2;
 // Normal Use Cases
 // ========================================
 
+// Tests: Basic registration of a single priority group with multiple services succeeds without exceptions
 TEST(ManagedThreadServiceProviderTest, RegisterSinglePriorityGroup)
 {
   ManagedThreadServiceProvider provider;
@@ -160,6 +161,7 @@ TEST(ManagedThreadServiceProviderTest, RegisterSinglePriorityGroup)
   // Should not throw
 }
 
+// Tests: Multiple priority groups can be registered in descending priority order (high to low)
 TEST(ManagedThreadServiceProviderTest, RegisterMultiplePriorityGroupsDescending)
 {
   ManagedThreadServiceProvider provider;
@@ -171,6 +173,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterMultiplePriorityGroupsDescending)
   // Should not throw
 }
 
+// Tests: UnregisterAllServices returns priority groups in reverse order (low to high) for proper shutdown sequence
+// Verifies: Shutdown order is opposite of startup order, services registered at priority 100, 500, 1000 are returned as 100, 500, 1000
 TEST(ManagedThreadServiceProviderTest, UnregisterAllServicesReturnsReversedOrder)
 {
   ManagedThreadServiceProvider provider;
@@ -194,6 +198,8 @@ TEST(ManagedThreadServiceProviderTest, UnregisterAllServicesReturnsReversedOrder
   EXPECT_EQ(ExtractServiceIds(groups[2].Services), std::vector<int>({1, 2}));
 }
 
+// Tests: Service vector is moved (not copied) during registration for efficiency
+// Verifies: Original vector is empty or has different data pointer after RegisterPriorityGroup
 TEST(ManagedThreadServiceProviderTest, ServicesAreMovedDuringRegistration)
 {
   ManagedThreadServiceProvider provider;
@@ -214,6 +220,8 @@ TEST(ManagedThreadServiceProviderTest, ServicesAreMovedDuringRegistration)
   EXPECT_TRUE(serviceInfos.empty() || serviceInfos.data() != originalPtr);
 }
 
+// Tests: Service ownership is transferred (moved) to caller during unregister operation
+// Verifies: Returned priority groups contain the correct services in the correct order
 TEST(ManagedThreadServiceProviderTest, ServicesAreMovedDuringUnregister)
 {
   ManagedThreadServiceProvider provider;
@@ -226,6 +234,8 @@ TEST(ManagedThreadServiceProviderTest, ServicesAreMovedDuringUnregister)
   EXPECT_EQ(ExtractServiceIds(groups[0].Services), std::vector<int>({1, 2, 3}));
 }
 
+// Tests: Services within a single priority group maintain their registration order
+// Verifies: Services registered as [1,2,3,4,5] are returned in the same order during unregister
 TEST(ManagedThreadServiceProviderTest, PreservesRegistrationOrderWithinPriorityGroup)
 {
   ManagedThreadServiceProvider provider;
@@ -238,6 +248,8 @@ TEST(ManagedThreadServiceProviderTest, PreservesRegistrationOrderWithinPriorityG
   EXPECT_EQ(ExtractServiceIds(groups[0].Services), std::vector<int>({1, 2, 3, 4, 5}));
 }
 
+// Tests: UnregisterAllServices clears all internal state, allowing provider to be reused
+// Verifies: Second consecutive unregister returns empty vector
 TEST(ManagedThreadServiceProviderTest, UnregisterClearsInternalState)
 {
   ManagedThreadServiceProvider provider;
@@ -253,6 +265,8 @@ TEST(ManagedThreadServiceProviderTest, UnregisterClearsInternalState)
   EXPECT_TRUE(groups2.empty());
 }
 
+// Tests: Priority group can contain a single service (edge case for minimum group size)
+// Verifies: Single-service group is properly stored and retrieved
 TEST(ManagedThreadServiceProviderTest, SingleServiceInPriorityGroup)
 {
   ManagedThreadServiceProvider provider;
@@ -266,6 +280,8 @@ TEST(ManagedThreadServiceProviderTest, SingleServiceInPriorityGroup)
   EXPECT_EQ(ExtractServiceIds(groups[0].Services), std::vector<int>({42}));
 }
 
+// Tests: Priority group can handle large number of services (1000) without issues
+// Verifies: All 1000 services are stored and returned in correct order (stress test)
 TEST(ManagedThreadServiceProviderTest, LargeNumberOfServicesInGroup)
 {
   ManagedThreadServiceProvider provider;
@@ -284,6 +300,8 @@ TEST(ManagedThreadServiceProviderTest, LargeNumberOfServicesInGroup)
   EXPECT_EQ(ExtractServiceIds(groups[0].Services), ids);
 }
 
+// Tests: Provider can handle large number of priority groups (100 groups) without issues
+// Verifies: All groups are maintained in correct priority order during unregister (stress test)
 TEST(ManagedThreadServiceProviderTest, LargeNumberOfPriorityGroups)
 {
   ManagedThreadServiceProvider provider;
@@ -309,6 +327,8 @@ TEST(ManagedThreadServiceProviderTest, LargeNumberOfPriorityGroups)
 // Edge Cases - Empty States
 // ========================================
 
+// Tests: Calling UnregisterAllServices on empty provider is safe and returns empty vector
+// Verifies: No exceptions thrown, empty vector returned
 TEST(ManagedThreadServiceProviderTest, UnregisterWithoutAnyRegistrations)
 {
   ManagedThreadServiceProvider provider;
@@ -318,6 +338,8 @@ TEST(ManagedThreadServiceProviderTest, UnregisterWithoutAnyRegistrations)
   EXPECT_TRUE(groups.empty());
 }
 
+// Tests: Multiple consecutive unregister calls on empty provider are safe (idempotent operation)
+// Verifies: No exceptions thrown, all calls return empty vectors
 TEST(ManagedThreadServiceProviderTest, MultipleUnregistersWhenEmpty)
 {
   ManagedThreadServiceProvider provider;
@@ -335,6 +357,8 @@ TEST(ManagedThreadServiceProviderTest, MultipleUnregistersWhenEmpty)
 // Edge Cases - Empty Services Vector
 // ========================================
 
+// Tests: Registering a priority group with zero services throws EmptyPriorityGroupException
+// Verifies: Empty service vectors are rejected (invalid input)
 TEST(ManagedThreadServiceProviderTest, EmptyServicesVectorThrows)
 {
   ManagedThreadServiceProvider provider;
@@ -344,6 +368,8 @@ TEST(ManagedThreadServiceProviderTest, EmptyServicesVectorThrows)
   EXPECT_THROW(provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), std::move(emptyServices)), EmptyPriorityGroupException);
 }
 
+// Tests: EmptyPriorityGroupException message contains the priority value for debugging
+// Verifies: Exception message includes priority "1000" to help identify which registration failed
 TEST(ManagedThreadServiceProviderTest, EmptyServicesVectorExceptionMessage)
 {
   ManagedThreadServiceProvider provider;
@@ -366,6 +392,8 @@ TEST(ManagedThreadServiceProviderTest, EmptyServicesVectorExceptionMessage)
 // Edge Cases - Priority Order Violations
 // ========================================
 
+// Tests: Registering the same priority value twice throws InvalidPriorityOrderException
+// Verifies: Duplicate priorities are rejected (each priority must be unique)
 TEST(ManagedThreadServiceProviderTest, RegisterSamePriorityTwiceThrows)
 {
   ManagedThreadServiceProvider provider;
@@ -375,6 +403,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterSamePriorityTwiceThrows)
   EXPECT_THROW(RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {2}), InvalidPriorityOrderException);
 }
 
+// Tests: Registering higher priority after lower priority throws (must be descending order)
+// Verifies: Priority order enforcement - 500 then 1000 is invalid (should be 1000 then 500)
 TEST(ManagedThreadServiceProviderTest, RegisterHigherPriorityAfterLowerThrows)
 {
   ManagedThreadServiceProvider provider;
@@ -384,6 +414,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterHigherPriorityAfterLowerThrows)
   EXPECT_THROW(RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {2}), InvalidPriorityOrderException);
 }
 
+// Tests: Registering equal priority values throws InvalidPriorityOrderException
+// Verifies: Strictly descending order required (no equal priorities allowed)
 TEST(ManagedThreadServiceProviderTest, RegisterEqualPriorityThrows)
 {
   ManagedThreadServiceProvider provider;
@@ -393,6 +425,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterEqualPriorityThrows)
   EXPECT_THROW(RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {2}), InvalidPriorityOrderException);
 }
 
+// Tests: InvalidPriorityOrderException message contains both priority values and ordering requirement
+// Verifies: Exception message includes new priority (1000), last priority (500), and explains descending order rule
 TEST(ManagedThreadServiceProviderTest, InvalidPriorityOrderExceptionMessage)
 {
   ManagedThreadServiceProvider provider;
@@ -414,6 +448,8 @@ TEST(ManagedThreadServiceProviderTest, InvalidPriorityOrderExceptionMessage)
   }
 }
 
+// Tests: Attempting to increment priorities after establishing descending order throws
+// Verifies: Once descending pattern is established (100→50), cannot go back up (200)
 TEST(ManagedThreadServiceProviderTest, RegisterIncrementingPrioritiesThrows)
 {
   ManagedThreadServiceProvider provider;
@@ -429,6 +465,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterIncrementingPrioritiesThrows)
 // Edge Cases - Priority Boundaries
 // ========================================
 
+// Tests: Zero is a valid priority value (minimum boundary)
+// Verifies: Priority 0 can be registered and retrieved
 TEST(ManagedThreadServiceProviderTest, ZeroPriorityIsValid)
 {
   ManagedThreadServiceProvider provider;
@@ -440,6 +478,8 @@ TEST(ManagedThreadServiceProviderTest, ZeroPriorityIsValid)
   EXPECT_EQ(groups[0].Priority.GetValue(), 0);
 }
 
+// Tests: UINT32_MAX is a valid priority value (maximum boundary)
+// Verifies: Maximum possible priority can be registered and retrieved
 TEST(ManagedThreadServiceProviderTest, MaxPriorityIsValid)
 {
   ManagedThreadServiceProvider provider;
@@ -451,6 +491,8 @@ TEST(ManagedThreadServiceProviderTest, MaxPriorityIsValid)
   EXPECT_EQ(groups[0].Priority.GetValue(), UINT32_MAX);
 }
 
+// Tests: Full range of priorities from UINT32_MAX down to 0 works correctly
+// Verifies: Extreme boundary values and unregister returns them in ascending order
 TEST(ManagedThreadServiceProviderTest, DescendingFromMaxToZero)
 {
   ManagedThreadServiceProvider provider;
@@ -469,6 +511,8 @@ TEST(ManagedThreadServiceProviderTest, DescendingFromMaxToZero)
   EXPECT_EQ(groups[3].Priority.GetValue(), UINT32_MAX);
 }
 
+// Tests: Consecutive priority values (100, 99, 98) are handled correctly
+// Verifies: Minimal priority differences (decrement by 1) work properly
 TEST(ManagedThreadServiceProviderTest, ConsecutivePriorities)
 {
   ManagedThreadServiceProvider provider;
@@ -489,6 +533,8 @@ TEST(ManagedThreadServiceProviderTest, ConsecutivePriorities)
 // Edge Cases - First Registration
 // ========================================
 
+// Tests: First priority group can have any priority value (no previous value to compare against)
+// Verifies: 0, UINT32_MAX, and mid-range values all work as first registration
 TEST(ManagedThreadServiceProviderTest, FirstRegistrationCanBeAnyPriority)
 {
   ManagedThreadServiceProvider provider1;
@@ -507,6 +553,8 @@ TEST(ManagedThreadServiceProviderTest, FirstRegistrationCanBeAnyPriority)
 // Edge Cases - Complex Scenarios
 // ========================================
 
+// Tests: Provider can be reused after UnregisterAllServices clears its state
+// Verifies: Register → Unregister → Register cycle works, new registration can use different priorities
 TEST(ManagedThreadServiceProviderTest, RegisterUnregisterRegisterAgain)
 {
   ManagedThreadServiceProvider provider;
@@ -528,6 +576,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterUnregisterRegisterAgain)
   EXPECT_EQ(groups2[1].Priority.GetValue(), 2000);
 }
 
+// Tests: Different priority groups can have different numbers of services
+// Verifies: Groups with 1, 2, 3, and 4 services are all handled correctly
 TEST(ManagedThreadServiceProviderTest, MixedServiceCountsPerGroup)
 {
   ManagedThreadServiceProvider provider;
@@ -550,6 +600,8 @@ TEST(ManagedThreadServiceProviderTest, MixedServiceCountsPerGroup)
 // Edge Cases - Service Lifetime
 // ========================================
 
+// Tests: Services remain alive after registration even if original shared_ptr is released
+// Verifies: Provider maintains ownership, services persist through unregister and are returned in groups
 TEST(ManagedThreadServiceProviderTest, ServicePointersPersistAfterUnregister)
 {
   ManagedThreadServiceProvider provider;
@@ -577,6 +629,8 @@ TEST(ManagedThreadServiceProviderTest, ServicePointersPersistAfterUnregister)
   EXPECT_EQ(mockService->GetId(), 42);
 }
 
+// Tests: Same service instance can be registered multiple times in a priority group
+// Verifies: All three entries point to the same service object (shared ownership)
 TEST(ManagedThreadServiceProviderTest, MultipleReferencesToSameService)
 {
   ManagedThreadServiceProvider provider;
@@ -608,6 +662,8 @@ TEST(ManagedThreadServiceProviderTest, MultipleReferencesToSameService)
 // Edge Cases - Null Services
 // ========================================
 
+// Tests: Registering a null service pointer throws std::invalid_argument
+// Verifies: Null services are rejected (validation prevents nullptr registration)
 TEST(ManagedThreadServiceProviderTest, NullServicePointersThrow)
 {
   ManagedThreadServiceProvider provider;
@@ -628,6 +684,8 @@ TEST(ManagedThreadServiceProviderTest, NullServicePointersThrow)
   EXPECT_THROW(provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), std::move(serviceInfos)), std::invalid_argument);
 }
 
+// Tests: Service with empty SupportedInterfaces vector throws std::invalid_argument
+// Verifies: Services must expose at least one interface (validation prevents unusable services)
 TEST(ManagedThreadServiceProviderTest, ServiceWithNoInterfacesThrows)
 {
   ManagedThreadServiceProvider provider;
@@ -646,6 +704,8 @@ TEST(ManagedThreadServiceProviderTest, ServiceWithNoInterfacesThrows)
 // IServiceProvider Tests - GetService
 // ========================================
 
+// Tests: GetService retrieves a single service by interface type
+// Verifies: Service registered with ITestInterface1 can be retrieved via GetService(typeid(ITestInterface1))
 TEST(ManagedThreadServiceProviderTest, GetServiceReturnsRegisteredService)
 {
   ManagedThreadServiceProvider provider;
@@ -661,6 +721,8 @@ TEST(ManagedThreadServiceProviderTest, GetServiceReturnsRegisteredService)
   EXPECT_EQ(mockService->GetId(), 42);
 }
 
+// Tests: GetService throws UnknownServiceException when requested type is not registered
+// Verifies: Requesting ITestInterface2 when only ITestInterface1 is registered throws
 TEST(ManagedThreadServiceProviderTest, GetServiceThrowsForUnknownType)
 {
   ManagedThreadServiceProvider provider;
@@ -671,6 +733,8 @@ TEST(ManagedThreadServiceProviderTest, GetServiceThrowsForUnknownType)
   EXPECT_THROW(provider.GetService(typeid(ITestInterface2)), UnknownServiceException);
 }
 
+// Tests: GetService throws MultipleServicesFoundException when multiple services match the type
+// Verifies: Ambiguous lookup (2 services both support ITestInterface1) is rejected, caller must use TryGetServices
 TEST(ManagedThreadServiceProviderTest, GetServiceThrowsForMultipleServices)
 {
   ManagedThreadServiceProvider provider;
@@ -687,6 +751,8 @@ TEST(ManagedThreadServiceProviderTest, GetServiceThrowsForMultipleServices)
   EXPECT_THROW(provider.GetService(typeid(ITestInterface1)), MultipleServicesFoundException);
 }
 
+// Tests: UnknownServiceException message contains the requested type name for debugging
+// Verifies: Exception message includes "ITestInterface1" to help identify which service lookup failed
 TEST(ManagedThreadServiceProviderTest, GetServiceExceptionMessageContainsTypeName)
 {
   ManagedThreadServiceProvider provider;
@@ -703,6 +769,8 @@ TEST(ManagedThreadServiceProviderTest, GetServiceExceptionMessageContainsTypeNam
   }
 }
 
+// Tests: MultipleServicesFoundException message explains the error and suggests TryGetServices
+// Verifies: Exception message contains "Multiple services" and mentions "TryGetServices" as solution
 TEST(ManagedThreadServiceProviderTest, GetServiceMultipleServicesExceptionMessage)
 {
   ManagedThreadServiceProvider provider;
@@ -729,6 +797,8 @@ TEST(ManagedThreadServiceProviderTest, GetServiceMultipleServicesExceptionMessag
   }
 }
 
+// Tests: GetService works with base IService interface type (not just derived interfaces)
+// Verifies: Services can be looked up by their base interface type
 TEST(ManagedThreadServiceProviderTest, GetServiceWorksWithIService)
 {
   ManagedThreadServiceProvider provider;
@@ -744,6 +814,8 @@ TEST(ManagedThreadServiceProviderTest, GetServiceWorksWithIService)
   EXPECT_EQ(mockService->GetId(), 42);
 }
 
+// Tests: GetService can find services in different priority groups
+// Verifies: Type index spans all priority groups (service at priority 1000 and service at priority 500 both accessible)
 TEST(ManagedThreadServiceProviderTest, GetServiceWorksAcrossPriorityGroups)
 {
   ManagedThreadServiceProvider provider;
@@ -770,6 +842,8 @@ TEST(ManagedThreadServiceProviderTest, GetServiceWorksAcrossPriorityGroups)
 // IServiceProvider Tests - TryGetService
 // ========================================
 
+// Tests: TryGetService retrieves a single service by interface type without throwing
+// Verifies: Returns valid shared_ptr to service registered with ITestInterface1
 TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsRegisteredService)
 {
   ManagedThreadServiceProvider provider;
@@ -785,6 +859,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsRegisteredService)
   EXPECT_EQ(mockService->GetId(), 42);
 }
 
+// Tests: TryGetService returns nullptr for unregistered types (no-throw variant)
+// Verifies: Requesting ITestInterface2 when only ITestInterface1 is registered returns nullptr
 TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullForUnknownType)
 {
   ManagedThreadServiceProvider provider;
@@ -796,6 +872,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullForUnknownType)
   EXPECT_EQ(retrieved, nullptr);
 }
 
+// Tests: TryGetService returns first matching service when multiple exist (no exception)
+// Verifies: With 2 services supporting ITestInterface1, returns one of them (unordered_multimap behavior)
 TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsFirstWhenMultiple)
 {
   ManagedThreadServiceProvider provider;
@@ -819,6 +897,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsFirstWhenMultiple)
   EXPECT_TRUE(mockService->GetId() == 1 || mockService->GetId() == 2);
 }
 
+// Tests: TryGetService safely handles empty provider state
+// Verifies: Returns nullptr when no services are registered at all
 TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullOnEmptyProvider)
 {
   ManagedThreadServiceProvider provider;
@@ -831,6 +911,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullOnEmptyProvider)
 // IServiceProvider Tests - TryGetServices
 // ========================================
 
+// Tests: TryGetServices returns a single matching service in output vector
+// Verifies: Returns true and populates vector with one service for single-service type
 TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsSingleService)
 {
   ManagedThreadServiceProvider provider;
@@ -849,6 +931,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsSingleService)
   EXPECT_EQ(mockService->GetId(), 42);
 }
 
+// Tests: TryGetServices returns all matching services when multiple exist
+// Verifies: Returns true and populates vector with all 3 services supporting ITestInterface1
 TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsMultipleServices)
 {
   ManagedThreadServiceProvider provider;
@@ -885,6 +969,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsMultipleServices)
   EXPECT_EQ(ids[2], 3);
 }
 
+// Tests: TryGetServices returns false for unregistered types (no-throw variant)
+// Verifies: Requesting ITestInterface2 when only ITestInterface1 is registered returns false, vector remains empty
 TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseForUnknownType)
 {
   ManagedThreadServiceProvider provider;
@@ -899,6 +985,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseForUnknownType)
   EXPECT_EQ(services.size(), 0);
 }
 
+// Tests: TryGetServices appends to existing vector rather than clearing it
+// Verifies: Vector with 1 pre-existing entry ends up with 2 entries (pre-existing + found service)
 TEST(ManagedThreadServiceProviderTest, TryGetServicesAppendsToExistingVector)
 {
   ManagedThreadServiceProvider provider;
@@ -917,6 +1005,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesAppendsToExistingVector)
   ASSERT_EQ(services.size(), 2);    // Pre-existing + new
 }
 
+// Tests: TryGetServices finds all matching services across different priority groups
+// Verifies: Service at priority 1000 and service at priority 500 both returned (type index spans all groups)
 TEST(ManagedThreadServiceProviderTest, TryGetServicesAcrossPriorityGroups)
 {
   ManagedThreadServiceProvider provider;
@@ -934,6 +1024,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesAcrossPriorityGroups)
   ASSERT_EQ(services.size(), 2);
 }
 
+// Tests: TryGetServices safely handles empty provider state
+// Verifies: Returns false and leaves vector empty when no services are registered
 TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseOnEmptyProvider)
 {
   ManagedThreadServiceProvider provider;
@@ -949,6 +1041,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseOnEmptyProvider
 // IServiceProvider Tests - Multiple Interface Support
 // ========================================
 
+// Tests: Single service registered with multiple interfaces is accessible via each interface type
+// Verifies: Service registered with {IService, ITestInterface1, ITestInterface2} can be retrieved via all three types
 TEST(ManagedThreadServiceProviderTest, ServiceWithMultipleInterfacesAccessibleByEach)
 {
   ManagedThreadServiceProvider provider;
@@ -965,6 +1059,8 @@ TEST(ManagedThreadServiceProviderTest, ServiceWithMultipleInterfacesAccessibleBy
   EXPECT_EQ(byInterface2, service);
 }
 
+// Tests: Different services can be registered for different interface types
+// Verifies: Service1 for ITestInterface1 and Service2 for ITestInterface2 are independently retrievable
 TEST(ManagedThreadServiceProviderTest, DifferentServicesForDifferentInterfaces)
 {
   ManagedThreadServiceProvider provider;
@@ -990,6 +1086,11 @@ TEST(ManagedThreadServiceProviderTest, DifferentServicesForDifferentInterfaces)
   EXPECT_EQ(mock2->GetId(), 2);
 }
 
+// Tests: Services can have overlapping interface support creating complex type relationships
+// Verifies: Service1{ITestInterface1, ITestInterface2} and Service2{ITestInterface2, ITestInterface3}
+//          - ITestInterface1: only Service1 (GetService succeeds)
+//          - ITestInterface2: both services (GetService throws, TryGetServices returns 2)
+//          - ITestInterface3: only Service2 (GetService succeeds)
 TEST(ManagedThreadServiceProviderTest, MultipleServicesWithOverlappingInterfaces)
 {
   ManagedThreadServiceProvider provider;
@@ -1027,6 +1128,8 @@ TEST(ManagedThreadServiceProviderTest, MultipleServicesWithOverlappingInterfaces
 // IServiceProvider Tests - Unregister Effects
 // ========================================
 
+// Tests: GetService throws UnknownServiceException after UnregisterAllServices clears type index
+// Verifies: Service accessible before unregister, throws after unregister (type index properly cleared)
 TEST(ManagedThreadServiceProviderTest, GetServiceThrowsAfterUnregister)
 {
   ManagedThreadServiceProvider provider;
@@ -1044,6 +1147,8 @@ TEST(ManagedThreadServiceProviderTest, GetServiceThrowsAfterUnregister)
   EXPECT_THROW(provider.GetService(typeid(ITestInterface1)), UnknownServiceException);
 }
 
+// Tests: TryGetService returns nullptr after UnregisterAllServices clears type index
+// Verifies: Service accessible before unregister, returns nullptr after (no-throw variant)
 TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullAfterUnregister)
 {
   ManagedThreadServiceProvider provider;
@@ -1061,6 +1166,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullAfterUnregister)
   EXPECT_EQ(provider.TryGetService(typeid(ITestInterface1)), nullptr);
 }
 
+// Tests: TryGetServices returns false after UnregisterAllServices clears type index
+// Verifies: Returns true with 1 service before unregister, returns false with empty vector after
 TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseAfterUnregister)
 {
   ManagedThreadServiceProvider provider;
@@ -1081,6 +1188,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseAfterUnregister
   EXPECT_EQ(services.size(), 0);
 }
 
+// Tests: Provider can register new services after UnregisterAllServices and type index is rebuilt
+// Verifies: Service1 accessible before unregister, then after re-registering Service2, Service2 is accessible
 TEST(ManagedThreadServiceProviderTest, CanReregisterAfterUnregister)
 {
   ManagedThreadServiceProvider provider;
@@ -1108,6 +1217,8 @@ TEST(ManagedThreadServiceProviderTest, CanReregisterAfterUnregister)
 // IServiceProvider Tests - Edge Cases
 // ========================================
 
+// Tests: GetService correctly handles stress test with 100 services of same type
+// Verifies: With 100 services all supporting IService, GetService throws MultipleServicesFoundException (stress test)
 TEST(ManagedThreadServiceProviderTest, GetServiceWithManyServicesOfDifferentTypes)
 {
   ManagedThreadServiceProvider provider;
@@ -1126,6 +1237,8 @@ TEST(ManagedThreadServiceProviderTest, GetServiceWithManyServicesOfDifferentType
   EXPECT_THROW(provider.GetService(typeid(IService)), MultipleServicesFoundException);
 }
 
+// Tests: TryGetServices correctly retrieves large number of matching services
+// Verifies: All 100 services supporting ITestInterface1 are returned (stress test for multimap iteration)
 TEST(ManagedThreadServiceProviderTest, TryGetServicesWithManyMatchingServices)
 {
   ManagedThreadServiceProvider provider;
@@ -1146,6 +1259,11 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesWithManyMatchingServices)
   EXPECT_EQ(retrievedServices.size(), 100);
 }
 
+// Tests: Service lookup methods maintain service lifetime through shared_ptr ownership
+// Verifies: Service created in local scope stays alive because:
+//          1. Provider holds shared_ptr during registration
+//          2. GetService returns shared_ptr maintaining ownership
+//          3. After unregister + clearing retrieved ptr, service is destroyed (weak_ptr expires)
 TEST(ManagedThreadServiceProviderTest, ServiceLookupPreservesServiceLifetime)
 {
   ManagedThreadServiceProvider provider;
