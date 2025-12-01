@@ -1,0 +1,223 @@
+cmake_minimum_required(VERSION 3.23)
+
+# Check for Python 3
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+if(NOT Python3_Interpreter_FOUND)
+    message(FATAL_ERROR "Python 3 is required but not found. Please install Python 3.x")
+endif()
+
+# Track conanfile.txt changes to trigger reconfiguration
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/conanfile.txt ${CMAKE_CURRENT_BINARY_DIR}/conanfile.txt.stamp COPYONLY)
+
+# Determine profile based on platform
+if(WIN32)
+    set(CONAN_PROFILE "profiles/vs-debug")
+elseif(APPLE)
+    set(CONAN_PROFILE "profiles/clang-debug")
+else()
+    set(CONAN_PROFILE "profiles/gcc-debug")
+endif()
+
+# Check if profile exists, otherwise use vs-debug as fallback
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${CONAN_PROFILE}")
+    set(CONAN_PROFILE "profiles/vs-debug")
+endif()
+
+# Paths for Conan configuration
+set(CONAN_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/build/default/build/generators/conan_toolchain.cmake")
+set(CONAN_HASH_FILE "${CMAKE_SOURCE_DIR}/build/default/build/.conan_config_hash.json")
+set(CONAN_PROFILE_PATH "${CMAKE_SOURCE_DIR}/${CONAN_PROFILE}")
+
+# Check if Conan configuration has changed
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/check_conan_config.py
+        --conanfile ${CMAKE_SOURCE_DIR}/conanfile.txt
+        --profile ${CONAN_PROFILE_PATH}
+        --hash-file ${CONAN_HASH_FILE}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    RESULT_VARIABLE CONAN_CONFIG_CHECK
+    OUTPUT_VARIABLE CONAN_CHECK_OUTPUT
+    ERROR_VARIABLE CONAN_CHECK_ERROR
+)
+
+# Exit code handling: 0 = up-to-date, 1 = needs reinstall, 2 = error
+if(CONAN_CONFIG_CHECK EQUAL 2)
+    message(FATAL_ERROR "Conan configuration check failed:\n${CONAN_CHECK_ERROR}")
+endif()
+
+# Auto-run Conan install if config changed or toolchain doesn't exist
+set(NEED_CONAN_INSTALL FALSE)
+if(CONAN_CONFIG_CHECK EQUAL 1)
+    message(STATUS "Conan configuration has changed")
+    set(NEED_CONAN_INSTALL TRUE)
+elseif(NOT EXISTS "${CONAN_TOOLCHAIN_FILE}")
+    message(STATUS "Conan toolchain not found")
+    set(NEED_CONAN_INSTALL TRUE)
+endif()
+
+if(NEED_CONAN_INSTALL)
+    message(STATUS "Running Conan install...")
+
+    # Run conan install
+    execute_process(
+        COMMAND conan install .
+            --output-folder=build/default
+            --profile=${CONAN_PROFILE}
+            --build=missing
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE CONAN_RESULT
+        OUTPUT_VARIABLE CONAN_OUTPUT
+        ERROR_VARIABLE CONAN_ERROR
+    )
+
+    if(NOT CONAN_RESULT EQUAL 0)
+        message(FATAL_ERROR "Conan install failed:\n${CONAN_ERROR}")
+    endif()
+
+    message(STATUS "Conan dependencies installed successfully")
+
+    # Update hash file after successful install
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/check_conan_config.py
+            --conanfile ${CMAKE_SOURCE_DIR}/conanfile.txt
+            --profile ${CONAN_PROFILE_PATH}
+            --hash-file ${CONAN_HASH_FILE}
+            --update-hash
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE CONAN_HASH_UPDATE
+        OUTPUT_VARIABLE CONAN_HASH_OUTPUT
+        ERROR_VARIABLE CONAN_HASH_ERROR
+    )
+
+    if(NOT CONAN_HASH_UPDATE EQUAL 0)
+        message(WARNING "Failed to update Conan configuration hash:\n${CONAN_HASH_ERROR}")
+    endif()
+endif()
+
+project(ServiceFramework2025
+    VERSION 0.1.0
+    LANGUAGES CXX
+)
+
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Export compile commands for better IDE support
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Deferred VS Code IntelliSense update (runs after all configuration)
+function(_update_vscode_intellisense)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(NOT Python3_Interpreter_FOUND)
+        # Check if running in VS Code
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E env
+            OUTPUT_VARIABLE ENV_VARS
+            ERROR_QUIET
+        )
+        if(ENV_VARS MATCHES "VSCODE_PID|VSCODE_IPC_HOOK|TERM_PROGRAM=vscode")
+            message(WARNING "VS Code detected but Python 3 not found. IntelliSense configuration will not be auto-generated.")
+            message(WARNING "Install Python 3.x to enable automatic IntelliSense updates.")
+        endif()
+        return()
+    endif()
+
+    # Detect VS Code environment
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/detect_vscode.py ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE VSCODE_DETECTED
+        ERROR_QUIET
+    )
+
+    # Update IntelliSense configuration
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/update_vscode_includes.py
+            --workspace-root ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE UPDATE_RESULT
+        OUTPUT_VARIABLE UPDATE_OUTPUT
+        ERROR_VARIABLE UPDATE_ERROR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_STRIP_TRAILING_WHITESPACE
+    )
+
+    # Context-aware messaging
+    if(VSCODE_DETECTED EQUAL 0)
+        # Running in VS Code
+        if(UPDATE_RESULT EQUAL 0)
+            message(STATUS "VS Code IntelliSense: ${UPDATE_OUTPUT}")
+        elseif(UPDATE_RESULT EQUAL 2)
+            # No changes, silent (don't clutter output)
+        else()
+            message(WARNING "Failed to update VS Code IntelliSense: ${UPDATE_ERROR}")
+        endif()
+    endif()
+    # Not in VS Code: silent (avoid confusing users in CI/command-line builds)
+endfunction()
+
+cmake_language(DEFER CALL _update_vscode_intellisense)
+
+# Find dependencies installed by Conan
+find_package(Boost REQUIRED COMPONENTS system)
+find_package(fmt REQUIRED)
+find_package(GTest REQUIRED)
+find_package(spdlog REQUIRED)
+
+# Common compile settings function
+function(configure_target target_name)
+    target_link_libraries(${target_name}
+        PRIVATE
+            Boost::boost
+            Boost::system
+            fmt::fmt
+            spdlog::spdlog
+    )
+
+    target_compile_features(${target_name} PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(${target_name} PRIVATE /W4)
+    else()
+        target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endfunction()# Executable 1: Main application
+add_executable(main_app src/main.cpp)
+configure_target(main_app)
+
+# Executable 2: Test program 1 - Service Framework (Google Test)
+add_executable(test1
+    src/Test1/ServiceFrameworkTest.cpp
+    include/Common/ComplexData.hpp
+    include/Test1/ServiceBase.hpp
+    include/Test1/AddService.hpp
+    include/Test1/SubtractService.hpp
+    include/Test1/MultiplyService.hpp
+    include/Test1/DivideService.hpp
+    include/Test1/CalculatorService.hpp
+    include/Test1/ComplexService.hpp
+)
+configure_target(test1)
+target_include_directories(test1 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test1 PRIVATE GTest::gtest GTest::gtest_main)
+
+# Organize files into folders for Visual Studio
+source_group("Header Files\\Common" FILES include/Common/ComplexData.hpp)
+source_group("Header Files\\Test1" FILES
+    include/Test1/ServiceBase.hpp
+    include/Test1/AddService.hpp
+    include/Test1/SubtractService.hpp
+    include/Test1/MultiplyService.hpp
+    include/Test1/DivideService.hpp
+    include/Test1/CalculatorService.hpp
+    include/Test1/ComplexService.hpp
+)
+source_group("Source Files\\Test1" FILES src/Test1/ServiceFrameworkTest.cpp)
+
+# Executable 3: Test program 2
+add_executable(test2 src/test2.cpp)
+configure_target(test2)
+
+# Executable 4: Test program 3
+add_executable(test3 src/test3.cpp)
+configure_target(test3)

@@ -1,0 +1,91 @@
+{
+    "version": 4,
+    "configurations": [
+        {
+            "name": "default-Debug",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src",
+                "C:/Users/live/.conan2/p/b/boost145c000417d25/p\\include",
+                "C:/Users/live/.conan2/p/b/bzip2c50d21f65cb25/p\\include",
+                "C:/Users/live/.conan2/p/b/fmt5ad69cf3cc557/p\\include",
+                "C:/Users/live/.conan2/p/b/gtesta3a5a29ec4e1f/p\\include",
+                "C:/Users/live/.conan2/p/b/spdloc1c86d38d1a94/p\\include",
+                "C:/Users/live/.conan2/p/b/zliba343d0e3ac23e/p\\include"
+            ],
+            "defines": [
+                "UNICODE",
+                "_UNICODE",
+                "_DEBUG",
+                "\"BOOST_ALL_NO_LIB",
+                "\"BOOST_STACKTRACE_USE_NOOP\"",
+                "\"BOOST_STACKTRACE_USE_WINDBG\"",
+                "\"SPDLOG_COMPILED_LIB",
+                "BOOST_STACKTRACE_USE_WINDBG_CACHED\"",
+                "FMT_UNICODE=0",
+                "SPDLOG_FMT_EXTERNAL\""
+            ],
+            "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "windows-msvc-x64"
+        },
+        {
+            "name": "default-Release",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src"
+            ],
+            "defines": [
+                "UNICODE",
+                "_UNICODE",
+                "NDEBUG"
+            ],
+            "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "windows-msvc-x64"
+        },
+        {
+            "name": "default-MinSizeRel",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src"
+            ],
+            "defines": [
+                "UNICODE",
+                "_UNICODE",
+                "NDEBUG"
+            ],
+            "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "windows-msvc-x64"
+        },
+        {
+            "name": "default-RelWithDebInfo",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src"
+            ],
+            "defines": [
+                "UNICODE",
+                "_UNICODE",
+                "NDEBUG"
+            ],
+            "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "windows-msvc-x64"
+        }
+    ],
+    "$comment": "CMake Tools extension provides primary IntelliSense via compile_commands.json. Explicit paths serve as fallback."
+}

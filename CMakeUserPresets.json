@@ -1,0 +1,44 @@
+{
+    "version": 4,
+    "configurePresets": [
+        {
+            "name": "windows-vs2026",
+            "displayName": "Windows Visual Studio 2026",
+            "description": "Windows Visual Studio 2026 with automatic Conan dependency installation",
+            "generator": "Visual Studio 17 2022",
+            "binaryDir": "${sourceDir}/build/default/build",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "toolset": {
+                "value": "v143",
+                "strategy": "external"
+            },
+            "toolchainFile": "${sourceDir}/build/default/build/generators/conan_toolchain.cmake",
+            "cacheVariables": {
+                "CMAKE_POLICY_DEFAULT_CMP0091": "NEW"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "windows-vs2026-debug",
+            "displayName": "Windows Visual Studio 2026 - Debug",
+            "configurePreset": "windows-vs2026",
+            "configuration": "Debug",
+            "jobs": 16
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "windows-vs2026-debug",
+            "displayName": "Windows Visual Studio 2026 - Debug",
+            "configurePreset": "windows-vs2026",
+            "configuration": "Debug",
+            "execution": {
+                "jobs": 16
+            }
+        }
+    ]
+}
