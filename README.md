@@ -6,32 +6,66 @@ A modern C++20 project demonstrating asynchronous service architecture using cor
 
 - **C++20 Coroutines**: Native coroutine support with `boost::asio::awaitable`
 - **Boost.Asio**: Asynchronous I/O and coroutine integration
-- **Service Architecture**: Thread-per-service model with coroutine-based async operations
+- **Service Architecture**: Thread group-based service model with priority-driven initialization
 - **CMake + Conan**: Modern C++ build and dependency management
+- **Unit Testing**: Comprehensive test coverage with GoogleTest
 
 This is a learning and experimentation environment, not production code.
 
 ## Project Structure
 
-### Test1 - Basic Service Framework (Current)
+### Test1 - Basic Service Framework
 A simple proof-of-concept demonstrating:
 - Basic `ServiceBase` class with thread-per-service model
 - Individual services (Add, Subtract, Multiply, Divide, Calculator)
 - Coroutine-based async operations using `co_await`
 - Simple service composition (Calculator uses other services)
+- **Unit tests** for the service framework
 
-**Note**: Test1's service framework is a minimal dummy implementation - each service manually creates its own thread.
+**Note**: Test1's service framework is a minimal implementation where each service manually creates its own thread.
 
-### Test2 - Advanced Service Framework (Planned)
-Expanding the framework with proper architecture:
+### Test2 - Advanced Service Framework (In Progress)
+A production-grade service framework with proper architecture:
 - **Service Registry**: Central registration and discovery of services
+  - Priority-based service launch ordering
+  - Thread group assignment for services
+  - Service registration records with factory patterns
 - **Service Provider**: Dependency injection and service resolution
-- **Interface-based Design**: Services access each other through registered interfaces
-- **Thread Pool Management**: Intelligent thread allocation instead of thread-per-service
-- **Service Lifecycle**: Proper initialization, shutdown, and dependency ordering
+  - Interface-based dependency lookup
+  - Thread-local service maps
+  - Provider exception handling
+- **Service Lifecycle**: Comprehensive async lifecycle management
+  - `IService`: Base interface for all services
+  - `IServiceControl`: Control interface for lifecycle operations
+  - `IServiceFactory`: Factory pattern for service creation
+  - `AsyncServiceBase`: Base implementation for async services
+- **Host Management**: Thread group-based service hosting (in development)
+  - `ManagedThreadServiceProvider`: Per-thread service provider
+  - `ManagedThreadServiceHost`: Service host management
+  - `ManagedThreadHost`: Thread lifecycle management
+  - Priority validation and ordering
+- **Common Utilities**:
+  - `AggregateException`: Multi-exception aggregation and handling
+  - `SpdLogHelper`: Logging utilities
+- **Unit Tests**:
+  - Service registry functionality
+  - Aggregate exception handling
+  - Managed thread service provider
 
-### Test3 - Future Explorations
-Reserved for additional experiments and architectural patterns.
+**Components Implemented:**
+- Service interfaces and lifecycle enums (Init/Process/Shutdown results)
+- Service registry with priority and thread group support
+- Service provider with dependency injection
+- Async service base class
+- Exception types for registry, provider, and host
+- Unit test coverage for core components
+
+**Components In Development:**
+- Service Manager for orchestrated multi-threaded service launching
+- Complete host implementation with Boost.Asio integration
+
+### Test3 - Placeholder
+Simple test program demonstrating Boost.System integration. Reserved for future experiments.
 
 ## Prerequisites
 
@@ -67,12 +101,12 @@ python scripts/update_vscode_includes.py --workspace-root .
 
 ## Building the Project
 
-> **Breaking Change:** Build directory structure has changed to `build/{directory-name}/build/`. Existing `build/` directories must be deleted and rebuilt.
+> **Note:** The default build uses the `windows-vs2026` preset. Build directory structure is `build/{preset-name}/build/`.
 
 ### 1. Install Dependencies with Conan
 
 ```powershell
-conan install . --output-folder=build/default --build=missing
+conan install . --output-folder=build/windows-vs2026 --build=missing
 ```
 
 ### 2. Configure CMake
@@ -85,32 +119,35 @@ cmake --preset conan-default
 
 For Debug:
 ```powershell
-cmake --build build/default/build --config Debug
+cmake --build build/windows-vs2026/build --config Debug
 ```
 
 For Release:
 ```powershell
-cmake --build build/default/build --config Release
+cmake --build build/windows-vs2026/build --config Release
 ```
+
+Or use VS Code's CMake Tools extension to build with the UI.
 
 ### 4. Run
 
 For Debug:
 ```powershell
-.\build\default\build\Debug\main_app.exe
-.\build\default\build\Debug\test1.exe
+.\build\windows-vs2026\build\Debug\main_app.exe
+.\build\windows-vs2026\build\Debug\test1.exe
+.\build\windows-vs2026\build\Debug\test_service_registry.exe
 ```
 
 For Release:
 ```powershell
-.\build\default\build\Release\main_app.exe
-.\build\default\build\Release\test1.exe
+.\build\windows-vs2026\build\Release\main_app.exe
+.\build\windows-vs2026\build\Release\test1.exe
 ```
 
 ## Quick Start (One-liner)
 
 ```powershell
-conan install . --output-folder=build/default --build=missing ; cmake --preset conan-default ; cmake --build build/default/build --config Debug
+conan install . --output-folder=build/windows-vs2026 --build=missing ; cmake --preset conan-default ; cmake --build build/windows-vs2026/build --config Debug
 ```
 
 ## Using Profiles
@@ -144,12 +181,38 @@ ServiceFramework2025/
 ├── CMakeUserPresets.json# User-managed preset includes
 ├── conanfile.txt        # Conan dependencies
 ├── README.md            # This file
+├── LICENSE              # 0BSD License
+├── notes.md             # Development notes and plans
 ├── profiles/            # Conan profiles for different generators
-├── scripts/             # Build automation scripts
+├── scripts/             # Build automation and Python utilities
 ├── src/                 # Source files
+│   ├── main.cpp
+│   ├── test1.cpp
+│   ├── test2.cpp
+│   ├── test3.cpp
+│   └── Test2/
+│       └── Service/
+│           └── Provider/
+│               └── ServiceProvider.cpp
 ├── include/             # Header files
+│   ├── Common/          # Shared utilities (AggregateException, SpdLogHelper, etc.)
+│   ├── Test1/           # Test1 service framework headers
+│   └── Test2/
+│       ├── Framework/
+│       │   ├── Service/     # Service interfaces and lifecycle
+│       │   ├── Registry/    # Service registration system
+│       │   ├── Provider/    # Dependency injection
+│       │   ├── Manager/     # Service manager (in development)
+│       │   └── Host/        # Thread management and hosting
+│       └── Services/        # Concrete service implementations
+├── UnitTest/            # Unit tests
+│   ├── Common/          # Common utility tests
+│   ├── Test1/           # Test1 framework tests
+│   └── Test2/
+│       ├── Registry/    # Registry tests
+│       └── Host/        # Host tests
 └── build/               # Build outputs (not in git)
-    └── default/         # Default build directory
+    └── windows-vs2026/  # Default build directory
         └── build/       # CMake build output
             ├── Debug/   # Debug executables
             └── Release/ # Release executables
@@ -158,11 +221,54 @@ ServiceFramework2025/
 ## Dependencies
 
 - **Boost 1.84.0**: Including Boost.Asio for asynchronous I/O
+- **GoogleTest**: Unit testing framework
+- **spdlog**: Fast C++ logging library
+- **fmt**: Modern formatting library
 
-## Features
+## Executables
 
-- Modern C++20 standards
-- Conan 2.x for dependency management
-- CMake presets for easy configuration
-- Boost.Asio for network programming
-- Cross-platform support
+The project builds multiple executables:
+
+- **main_app**: Main application entry point
+- **test1**: Test1 framework with unit tests (service framework basics)
+- **test2**: Test2 framework demonstration (Boost.Asio timer example)
+- **test3**: Test3 placeholder (Boost.System example)
+- **test_service_registry**: Unit tests for service registry
+- **test_aggregate_exception**: Unit tests for AggregateException
+- **test_managed_thread_service_provider**: Unit tests for managed thread service provider
+
+Run any executable from the build directory:
+```powershell
+# Debug builds
+.\build\windows-vs2026\build\Debug\test1.exe
+.\build\windows-vs2026\build\Debug\test_service_registry.exe
+
+# Release builds
+.\build\windows-vs2026\build\Release\test1.exe
+```
+
+## Architecture Highlights
+
+### Service Registry Pattern
+- Services register with priority levels and thread group assignments
+- Factory pattern for service instantiation
+- Type-safe service lookup using `std::type_index`
+
+### Dependency Injection
+- Interface-based service resolution
+- Services receive `ServiceCreateInfo` with provider access
+- Thread-local service maps for concurrent access
+
+### Async Lifecycle
+Services implement a three-phase lifecycle:
+1. **Init**: `co_await InitAsync(info)` - Initialize with dependencies
+2. **Process**: `co_await ProcessAsync()` - Main service loop
+3. **Shutdown**: `co_await ShutdownAsync()` - Clean shutdown
+
+### Exception Handling
+- `AggregateException`: Collects and reports multiple exceptions
+- Specific exception types for registry, provider, and host errors
+
+## License
+
+Zero-Clause BSD (0BSD) - See LICENSE file for details.
