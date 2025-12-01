@@ -10,7 +10,7 @@ endif()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/conanfile.txt ${CMAKE_CURRENT_BINARY_DIR}/conanfile.txt.stamp COPYONLY)
 
 # Allow user to specify profile via cache variable or environment variable
-set(CONAN_PROFILE "" CACHE STRING "Conan profile to use (e.g., profiles/vs-debug, profiles/ninja-release)")
+set(CONAN_PROFILE "" CACHE STRING "Conan profile to use (e.g., profiles/windows-vs-debug, profiles/windows-ninja-release)")
 if(NOT CONAN_PROFILE AND DEFINED ENV{CONAN_PROFILE})
     set(CONAN_PROFILE "$ENV{CONAN_PROFILE}")
 endif()
@@ -20,24 +20,24 @@ set(PROFILE_AUTO_SELECTED FALSE)
 if(NOT CONAN_PROFILE)
     set(PROFILE_AUTO_SELECTED TRUE)
     if(WIN32)
-        set(CONAN_PROFILE "profiles/vs-debug")
+        set(CONAN_PROFILE "profiles/windows-vs-debug")
     elseif(APPLE)
         set(CONAN_PROFILE "profiles/clang-debug")
     else()
         set(CONAN_PROFILE "profiles/gcc-debug")
     endif()
 
-    # Check if profile exists, otherwise use vs-debug as fallback
+    # Check if profile exists, otherwise use windows-vs-debug as fallback
     if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${CONAN_PROFILE}")
-        set(CONAN_PROFILE "profiles/vs-debug")
+        set(CONAN_PROFILE "profiles/windows-vs-debug")
     endif()
 
     message(WARNING
         "No Conan profile explicitly selected! Using auto-selected profile: ${CONAN_PROFILE}\n"
         "To explicitly select a profile, use one of:\n"
-        "  - Set cache variable: cmake -DCONAN_PROFILE=profiles/vs-debug ..\n"
-        "  - Set environment variable: set CONAN_PROFILE=profiles/vs-debug (Windows) or export CONAN_PROFILE=profiles/vs-debug (Unix)\n"
-        "Available profiles: vs-debug, vs-release, ninja-debug, ninja-release")
+        "  - Set cache variable: cmake -DCONAN_PROFILE=profiles/windows-vs-debug ..\n"
+        "  - Set environment variable: set CONAN_PROFILE=profiles/windows-vs-debug (Windows) or export CONAN_PROFILE=profiles/windows-vs-debug (Unix)\n"
+        "Available profiles: windows-vs-debug, windows-vs-release, windows-ninja-debug, windows-ninja-release, ubuntu-ninja-debug, ubuntu-ninja-release")
 else()
     message(STATUS "Using explicitly selected Conan profile: ${CONAN_PROFILE}")
 endif()
