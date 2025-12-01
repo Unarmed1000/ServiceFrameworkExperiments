@@ -215,8 +215,61 @@ source_group("Header Files\\Test1" FILES
 source_group("Source Files\\Test1" FILES src/Test1/ServiceFrameworkTest.cpp)
 
 # Executable 3: Test program 2
-add_executable(test2 src/test2.cpp)
+add_executable(test2
+    src/test2.cpp
+    src/Test2/Service/Provider/ServiceProvider.cpp
+    include/Test2/Framework/Service/IService.hpp
+    include/Test2/Framework/Service/IServiceControl.hpp
+    include/Test2/Framework/Service/IServiceFactory.hpp
+    include/Test2/Framework/Service/ServiceCreationInfo.hpp
+    include/Test2/Framework/Service/ServiceDescription.hpp
+    include/Test2/Framework/Service/ServiceInitResult.hpp
+    include/Test2/Framework/Service/ServiceProcessResult.hpp
+    include/Test2/Framework/Service/ServiceShutdownResult.hpp
+    include/Test2/Framework/Service/Async/AsyncServiceBase.hpp
+    include/Test2/Framework/Provider/IServiceProvider.hpp
+    include/Test2/Framework/Provider/ServiceProvider.hpp
+    include/Test2/Framework/Registry/IServiceRegistry.hpp
+    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
+    include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
+    include/Test2/Framework/Manager/IServiceManager.hpp
+    include/Test2/Services/AddService.hpp
+)
 configure_target(test2)
+target_include_directories(test2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# Organize Test2 files into folders for Visual Studio
+source_group("Header Files\\Test2\\Framework\\Service" FILES
+    include/Test2/Framework/Service/IService.hpp
+    include/Test2/Framework/Service/IServiceControl.hpp
+    include/Test2/Framework/Service/IServiceFactory.hpp
+    include/Test2/Framework/Service/ServiceCreationInfo.hpp
+    include/Test2/Framework/Service/ServiceDescription.hpp
+    include/Test2/Framework/Service/ServiceInitResult.hpp
+    include/Test2/Framework/Service/ServiceProcessResult.hpp
+    include/Test2/Framework/Service/ServiceShutdownResult.hpp
+)
+source_group("Header Files\\Test2\\Framework\\Service\\Async" FILES
+    include/Test2/Framework/Service/Async/AsyncServiceBase.hpp
+)
+source_group("Header Files\\Test2\\Framework\\Provider" FILES
+    include/Test2/Framework/Provider/IServiceProvider.hpp
+    include/Test2/Framework/Provider/ServiceProvider.hpp
+)
+source_group("Header Files\\Test2\\Framework\\Registry" FILES
+    include/Test2/Framework/Registry/IServiceRegistry.hpp
+    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
+    include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
+)
+source_group("Header Files\\Test2\\Framework\\Manager" FILES
+    include/Test2/Framework/Manager/IServiceManager.hpp
+)
+source_group("Header Files\\Test2\\Services" FILES
+    include/Test2/Services/AddService.hpp
+)
+source_group("Source Files\\Test2\\Service\\Provider" FILES
+    src/Test2/Service/Provider/ServiceProvider.cpp
+)
 
 # Executable 4: Test program 3
 add_executable(test3 src/test3.cpp)
