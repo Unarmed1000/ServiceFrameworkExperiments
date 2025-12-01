@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/IService.hpp>
+#include <Test2/Framework/Service/IServiceControl.hpp>
 #include <memory>
 #include <span>
 #include <vector>
@@ -57,7 +57,7 @@ namespace Test2
     ///                   provider for accessing dependencies.
     /// @return A shared pointer to the newly created service instance.
     /// @throws std::invalid_argument if the requested type is not supported by this factory.
-    virtual std::shared_ptr<IService> Create(const std::type_info& type, const ServiceCreateInfo& createInfo) = 0;
+    virtual std::shared_ptr<IServiceControl> Create(const std::type_info& type, const ServiceCreateInfo& createInfo) = 0;
   };
 
 }

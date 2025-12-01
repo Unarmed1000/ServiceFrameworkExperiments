@@ -13,6 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Service/IService.hpp>
 #include <Test2/Framework/Service/ServiceInitResult.hpp>
 #include <Test2/Framework/Service/ServiceProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceShutdownResult.hpp>
@@ -22,7 +23,7 @@ namespace Test2
 {
   struct ServiceCreateInfo;
 
-  class IServiceControl
+  class IServiceControl : public IService
   {
   public:
     virtual ~IServiceControl() = default;
