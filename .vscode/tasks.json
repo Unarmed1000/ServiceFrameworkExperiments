@@ -2,47 +2,13 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "cmake: check configuration",
-            "type": "shell",
-            "windows": {
-                "command": "if (-not (Test-Path '${command:cmake.buildDirectory}/CMakeCache.txt')) { Write-Host ''; Write-Host 'ERROR: CMake is not configured!' -ForegroundColor Red; Write-Host ''; Write-Host 'Please configure the project first by selecting a CMake preset:' -ForegroundColor Yellow; Write-Host '  1. Open Command Palette (Ctrl+Shift+P)' -ForegroundColor Cyan; Write-Host '  2. Run: CMake: Select Configure Preset' -ForegroundColor Cyan; Write-Host ''; exit 1 }"
-            },
-            "linux": {
-                "command": "if [ ! -f '${command:cmake.buildDirectory}/CMakeCache.txt' ]; then echo ''; echo 'ERROR: CMake is not configured!'; echo ''; echo 'Please configure the project first by selecting a CMake preset'; echo '  CMake: Select Configure Preset'; echo ''; exit 1; fi"
-            },
-            "problemMatcher": [],
-            "presentation": {
-                "echo": false,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": false,
-                "clear": false
-            }
-        },
-        {
             "label": "cmake: build",
             "type": "shell",
-            "command": "cmake",
             "windows": {
-                "args": [
-                    "--build",
-                    "${command:cmake.buildDirectory}",
-                    "--config",
-                    "${command:cmake.buildType}",
-                    "--",
-                    "/m",
-                    "/nologo"
-                ]
+                "command": "if (-not (Test-Path '${command:cmake.buildDirectory}/CMakeCache.txt')) { Write-Host 'ERROR: CMake not configured!' -ForegroundColor Red; exit 1 }; cmake --build '${command:cmake.buildDirectory}' --config ${command:cmake.buildType} -- /m /nologo"
             },
             "linux": {
-                "args": [
-                    "--build",
-                    "${command:cmake.buildDirectory}",
-                    "--config",
-                    "${command:cmake.buildType}",
-                    "--parallel"
-                ]
+                "command": "if [ ! -f '${command:cmake.buildDirectory}/CMakeCache.txt' ]; then echo 'ERROR: CMake not configured!'; exit 1; fi && cmake --build '${command:cmake.buildDirectory}' --config ${command:cmake.buildType} --parallel"
             },
             "group": {
                 "kind": "build",
@@ -53,16 +19,14 @@
                 "$gcc"
             ],
             "presentation": {
-                "echo": true,
-                "reveal": "always",
+                "echo": false,
+                "reveal": "silent",
                 "focus": false,
                 "panel": "shared",
                 "showReuseMessage": false,
-                "clear": false
-            },
-            "dependsOn": [
-                "cmake: check configuration"
-            ]
+                "clear": false,
+                "close": true
+            }
         }
     ]
 }

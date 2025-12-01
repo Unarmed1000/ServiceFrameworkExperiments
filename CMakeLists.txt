@@ -6,9 +6,6 @@ if(NOT Python3_Interpreter_FOUND)
     message(FATAL_ERROR "Python 3 is required but not found. Please install Python 3.x")
 endif()
 
-# Track conanfile.txt changes to trigger reconfiguration
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/conanfile.txt ${CMAKE_CURRENT_BINARY_DIR}/conanfile.txt.stamp COPYONLY)
-
 # Allow user to specify profile via cache variable or environment variable
 set(CONAN_PROFILE "" CACHE STRING "Conan profile to use (e.g., profiles/windows-vs-debug, profiles/windows-ninja-release)")
 if(NOT CONAN_PROFILE AND DEFINED ENV{CONAN_PROFILE})
