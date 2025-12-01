@@ -9,18 +9,37 @@ endif()
 # Track conanfile.txt changes to trigger reconfiguration
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/conanfile.txt ${CMAKE_CURRENT_BINARY_DIR}/conanfile.txt.stamp COPYONLY)
 
-# Determine profile based on platform
-if(WIN32)
-    set(CONAN_PROFILE "profiles/vs-debug")
-elseif(APPLE)
-    set(CONAN_PROFILE "profiles/clang-debug")
-else()
-    set(CONAN_PROFILE "profiles/gcc-debug")
+# Allow user to specify profile via cache variable or environment variable
+set(CONAN_PROFILE "" CACHE STRING "Conan profile to use (e.g., profiles/vs-debug, profiles/ninja-release)")
+if(NOT CONAN_PROFILE AND DEFINED ENV{CONAN_PROFILE})
+    set(CONAN_PROFILE "$ENV{CONAN_PROFILE}")
 endif()
 
-# Check if profile exists, otherwise use vs-debug as fallback
-if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${CONAN_PROFILE}")
-    set(CONAN_PROFILE "profiles/vs-debug")
+# Determine profile based on platform if not explicitly set
+set(PROFILE_AUTO_SELECTED FALSE)
+if(NOT CONAN_PROFILE)
+    set(PROFILE_AUTO_SELECTED TRUE)
+    if(WIN32)
+        set(CONAN_PROFILE "profiles/vs-debug")
+    elseif(APPLE)
+        set(CONAN_PROFILE "profiles/clang-debug")
+    else()
+        set(CONAN_PROFILE "profiles/gcc-debug")
+    endif()
+
+    # Check if profile exists, otherwise use vs-debug as fallback
+    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${CONAN_PROFILE}")
+        set(CONAN_PROFILE "profiles/vs-debug")
+    endif()
+
+    message(WARNING
+        "No Conan profile explicitly selected! Using auto-selected profile: ${CONAN_PROFILE}\n"
+        "To explicitly select a profile, use one of:\n"
+        "  - Set cache variable: cmake -DCONAN_PROFILE=profiles/vs-debug ..\n"
+        "  - Set environment variable: set CONAN_PROFILE=profiles/vs-debug (Windows) or export CONAN_PROFILE=profiles/vs-debug (Unix)\n"
+        "Available profiles: vs-debug, vs-release, ninja-debug, ninja-release")
+else()
+    message(STATUS "Using explicitly selected Conan profile: ${CONAN_PROFILE}")
 endif()
 
 # Paths for Conan configuration

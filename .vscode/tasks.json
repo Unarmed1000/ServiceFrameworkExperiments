@@ -2,6 +2,20 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "cmake: check configuration",
+            "type": "shell",
+            "command": "if (-not (Test-Path '${workspaceFolder}/build/default/build/CMakeCache.txt')) { Write-Host ''; Write-Host 'ERROR: CMake is not configured!' -ForegroundColor Red; Write-Host ''; Write-Host 'Please configure the project first by selecting a CMake preset:' -ForegroundColor Yellow; Write-Host '  1. Open Command Palette (Ctrl+Shift+P)' -ForegroundColor Cyan; Write-Host '  2. Run: CMake: Select Configure Preset' -ForegroundColor Cyan; Write-Host '  3. Choose: windows-vs2026' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Or run in terminal:' -ForegroundColor Yellow; Write-Host '  cmake --preset windows-vs2026' -ForegroundColor Cyan; Write-Host ''; exit 1 }",
+            "problemMatcher": [],
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": false
+            }
+        },
+        {
             "label": "cmake: build",
             "type": "shell",
             "command": "cmake",
@@ -25,7 +39,10 @@
                 "panel": "shared",
                 "showReuseMessage": false,
                 "clear": false
-            }
+            },
+            "dependsOn": [
+                "cmake: check configuration"
+            ]
         }
     ]
 }
