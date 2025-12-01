@@ -341,3 +341,17 @@ configure_target(test_aggregate_exception)
 target_include_directories(test_aggregate_exception PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test_aggregate_exception PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Common" FILES UnitTest/Common/AggregateExceptionTest.cpp)
+
+# Executable 7: ManagedThreadServiceProvider test
+add_executable(test_managed_thread_service_provider
+    UnitTest/Test2/Host/ManagedThreadServiceProviderTest.cpp
+    include/Test2/Framework/Service/IService.hpp
+    include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/InvalidPriorityOrderException.hpp
+    include/Test2/Framework/Host/EmptyPriorityGroupException.hpp
+    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
+)
+configure_target(test_managed_thread_service_provider)
+target_include_directories(test_managed_thread_service_provider PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_managed_thread_service_provider PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceProviderTest.cpp)
