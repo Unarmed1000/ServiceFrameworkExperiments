@@ -15,10 +15,14 @@
 
 #include <Test2/Framework/Host/EmptyPriorityGroupException.hpp>
 #include <Test2/Framework/Host/InvalidPriorityOrderException.hpp>
+#include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Provider/IServiceProvider.hpp>
+#include <Test2/Framework/Provider/ServiceProviderException.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Service/IService.hpp>
 #include <memory>
+#include <typeindex>
+#include <unordered_map>
 #include <vector>
 
 namespace Test2
@@ -33,11 +37,12 @@ namespace Test2
     struct PriorityGroup
     {
       ServiceLaunchPriority Priority;
-      std::vector<std::shared_ptr<IService>> Services;
+      std::vector<ServiceInstanceInfo> Services;
     };
 
   private:
     std::vector<PriorityGroup> m_priorityGroups;
+    std::unordered_multimap<std::type_index, std::shared_ptr<IServiceControl>> m_servicesByType;
 
   public:
     /// @brief Registers a priority group of services.
@@ -46,11 +51,14 @@ namespace Test2
     /// Each subsequent call must provide a priority value strictly less than the
     /// previously registered priority.
     ///
+    /// Each ServiceInstanceInfo must contain a valid service and at least one supported interface.
+    ///
     /// @param priority The priority level for this group of services.
-    /// @param services The services to register at this priority level (will be moved).
+    /// @param services The service instance info structs to register (will be moved).
     /// @throws EmptyPriorityGroupException if the services vector is empty.
     /// @throws InvalidPriorityOrderException if priority >= last registered priority.
-    void RegisterPriorityGroup(ServiceLaunchPriority priority, std::vector<std::shared_ptr<IService>>&& services)
+    /// @throws std::invalid_argument if any service has no supported interfaces or null service pointer.
+    void RegisterPriorityGroup(ServiceLaunchPriority priority, std::vector<Test2::ServiceInstanceInfo>&& services)
     {
       if (services.empty())
       {
@@ -65,6 +73,25 @@ namespace Test2
           throw InvalidPriorityOrderException(std::string("Priority order violation: attempting to register priority ") +
                                               std::to_string(priority.GetValue()) + " after priority " + std::to_string(lastPriority.GetValue()) +
                                               ". Priority groups must be registered in strictly decreasing order (high to low).");
+        }
+      }
+
+      // Validate each service and build type index
+      for (size_t i = 0; i < services.size(); ++i)
+      {
+        if (!services[i].Service)
+        {
+          throw std::invalid_argument(std::string("Service at index ") + std::to_string(i) + " has null service pointer");
+        }
+        if (services[i].SupportedInterfaces.empty())
+        {
+          throw std::invalid_argument(std::string("Service at index ") + std::to_string(i) + " has no supported interfaces");
+        }
+
+        // Index service by each supported interface type
+        for (const std::type_info* typeInfo : services[i].SupportedInterfaces)
+        {
+          m_servicesByType.emplace(std::type_index(*typeInfo), services[i].Service);
         }
       }
 
@@ -89,24 +116,64 @@ namespace Test2
       }
 
       m_priorityGroups.clear();
+      m_servicesByType.clear();
       return result;
     }
 
-    // IServiceProvider interface stub implementations
-    // These will be properly implemented when integrating with the service registry
-    std::shared_ptr<IService> GetService(const std::type_info& /*type*/) const override
+    // IServiceProvider interface implementations
+    std::shared_ptr<IService> GetService(const std::type_info& type) const override
     {
-      throw std::runtime_error("ManagedThreadServiceProvider::GetService not yet implemented");
+      const std::type_index typeIndex(type);
+      auto range = m_servicesByType.equal_range(typeIndex);
+
+      if (range.first == range.second)
+      {
+        throw UnknownServiceException(std::string("No service found for type: ") + type.name());
+      }
+
+      // Check if there's exactly one service
+      auto it = range.first;
+      auto next = it;
+      ++next;
+
+      if (next != range.second)
+      {
+        throw MultipleServicesFoundException(std::string("Multiple services found for type: ") + type.name() +
+                                             ". Use TryGetServices to retrieve all matching services.");
+      }
+
+      return it->second;
     }
 
-    std::shared_ptr<IService> TryGetService(const std::type_info& /*type*/) const override
+    std::shared_ptr<IService> TryGetService(const std::type_info& type) const override
     {
-      return nullptr;
+      const std::type_index typeIndex(type);
+      auto it = m_servicesByType.find(typeIndex);
+
+      if (it == m_servicesByType.end())
+      {
+        return nullptr;
+      }
+
+      return it->second;
     }
 
-    bool TryGetServices(const std::type_info& /*type*/, std::vector<std::shared_ptr<IService>>& /*rServices*/) const override
+    bool TryGetServices(const std::type_info& type, std::vector<std::shared_ptr<IService>>& rServices) const override
     {
-      return false;
+      const std::type_index typeIndex(type);
+      auto range = m_servicesByType.equal_range(typeIndex);
+
+      if (range.first == range.second)
+      {
+        return false;
+      }
+
+      for (auto it = range.first; it != range.second; ++it)
+      {
+        rServices.push_back(it->second);
+      }
+
+      return true;
     }
   };
 }
