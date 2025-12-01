@@ -21,6 +21,24 @@
             "suppressMultipleSessionWarning": true
         },
         {
+            "name": "(CMake) Launch Active Target [No Build]",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "logging": {
+                "moduleLoad": false,
+                "trace": false,
+                "engineLogging": false
+            },
+            "symbolSearchPath": "",
+            "suppressMultipleSessionWarning": true
+        },
+        {
             "name": "(Windows) Launch main_app Debug",
             "type": "cppvsdbg",
             "request": "launch",
