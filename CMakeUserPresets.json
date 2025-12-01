@@ -19,6 +19,18 @@
             "cacheVariables": {
                 "CMAKE_POLICY_DEFAULT_CMP0091": "NEW"
             }
+        },
+        {
+            "name": "ubuntu-ninja",
+            "displayName": "Ubuntu Ninja",
+            "description": "Ubuntu Linux with Ninja build system and automatic Conan dependency installation",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/ubuntu-ninja/build",
+            "toolchainFile": "${sourceDir}/build/ubuntu-ninja/build/generators/conan_toolchain.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
         }
     ],
     "buildPresets": [
@@ -28,6 +40,20 @@
             "configurePreset": "windows-vs2026",
             "configuration": "Debug",
             "jobs": 16
+        },
+        {
+            "name": "ubuntu-ninja-debug",
+            "displayName": "Ubuntu Ninja - Debug",
+            "configurePreset": "ubuntu-ninja",
+            "configuration": "Debug",
+            "jobs": 16
+        },
+        {
+            "name": "ubuntu-ninja-release",
+            "displayName": "Ubuntu Ninja - Release",
+            "configurePreset": "ubuntu-ninja",
+            "configuration": "Release",
+            "jobs": 16
         }
     ],
     "testPresets": [
@@ -36,6 +62,24 @@
             "displayName": "Windows Visual Studio 2026 - Debug",
             "configurePreset": "windows-vs2026",
             "configuration": "Debug",
+            "execution": {
+                "jobs": 16
+            }
+        },
+        {
+            "name": "ubuntu-ninja-debug",
+            "displayName": "Ubuntu Ninja - Debug",
+            "configurePreset": "ubuntu-ninja",
+            "configuration": "Debug",
+            "execution": {
+                "jobs": 16
+            }
+        },
+        {
+            "name": "ubuntu-ninja-release",
+            "displayName": "Ubuntu Ninja - Release",
+            "configurePreset": "ubuntu-ninja",
+            "configuration": "Release",
             "execution": {
                 "jobs": 16
             }

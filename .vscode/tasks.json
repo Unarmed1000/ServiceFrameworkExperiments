@@ -4,7 +4,12 @@
         {
             "label": "cmake: check configuration",
             "type": "shell",
-            "command": "if (-not (Test-Path '${workspaceFolder}/build/default/build/CMakeCache.txt')) { Write-Host ''; Write-Host 'ERROR: CMake is not configured!' -ForegroundColor Red; Write-Host ''; Write-Host 'Please configure the project first by selecting a CMake preset:' -ForegroundColor Yellow; Write-Host '  1. Open Command Palette (Ctrl+Shift+P)' -ForegroundColor Cyan; Write-Host '  2. Run: CMake: Select Configure Preset' -ForegroundColor Cyan; Write-Host '  3. Choose: windows-vs2026' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Or run in terminal:' -ForegroundColor Yellow; Write-Host '  cmake --preset windows-vs2026' -ForegroundColor Cyan; Write-Host ''; exit 1 }",
+            "windows": {
+                "command": "if (-not (Test-Path '${command:cmake.buildDirectory}/CMakeCache.txt')) { Write-Host ''; Write-Host 'ERROR: CMake is not configured!' -ForegroundColor Red; Write-Host ''; Write-Host 'Please configure the project first by selecting a CMake preset:' -ForegroundColor Yellow; Write-Host '  1. Open Command Palette (Ctrl+Shift+P)' -ForegroundColor Cyan; Write-Host '  2. Run: CMake: Select Configure Preset' -ForegroundColor Cyan; Write-Host ''; exit 1 }"
+            },
+            "linux": {
+                "command": "if [ ! -f '${command:cmake.buildDirectory}/CMakeCache.txt' ]; then echo ''; echo 'ERROR: CMake is not configured!'; echo ''; echo 'Please configure the project first by selecting a CMake preset'; echo '  CMake: Select Configure Preset'; echo ''; exit 1; fi"
+            },
             "problemMatcher": [],
             "presentation": {
                 "echo": false,
@@ -19,21 +24,33 @@
             "label": "cmake: build",
             "type": "shell",
             "command": "cmake",
-            "args": [
-                "--build",
-                "${workspaceFolder}/build/default/build",
-                "--config",
-                "${config:cmake.buildType}",
-                "--",
-                "/m",
-                "/nologo"
-            ],
+            "windows": {
+                "args": [
+                    "--build",
+                    "${command:cmake.buildDirectory}",
+                    "--config",
+                    "${command:cmake.buildType}",
+                    "--",
+                    "/m",
+                    "/nologo"
+                ]
+            },
+            "linux": {
+                "args": [
+                    "--build",
+                    "${command:cmake.buildDirectory}",
+                    "--config",
+                    "${command:cmake.buildType}",
+                    "--parallel"
+                ]
+            },
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
             "problemMatcher": [
-                "$msCompile"
+                "$msCompile",
+                "$gcc"
             ],
             "presentation": {
                 "echo": true,

@@ -351,8 +351,8 @@ class IntelliSenseConfigGenerator:
                         if changed:
                             has_changes = True
 
-            # Cleanup orphaned hash files
-            self._cleanup_orphaned_hashes(preset_name, valid_build_types)
+            # Cleanup orphaned hash files in this build directory
+            self._cleanup_orphaned_hashes([build_dir], valid_build_types)
         else:
             # Single configuration
             build_type = cache_data.get("CMAKE_BUILD_TYPE", "Debug")
@@ -365,8 +365,8 @@ class IntelliSenseConfigGenerator:
                 if changed:
                     has_changes = True
 
-            # Cleanup orphaned hash files
-            self._cleanup_orphaned_hashes(preset_name, valid_build_types)
+            # Cleanup orphaned hash files in this build directory
+            self._cleanup_orphaned_hashes([build_dir], valid_build_types)
 
         return configurations, has_changes
 
@@ -410,7 +410,8 @@ class IntelliSenseConfigGenerator:
 
         # Hash the generators directory content for change detection
         content_hash = self._hash_directory(generators_dir, build_type)
-        hash_file = self.vscode_dir / f".conan_hash_{preset_name}_{build_type}"
+        # Store hash file in the build directory, not .vscode
+        hash_file = build_dir / f".conan_hash_{build_type}"
 
         # Check if we need to regenerate
         has_changes = True
@@ -511,23 +512,25 @@ class IntelliSenseConfigGenerator:
         return hasher.hexdigest()
 
     def _cleanup_orphaned_hashes(
-        self, preset_name: str, valid_build_types: Set[str]
+        self, build_dirs: List[Path], valid_build_types: Set[str]
     ) -> None:
-        """Remove hash files for build types that no longer exist."""
-        hash_prefix = f".conan_hash_{preset_name}_"
+        """Remove hash files for build types that no longer exist in each build directory."""
+        for build_dir in build_dirs:
+            if not build_dir.exists():
+                continue
 
-        for hash_file in self.vscode_dir.glob(f"{hash_prefix}*"):
-            # Extract build type from hash filename
-            build_type = hash_file.name[len(hash_prefix) :]
-            if build_type not in valid_build_types:
-                try:
-                    hash_file.unlink()
-                    print(f"[IntelliSense] Cleaned up orphaned hash: {hash_file.name}")
-                except Exception as e:
-                    print(
-                        f"Warning: Could not remove {hash_file.name}: {e}",
-                        file=sys.stderr,
-                    )
+            for hash_file in build_dir.glob(".conan_hash_*"):
+                # Extract build type from hash filename
+                build_type = hash_file.name.replace(".conan_hash_", "")
+                if build_type not in valid_build_types:
+                    try:
+                        hash_file.unlink()
+                        print(f"[IntelliSense] Cleaned up orphaned hash: {hash_file}")
+                    except Exception as e:
+                        print(
+                            f"Warning: Could not remove {hash_file}: {e}",
+                            file=sys.stderr,
+                        )
 
 
 def discover_build_directories(workspace_root: Path) -> List[Path]:
