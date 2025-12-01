@@ -1038,7 +1038,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceThrowsAfterUnregister)
   EXPECT_NO_THROW(provider.GetService(typeid(ITestInterface1)));
 
   // Unregister all
-  provider.UnregisterAllServices();
+  [[maybe_unused]] auto groups = provider.UnregisterAllServices();
 
   // Should throw after unregister
   EXPECT_THROW(provider.GetService(typeid(ITestInterface1)), UnknownServiceException);
@@ -1055,7 +1055,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullAfterUnregister)
   ASSERT_NE(provider.TryGetService(typeid(ITestInterface1)), nullptr);
 
   // Unregister all
-  provider.UnregisterAllServices();
+  [[maybe_unused]] auto groups = provider.UnregisterAllServices();
 
   // Should return null after unregister
   EXPECT_EQ(provider.TryGetService(typeid(ITestInterface1)), nullptr);
@@ -1073,7 +1073,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseAfterUnregister
   EXPECT_EQ(services.size(), 1);
 
   // Unregister all
-  provider.UnregisterAllServices();
+  [[maybe_unused]] auto groups = provider.UnregisterAllServices();
 
   // Should return false after unregister
   services.clear();
@@ -1093,7 +1093,7 @@ TEST(ManagedThreadServiceProviderTest, CanReregisterAfterUnregister)
   EXPECT_EQ(mock1->GetId(), 1);
 
   // Unregister
-  provider.UnregisterAllServices();
+  [[maybe_unused]] auto groups = provider.UnregisterAllServices();
 
   // Register different service
   auto service2 = std::make_shared<MockServiceControl>(2);
@@ -1166,7 +1166,7 @@ TEST(ManagedThreadServiceProviderTest, ServiceLookupPreservesServiceLifetime)
   ASSERT_NE(retrieved, nullptr);
 
   // After unregister and clearing retrieved pointer, should be destroyed
-  provider.UnregisterAllServices();
+  (void)provider.UnregisterAllServices();
   retrieved.reset();
 
   EXPECT_TRUE(weakService.expired());
