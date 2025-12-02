@@ -312,21 +312,7 @@ void on_data_received(const Data& data) {
 | **Fail-fast locally** | Corrupted state | Disconnect this subscriber |
 | **Escalate via separate channel** | Critical errors | Send error event / metric |
 
-### Framework Support Pattern
-
-```cpp
-// Framework can provide error boundary wrapper
-template<typename Handler>
-auto make_safe_handler(Handler h, ErrorPolicy policy) {
-    return [=](auto&&... args) {
-        try {
-            h(std::forward<decltype(args)>(args)...);
-        } catch (const std::exception& ex) {
-            policy.handle(ex);  // Log, retry, alert, etc.
-        }
-    };
-}
-```
+See [Appendix A11](#appendix-a11-safe-event-handler-wrapper) for a framework helper pattern.
 
 ---
 
@@ -1245,3 +1231,53 @@ auto fetch_and_process() {
 - **Gradual migration** — Both approaches can coexist during transition
 - **Same concepts** — Executors, completion tokens, async composition remain similar
 - **Library support** — Boost.Asio expected to provide sender/receiver integration
+
+---
+
+# Appendix A11: Safe Event Handler Wrapper
+
+## Framework Pattern for Error Boundaries
+
+Wrap event handlers to ensure exceptions never escape to the publisher:
+
+```cpp
+// Error policy interface
+struct ErrorPolicy {
+    virtual void handle(const std::exception& ex) = 0;
+    virtual ~ErrorPolicy() = default;
+};
+
+struct LogErrorPolicy : ErrorPolicy {
+    void handle(const std::exception& ex) override {
+        spdlog::error("Handler failed: {}", ex.what());
+    }
+};
+
+// Safe handler wrapper
+template<typename Handler>
+auto make_safe_handler(Handler h, std::shared_ptr<ErrorPolicy> policy) {
+    return [h = std::move(h), policy](auto&&... args) {
+        try {
+            h(std::forward<decltype(args)>(args)...);
+        } catch (const std::exception& ex) {
+            policy->handle(ex);
+        }
+    };
+}
+```
+
+## Usage Example
+
+```cpp
+auto policy = std::make_shared<LogErrorPolicy>();
+
+// Wrap handler before subscribing
+signal.connect(make_safe_handler(
+    [](const Data& data) {
+        process(data);  // May throw — but safely caught
+    },
+    policy
+));
+```
+
+**Key Point**: The wrapper ensures one subscriber's exception never affects the publisher or other subscribers.
