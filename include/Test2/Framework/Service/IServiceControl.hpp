@@ -29,7 +29,7 @@ namespace Test2
     virtual ~IServiceControl() = default;
 
     virtual boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& creationInfo) = 0;
-    virtual boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync(const ServiceCreateInfo& creationInfo) = 0;
+    virtual boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() = 0;
 
     virtual ServiceProcessResult Process() = 0;
   };

@@ -15,6 +15,8 @@
 
 #include <Common/SpdLogHelper.hpp>
 #include <Test2/Framework/Host/InvalidServiceFactoryException.hpp>
+#include <Test2/Framework/Host/ManagedThreadServiceProvider.hpp>
+#include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/io_context.hpp>
@@ -25,9 +27,6 @@ namespace Test2
   /// @brief Service host that lives on a managed thread. All methods are called on the managed thread.
   class ManagedThreadServiceHost
   {
-    std::unique_ptr<boost::asio::io_context> m_ioContext;
-    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work;
-
     static std::shared_ptr<spdlog::logger> GetLogger()
     {
       LOGGER_NAME(ManagedThreadServiceHost);
@@ -35,10 +34,16 @@ namespace Test2
       return logger;
     }
 
+    std::unique_ptr<boost::asio::io_context> m_ioContext;
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work;
+
+    std::shared_ptr<ManagedThreadServiceProvider> m_provider;
+
   public:
     ManagedThreadServiceHost()
       : m_ioContext(std::make_unique<boost::asio::io_context>())
       , m_work(boost::asio::make_work_guard(*m_ioContext))
+      , m_provider(std::make_shared<ManagedThreadServiceProvider>())
     {
       GetLogger()->trace("Created at {}", static_cast<void*>(this));
     }

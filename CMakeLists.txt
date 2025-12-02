@@ -261,6 +261,7 @@ add_executable(test2
     include/Test2/Framework/Service/Async/AsyncServiceBase.hpp
     include/Test2/Framework/Provider/IServiceProvider.hpp
     include/Test2/Framework/Provider/ServiceProvider.hpp
+    include/Test2/Framework/Provider/ServiceProviderProxy.hpp
     include/Test2/Framework/Registry/IServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
     include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
@@ -355,3 +356,16 @@ configure_target(test_managed_thread_service_provider)
 target_include_directories(test_managed_thread_service_provider PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test_managed_thread_service_provider PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceProviderTest.cpp)
+
+# Executable 8: ServiceProviderProxy test
+add_executable(test_service_provider_proxy
+    UnitTest/Test2/Provider/ServiceProviderProxyTest.cpp
+    include/Test2/Framework/Service/IService.hpp
+    include/Test2/Framework/Provider/IServiceProvider.hpp
+    include/Test2/Framework/Provider/ServiceProviderProxy.hpp
+    include/Test2/Framework/Provider/ServiceProviderException.hpp
+)
+configure_target(test_service_provider_proxy)
+target_include_directories(test_service_provider_proxy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_service_provider_proxy PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Provider/ServiceProviderProxyTest.cpp)

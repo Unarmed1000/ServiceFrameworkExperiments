@@ -43,6 +43,19 @@ namespace Test2
     {
     }
   };
+
+  /// @brief Exception thrown when a service provider operation fails.
+  ///
+  /// This exception is thrown when a service provider encounters an error condition,
+  /// such as when a proxy has been cleared or when accessing from the wrong thread.
+  class ServiceProviderException : public std::runtime_error
+  {
+  public:
+    explicit ServiceProviderException(const std::string& message)
+      : std::runtime_error(message)
+    {
+    }
+  };
 }
 
 #endif
