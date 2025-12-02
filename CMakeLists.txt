@@ -486,7 +486,24 @@ target_include_directories(test_service_provider PRIVATE ${CMAKE_CURRENT_SOURCE_
 target_link_libraries(test_service_provider PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Provider/ServiceProviderTest.cpp)
 
-# Executable 10: ManagedThreadServiceHost test
+# Executable 10: ServiceHostBase test (shared logic, uses CooperativeThreadServiceHost for simplicity)
+add_executable(test_service_host_base
+    UnitTest/Test2/Host/ServiceHostBaseTest.cpp
+    src/Test2/Service/Provider/ServiceProvider.cpp
+    include/Test2/Framework/Host/ManagedThreadHost.hpp
+    include/Test2/Framework/Host/ManagedThreadRecord.hpp
+    include/Test2/Framework/Host/ManagedThreadServiceHost.hpp
+    include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/ServiceHostBase.hpp
+    include/Test2/Framework/Host/StartServiceRecord.hpp
+    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
+)
+configure_target(test_service_host_base)
+target_include_directories(test_service_host_base PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_service_host_base PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ServiceHostBaseTest.cpp)
+
+# Executable 11: ManagedThreadServiceHost test (thread-specific behavior)
 add_executable(test_managed_thread_service_host
     UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp
     src/Test2/Service/Provider/ServiceProvider.cpp
@@ -503,7 +520,7 @@ target_include_directories(test_managed_thread_service_host PRIVATE ${CMAKE_CURR
 target_link_libraries(test_managed_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp)
 
-# Executable 11: ProcessResult test
+# Executable 12: ProcessResult test
 add_executable(test_process_result
     UnitTest/Test2/Service/ProcessResultTest.cpp
     include/Test2/Framework/Service/ProcessStatus.hpp
@@ -514,7 +531,7 @@ target_include_directories(test_process_result PRIVATE ${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(test_process_result PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Service/ProcessResultTest.cpp)
 
-# Executable 12: CooperativeThreadServiceHost test
+# Executable 13: CooperativeThreadServiceHost test
 add_executable(test_cooperative_thread_service_host
     UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp
     src/Test2/Service/Provider/ServiceProvider.cpp
