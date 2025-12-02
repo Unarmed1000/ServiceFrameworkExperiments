@@ -22,14 +22,18 @@
 
 ## Timeline of Language Adoption
 
-| Year | Language | Feature |
-|------|----------|---------|
-| 2007 | F# | Asynchronous workflows (research origin) |
-| 2012 | C# 5.0 | `async`/`await` keywords |
-| 2015 | Python 3.5 | `async def`/`await` (PEP 492) |
-| 2017 | JavaScript | ES2017 native `async`/`await` |
-| 2020 | C++20 | Coroutines (`co_await`, `co_return`, `co_yield`) |
-| 2021+ | Swift, Rust, Kotlin | Native async support |
+| Year | Language | Feature | Source |
+|------|----------|---------|--------|
+| 1958 | — | Melvin Conway coins "coroutine" | [Conway, ACM 1963](http://melconway.com/Home/pdf/compiler.pdf) |
+| 1963 | Assembly | First published coroutine implementation | [Conway, CACM](https://doi.org/10.1145/366663.366704) |
+| 1967 | Simula 67 | Native coroutine support | [Dahl & Hoare, 1972](https://en.wikipedia.org/wiki/Simula) |
+| 2007 | F# 2.0 | Asynchronous workflows | [Syme et al., PADL 2011](https://link.springer.com/chapter/10.1007/978-3-642-18378-2_15) |
+| 2012 | C# 5.0 | `async`/`await` keywords | [.NET Blog](https://devblogs.microsoft.com/dotnet/async-in-4-5-worth-the-await/) |
+| 2015 | Python 3.5 | `async def`/`await` | [PEP 492](https://peps.python.org/pep-0492/) |
+| 2017 | JavaScript | ES2017 native `async`/`await` | [ECMAScript 2017](https://262.ecma-international.org/8.0/) |
+| 2019 | Rust 1.39 | `async`/`.await` | [Rust Blog](https://blog.rust-lang.org/2019/11/07/Async-await-stable.html) |
+| 2020 | C++20 | Coroutines (`co_await`, `co_return`, `co_yield`) | [cppreference](https://en.cppreference.com/w/cpp/language/coroutines) |
+| 2021 | Swift 5.5 | `async`/`await` | [SE-0296](https://github.com/apple/swift-evolution/blob/main/proposals/0296-async-await.md) |
 
 > *"Many languages have adopted, or are planning to adopt"* async/await-style coroutines
 > — [Python PEP 492](https://peps.python.org/pep-0492/)
@@ -69,6 +73,7 @@ boost::asio::awaitable<void> do_work() {
 - **Reads like synchronous code** — flattens callback chains
 - **Reduces indentation** — no more "callback hell" or nested `.then()` chains
 - **Simpler error handling** — use familiar `try`/`catch` patterns
+- **Debugger support** — debuggers can show full async callstacks (C#, JS, Python)
 - **Widely adopted** — skills transfer across languages
 
 > *"This enables you to write code that uses asynchronous functions but looks like synchronous code."*
@@ -98,6 +103,7 @@ boost::asio::awaitable<void> do_work() {
 | **No standard library support** | Must use Boost.Asio, cppcoro, or custom implementations |
 | **Heap allocations** | Coroutine frames typically heap-allocated |
 | **HALO optimization limits** | Heap Allocation eLision Optimization only works in specific cases (inlining required) |
+| **No async callstacks** | Debuggers support async callstacks for other languages, but not yet for C++ coroutines |
 | **Debugging difficulty** | Suspended coroutines have fragmented stack traces |
 | **Customization complexity** | `promise_type`, `awaiter` concepts have steep learning curve |
 
@@ -980,6 +986,42 @@ void ConfigureServices(ServiceRegistry& registry) {
 | Networking | [Deploying the Networking TS](https://github.com/CppCon/CppCon2021/blob/main/Presentations/deploying_the_networking_TS.pdf) | Robert Leahy | 2021 |
 | Design | [Breaking Dependencies: SOLID Principles](https://github.com/CppCon/CppCon2020/blob/main/Presentations/breaking_dependencies_the_solid_principles/) | Klaus Iglberger | 2020 |
 | Concurrency | [Concurrency Patterns](https://github.com/CppCon/CppCon2021/blob/main/Presentations/ConcurrencyPatterns_1.pdf) | Rainer Grimm | 2021 |
+
+---
+
+# Appendix A9: C++ Coroutine Debugging (LLDB)
+
+## LLDB Has the Best C++ Coroutine Support
+
+While no debugger yet matches C#/JS async callstack experience for C++, **LLDB is closest**:
+
+| LLDB Version | Feature |
+|--------------|---------|
+| 16.0+ | Pretty-printer for `std::coroutine_handle` |
+| 18.0+ | Shows `__promise` and `__coro_frame` variables automatically |
+| 21.0+ | Suspension point labels map `__coro_index` to source locations |
+
+## Custom Async Backtrace Command
+
+Clang provides Python scripts for LLDB ([Debugging Coroutines](https://clang.llvm.org/docs/DebuggingCoroutines.html)):
+
+```python
+# Load in LLDB: command script import lldb_coro_debugging.py
+(lldb) coro bt        # Print async backtrace following continuations
+(lldb) coro in-flight # List all in-flight coroutines
+```
+
+## Requirements
+
+- **Library cooperation**: Your `promise_type` must expose continuation pointers
+- **Manual setup**: Not integrated into IDE debugger UI
+- **Clang-compiled**: Best results with Clang, not MSVC
+
+## MSVC/Visual Studio Status
+
+- No async callstack support for C++ coroutines
+- Basic coroutine frame inspection only
+- Parallel Stacks window is for .NET async, not C++20 coroutines
 
 ---
 
