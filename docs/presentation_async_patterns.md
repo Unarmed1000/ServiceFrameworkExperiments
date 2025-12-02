@@ -143,6 +143,8 @@ boost::asio::awaitable<void> do_work() {
 - **I/O primitives** — networking, timers already included
 - **Future path** — Boost.Asio expected to integrate with P2300
 
+**Recommendation**: Use Boost.Asio coroutines now; migrate schedulers first when P2300 stabilizes. See [Appendix A10](#appendix-a10-migration-boostasio-→-stdexecution).
+
 ---
 
 # std::execution Code Example
@@ -1020,3 +1022,49 @@ Clang provides Python scripts for LLDB ([Debugging Coroutines](https://clang.llv
 - No async callstack support for C++ coroutines
 - Basic coroutine frame inspection only
 - Parallel Stacks window is for .NET async, not C++20 coroutines
+
+---
+
+# Appendix A10: Migration Boost.Asio → std::execution
+
+## Migration Difficulty by Pattern
+
+| Scenario | Difficulty | Reason |
+|----------|------------|--------|
+| **Isolated coroutines** | Medium | Replace `awaitable<T>` with senders, `co_await` with `sync_wait` |
+| **Deep coroutine chains** | Hard | `co_await` syntax doesn't directly map to sender pipes |
+| **io_context-heavy code** | Medium | Replace with schedulers; Boost.Asio will likely provide adapters |
+| **Mixed I/O + computation** | Easier | P2300 excels at composing different execution contexts |
+
+## Code Comparison
+
+**Boost.Asio Coroutine:**
+```cpp
+boost::asio::awaitable<int> fetch_and_process() {
+    auto data = co_await async_read(socket, buffer, use_awaitable);
+    auto result = co_await async_compute(data);
+    co_return result;
+}
+```
+
+**std::execution (P2300):**
+```cpp
+auto fetch_and_process() {
+    return async_read(socket, buffer)
+         | then([](auto data) { return async_compute(data); })
+         | let_value([](auto result) { return just(result); });
+}
+```
+
+## Migration Strategy
+
+1. **Wait for Boost.Asio adapters** — Chris Kohlhoff (Asio author) is involved with P2300
+2. **Migrate schedulers first** — Replace `io_context` usage with P2300 schedulers
+3. **Keep coroutines for I/O** — `awaitable<T>` remains readable for I/O-heavy code
+4. **Use P2300 for composition** — Sender algorithms for complex async pipelines
+
+## The Good News
+
+- **Gradual migration** — Both approaches can coexist during transition
+- **Same concepts** — Executors, completion tokens, async composition remain similar
+- **Library support** — Boost.Asio expected to provide sender/receiver integration
