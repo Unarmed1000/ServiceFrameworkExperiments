@@ -442,6 +442,8 @@ for (auto it = v.begin(); it != v.end(); ++it) {
 
 → **Undefined behavior** caused by single-threaded re-entrancy
 
+> ⚠️ **UB is not "probably fine"** — compilers assume UB never happens and optimize accordingly. This can cause [surprising and catastrophic results](https://blog.tchatzigiannakis.com/undefined-behavior-can-literally-erase-your-hard-disk/).
+
 ---
 
 # Solution: Queue Callbacks
