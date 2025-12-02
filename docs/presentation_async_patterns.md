@@ -7,9 +7,9 @@
 # Agenda
 
 1. **Language Adoption & Reception** — The async/await journey across languages
-2. **Async Patterns Classification** — Request/Response, Messaging, Threading Models
+2. **Async Patterns Classification** — Request/Response, Messaging, Error Handling by Pattern
 3. **Threading Pitfalls** — Re-entrancy, cross-thread callbacks, coroutine traps
-4. **Service Framework Architecture** — 5-layer design, DI, build considerations
+4. **Service Framework Prototype** — Modern C++20 design, Boost.Asio, DI patterns
 5. **Integration & Summary** — Qt integration, pattern mapping, key takeaways
 
 ---
