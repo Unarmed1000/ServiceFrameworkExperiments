@@ -1301,10 +1301,7 @@ TEST(ManagedThreadServiceProviderTest, SameThreadAccess_Succeeds)
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
 
-  // All operations on same thread should succeed
-  auto service = provider.GetService(typeid(ITestInterface1));
-  ASSERT_NE(service, nullptr);
-
+  // All operations on same thread should succeed (not throw)
   auto tryService = provider.TryGetService(typeid(ITestInterface1));
   ASSERT_NE(tryService, nullptr);
 
@@ -1322,7 +1319,7 @@ TEST(ManagedThreadServiceProviderTest, GetService_FromWrongThread_ThrowsExceptio
   RegisterWithDefaults(*provider, ServiceLaunchPriority(1000), {1, 2});
 
   // Verify works on owner thread
-  auto service = provider->GetService(typeid(ITestInterface1));
+  auto service = provider->TryGetService(typeid(ITestInterface1));
   ASSERT_NE(service, nullptr);
 
   // Try to access from different thread

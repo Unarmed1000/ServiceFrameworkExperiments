@@ -13,7 +13,6 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Common/SpdLogHelper.hpp>
 #include <Test2/Framework/Host/EmptyPriorityGroupException.hpp>
 #include <Test2/Framework/Host/InvalidPriorityOrderException.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
@@ -21,6 +20,7 @@
 #include <Test2/Framework/Provider/ServiceProviderException.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Service/IService.hpp>
+#include <spdlog/spdlog.h>
 #include <memory>
 #include <sstream>
 #include <thread>
@@ -44,14 +44,6 @@ namespace Test2
     };
 
   private:
-    LOGGER_NAME(ManagedThreadServiceProvider);
-
-    static std::shared_ptr<spdlog::logger> GetLogger()
-    {
-      static const auto logger = SpdLogHelper::GetLogger<LoggerName_ManagedThreadServiceProvider>();
-      return logger;
-    }
-
     std::vector<PriorityGroup> m_priorityGroups;
     std::unordered_multimap<std::type_index, std::shared_ptr<IServiceControl>> m_servicesByType;
     std::thread::id m_ownerThreadId;
@@ -66,7 +58,7 @@ namespace Test2
         std::ostringstream ownerStr, callerStr;
         ownerStr << m_ownerThreadId;
         callerStr << currentThreadId;
-        GetLogger()->error("ServiceProvider accessed from wrong thread. Owner: {}, Caller: {}", ownerStr.str(), callerStr.str());
+        spdlog::error("ServiceProvider accessed from wrong thread. Owner: {}, Caller: {}", ownerStr.str(), callerStr.str());
         throw ServiceProviderException("ServiceProvider accessed from wrong thread");
       }
     }

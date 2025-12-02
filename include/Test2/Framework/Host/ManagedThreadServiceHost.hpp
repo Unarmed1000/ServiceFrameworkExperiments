@@ -13,13 +13,13 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Common/SpdLogHelper.hpp>
 #include <Test2/Framework/Host/InvalidServiceFactoryException.hpp>
 #include <Test2/Framework/Host/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/io_context.hpp>
+#include <spdlog/spdlog.h>
 #include <memory>
 
 namespace Test2
@@ -27,13 +27,6 @@ namespace Test2
   /// @brief Service host that lives on a managed thread. All methods are called on the managed thread.
   class ManagedThreadServiceHost
   {
-    static std::shared_ptr<spdlog::logger> GetLogger()
-    {
-      LOGGER_NAME(ManagedThreadServiceHost);
-      static const auto logger = SpdLogHelper::GetLogger<LoggerName_ManagedThreadServiceHost>();
-      return logger;
-    }
-
     std::unique_ptr<boost::asio::io_context> m_ioContext;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work;
 
@@ -45,12 +38,12 @@ namespace Test2
       , m_work(boost::asio::make_work_guard(*m_ioContext))
       , m_provider(std::make_shared<ManagedThreadServiceProvider>())
     {
-      GetLogger()->trace("Created at {}", static_cast<void*>(this));
+      spdlog::trace("Created at {}", static_cast<void*>(this));
     }
 
     ~ManagedThreadServiceHost()
     {
-      GetLogger()->trace("Destroying at {}", static_cast<void*>(this));
+      spdlog::trace("Destroying at {}", static_cast<void*>(this));
       // Called on the managed thread during shutdown
       m_work.reset();
     }
