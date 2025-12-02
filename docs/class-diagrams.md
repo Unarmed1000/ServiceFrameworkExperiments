@@ -1,0 +1,497 @@
+# Test2 Service Framework Architecture
+
+This document provides Mermaid class diagrams documenting the Test2 service framework architecture at various levels of abstraction.
+
+## Table of Contents
+
+- [High-Level Overview](#high-level-overview)
+- [Lifecycle Layer](#lifecycle-layer)
+- [Host Layer](#host-layer)
+- [Registry Layer](#registry-layer)
+- [Provider Layer](#provider-layer)
+- [Service Layer](#service-layer)
+- [Service Implementations](#service-implementations)
+- [Exception Hierarchy](#exception-hierarchy)
+- [Sequence Diagrams](#sequence-diagrams)
+  - [Startup Sequence](#startup-sequence)
+  - [Shutdown Sequence](#shutdown-sequence)
+
+---
+
+## High-Level Overview
+
+A conceptual view of the five main framework layers and their dependencies.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class Lifecycle["Lifecycle Layer"]
+    class Host["Host Layer"]
+    class Registry["Registry Layer"]
+    class Provider["Provider Layer"]
+    class Service["Service Layer"]
+
+    Lifecycle --> Host : manages
+    Lifecycle --> Registry : extracts registrations
+    Host --> Provider : owns
+    Host --> Service : creates & controls
+    Provider --> Service : resolves
+    Registry --> Service : stores factories
+```
+
+---
+
+## Lifecycle Layer
+
+The `LifecycleManager` orchestrates the entire service lifecycle, coordinating startup and shutdown across thread groups with priority ordering.
+
+```mermaid
+classDiagram
+    direction LR
+
+    class LifecycleManager {
+        +StartServices() awaitable~void~
+        +ShutdownServices() awaitable~void~
+    }
+
+    class ServiceRegistry
+    class ManagedThreadHost
+
+    LifecycleManager --> ServiceRegistry : extracts registrations
+    LifecycleManager --> "1..*" ManagedThreadHost : creates & manages
+```
+
+---
+
+## Host Layer
+
+Service hosts manage thread execution and service lifecycle within their thread context.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class ServiceHostBase {
+        <<abstract>>
+        +GetIoContext() io_context
+        #ProcessServices() ProcessResult
+        #DoTryStartServicesAsync() awaitable~void~
+    }
+
+    class CooperativeThreadServiceHost {
+        +SetWakeCallback(WakeCallback)
+        +Poll() size_t
+        +Update() ProcessResult
+        +TryStartServicesAsync() awaitable~void~
+    }
+
+    class ManagedThreadServiceHost {
+        +RunAsync() awaitable~void~
+        +TryStartServicesAsync() awaitable~void~
+    }
+
+    class ManagedThreadHost {
+        +StartAsync() awaitable~ManagedThreadRecord~
+        +Stop()
+        +GetIoContext() io_context
+        +GetServiceHost() ManagedThreadServiceHost
+    }
+
+    class ManagedThreadServiceProvider {
+        +RegisterPriorityGroup()
+        +UnregisterAllServices()
+        +GetServiceCount() size_t
+    }
+
+    class ManagedThreadRecord
+
+    ServiceHostBase <|-- CooperativeThreadServiceHost
+    ServiceHostBase <|-- ManagedThreadServiceHost
+    ServiceHostBase --> ManagedThreadServiceProvider : owns
+
+    ManagedThreadHost *-- ManagedThreadServiceHost : contains
+    ManagedThreadHost ..> ManagedThreadRecord : creates
+```
+
+---
+
+## Registry Layer
+
+The registry system handles service registration with priority and thread group assignment.
+
+```mermaid
+classDiagram
+    direction LR
+
+    class IServiceRegistry {
+        <<interface>>
+        +RegisterService(factory, priority, threadGroup)
+        +CreateServiceThreadGroupId() ServiceThreadGroupId
+        +GetMainServiceThreadGroupId() ServiceThreadGroupId
+    }
+
+    class ServiceRegistry {
+        +RegisterService()
+        +CreateServiceThreadGroupId()
+        +GetMainServiceThreadGroupId()
+        +ExtractRegistrations() vector~ServiceRegistrationRecord~
+    }
+
+    class ServiceRegistrationRecord {
+        +Factory
+        +Priority
+        +ThreadGroupId
+    }
+
+    class ServiceLaunchPriority {
+        +uint32_t Value
+    }
+
+    class ServiceThreadGroupId {
+        +uint32_t Value
+    }
+
+    IServiceRegistry <|.. ServiceRegistry
+    ServiceRegistry --> "*" ServiceRegistrationRecord : stores
+    ServiceRegistrationRecord --> ServiceLaunchPriority
+    ServiceRegistrationRecord --> ServiceThreadGroupId
+```
+
+---
+
+## Provider Layer
+
+The provider system enables dependency injection and service resolution.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class IServiceProvider {
+        <<interface>>
+        +GetService(type_info) shared_ptr~IService~
+        +TryGetService(type_info) shared_ptr~IService~
+        +TryGetServices(type_info, vector) bool
+    }
+
+    class ServiceProvider {
+        +GetService~T~() shared_ptr~T~
+        +TryGetService~T~() shared_ptr~T~
+        +TryGetServices~T~(vector) bool
+    }
+
+    class ServiceProviderProxy {
+        +Clear()
+        +GetService(type_info) shared_ptr~IService~
+        +TryGetService(type_info) shared_ptr~IService~
+    }
+
+    class ManagedThreadServiceProvider {
+        +RegisterPriorityGroup()
+        +UnregisterAllServices()
+        +GetAllServiceControls()
+    }
+
+    IServiceProvider <|.. ServiceProviderProxy
+    IServiceProvider <|.. ManagedThreadServiceProvider
+    ServiceProvider --> IServiceProvider : wraps
+    ServiceProviderProxy --> IServiceProvider : wraps
+```
+
+---
+
+## Service Layer
+
+Core service abstractions defining the service contract and lifecycle.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class IService {
+        <<interface>>
+    }
+
+    class IServiceControl {
+        <<interface>>
+        +InitAsync(ServiceCreateInfo) awaitable~ServiceInitResult~
+        +ShutdownAsync() awaitable~ServiceShutdownResult~
+        +Process() ProcessResult
+    }
+
+    class ASyncServiceBase {
+        <<abstract>>
+    }
+
+    class IServiceFactory {
+        <<interface>>
+        +GetSupportedInterfaces() span~type_info~
+        +Create(type_info, ServiceCreateInfo) shared_ptr~IServiceControl~
+    }
+
+    class ProcessResult {
+        +Status
+        +SleepDuration
+        +NoSleepLimit()$ ProcessResult
+        +Quit()$ ProcessResult
+        +SleepLimit(duration)$ ProcessResult
+    }
+
+    class ProcessStatus {
+        <<enumeration>>
+        NoSleepLimit
+        SleepLimit
+        Quit
+    }
+
+    class ServiceCreateInfo {
+        +Provider
+    }
+
+    class ServiceInfo {
+        +Name
+    }
+
+    class ServiceInitResult {
+        <<enumeration>>
+        UnknownError
+        Success
+    }
+
+    class ServiceShutdownResult {
+        <<enumeration>>
+        UnknownError
+        Success
+    }
+
+    IService <|-- IServiceControl
+    IServiceControl <|-- ASyncServiceBase
+    ProcessResult --> ProcessStatus
+    IServiceFactory ..> IServiceControl : creates
+    ServiceCreateInfo --> ServiceProvider : contains
+```
+
+---
+
+## Service Implementations
+
+Concrete service implementations demonstrating the dual inheritance pattern (extends `ASyncServiceBase` and implements service-specific interface).
+
+```mermaid
+classDiagram
+    direction TB
+
+    class IService {
+        <<interface>>
+    }
+
+    class ASyncServiceBase {
+        <<abstract>>
+    }
+
+    class IAddService {
+        <<interface>>
+        +AddAsync(a, b) awaitable~double~
+    }
+
+    class ISubtractService {
+        <<interface>>
+        +SubtractAsync(a, b) awaitable~double~
+    }
+
+    class IMultiplyService {
+        <<interface>>
+        +MultiplyAsync(a, b) awaitable~double~
+    }
+
+    class IDivideService {
+        <<interface>>
+        +DivideAsync(a, b) awaitable~double~
+    }
+
+    class ICalculatorService {
+        <<interface>>
+        +CalculateAsync(expression) awaitable~double~
+    }
+
+    class AddService
+    class SubtractService
+    class MultiplyService
+    class DivideService
+    class CalculatorService
+
+    class AddServiceFactory
+    class SubtractServiceFactory
+    class MultiplyServiceFactory
+    class DivideServiceFactory
+    class CalculatorServiceFactory
+
+    IService <|-- IAddService
+    IService <|-- ISubtractService
+    IService <|-- IMultiplyService
+    IService <|-- IDivideService
+    IService <|-- ICalculatorService
+
+    ASyncServiceBase <|-- AddService
+    ASyncServiceBase <|-- SubtractService
+    ASyncServiceBase <|-- MultiplyService
+    ASyncServiceBase <|-- DivideService
+    ASyncServiceBase <|-- CalculatorService
+
+    IAddService <|.. AddService
+    ISubtractService <|.. SubtractService
+    IMultiplyService <|.. MultiplyService
+    IDivideService <|.. DivideService
+    ICalculatorService <|.. CalculatorService
+
+    AddServiceFactory ..> AddService : creates
+    SubtractServiceFactory ..> SubtractService : creates
+    MultiplyServiceFactory ..> MultiplyService : creates
+    DivideServiceFactory ..> DivideService : creates
+    CalculatorServiceFactory ..> CalculatorService : creates
+
+    CalculatorService --> IAddService : uses
+    CalculatorService --> ISubtractService : uses
+    CalculatorService --> IMultiplyService : uses
+    CalculatorService --> IDivideService : uses
+```
+
+---
+
+## Exception Hierarchy
+
+Custom exceptions organized by their standard library base class.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class std_exception["std::exception"]
+
+    class std_runtime_error["std::runtime_error"]
+    class std_logic_error["std::logic_error"]
+    class std_bad_cast["std::bad_cast"]
+
+    class AggregateException
+    class MultipleServicesFoundException
+    class ServiceProviderException
+    class UnknownServiceException
+
+    class DuplicateServiceRegistrationException
+    class EmptyPriorityGroupException
+    class InvalidPriorityOrderException
+    class InvalidServiceFactoryException
+    class RegistryExtractedException
+
+    class ServiceCastException
+
+    std_exception <|-- std_runtime_error
+    std_exception <|-- std_logic_error
+    std_exception <|-- std_bad_cast
+
+    std_runtime_error <|-- AggregateException
+    std_runtime_error <|-- MultipleServicesFoundException
+    std_runtime_error <|-- ServiceProviderException
+    std_runtime_error <|-- UnknownServiceException
+
+    std_logic_error <|-- DuplicateServiceRegistrationException
+    std_logic_error <|-- EmptyPriorityGroupException
+    std_logic_error <|-- InvalidPriorityOrderException
+    std_logic_error <|-- InvalidServiceFactoryException
+    std_logic_error <|-- RegistryExtractedException
+
+    std_bad_cast <|-- ServiceCastException
+```
+
+---
+
+## Sequence Diagrams
+
+### Startup Sequence
+
+High-level view of the `LifecycleManager` orchestrating service startup across multiple thread groups with priority ordering.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as Application
+    participant LM as LifecycleManager
+    participant Reg as ServiceRegistry
+    participant TH as ManagedThreadHosts
+    participant Svc as Services
+
+    App->>LM: StartServices()
+
+    LM->>Reg: ExtractRegistrations()
+    Reg-->>LM: vector<ServiceRegistrationRecord>
+
+    Note over LM: Group by ThreadGroupId<br/>Sort by Priority (high→low)
+
+    LM->>TH: Create ManagedThreadHost per ThreadGroup
+    LM->>TH: StartAsync() for each host
+    TH-->>LM: Threads running
+
+    loop For each Priority Level (highest first)
+        LM->>TH: TryStartServicesAsync(priority N services)
+
+        par All Thread Groups
+            TH->>Svc: Create service instances
+            TH->>Svc: InitAsync()
+            Svc-->>TH: ServiceInitResult
+        end
+
+        TH-->>LM: All priority N services ready
+        Note over LM: Proceed to next lower priority
+    end
+
+    LM-->>App: All services started
+```
+
+### Shutdown Sequence
+
+High-level view of the `LifecycleManager` orchestrating graceful shutdown in reverse priority order.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as Application
+    participant LM as LifecycleManager
+    participant TH as ManagedThreadHosts
+    participant Svc as Services
+
+    App->>LM: ShutdownServices()
+
+    loop For each Priority Level (lowest first)
+        LM->>TH: Shutdown priority N services
+
+        par All Thread Groups
+            TH->>Svc: ShutdownAsync()
+            Svc-->>TH: ServiceShutdownResult
+        end
+
+        TH-->>LM: All priority N services stopped
+        Note over LM: Proceed to next higher priority
+    end
+
+    LM->>TH: Stop() for each host
+    TH-->>LM: Threads terminated
+
+    LM-->>App: Shutdown complete
+```
+
+---
+
+## Design Patterns
+
+The framework implements several well-known design patterns:
+
+| Pattern | Implementation |
+|---------|----------------|
+| **Factory** | `IServiceFactory` creates service instances |
+| **Service Locator** | `IServiceProvider` / `ServiceProvider` resolve dependencies |
+| **Registry** | `ServiceRegistry` holds registrations before instantiation |
+| **Proxy** | `ServiceProviderProxy` wraps provider with disconnect capability |
+| **Template Method** | `ServiceHostBase` defines algorithm, subclasses provide specifics |
+| **Value Object** | `ServiceLaunchPriority`, `ServiceThreadGroupId` wrap primitives |
+| **Aggregate Exception** | `AggregateException` collects multiple failures |

@@ -26,43 +26,64 @@ A simple proof-of-concept demonstrating:
 
 ### Test2 - Advanced Service Framework (In Progress)
 A production-grade service framework with proper architecture:
+
+- **Lifecycle Management**: Orchestrates service startup and shutdown (in development)
+  - `LifecycleManager`: Central orchestrator for the entire service lifecycle
+  - Extracts registrations from `ServiceRegistry`
+  - Creates and manages `ManagedThreadHost` instances per thread group
+  - Priority-based startup: highest priority services start first across all threads, then proceeds to lower priorities
+  - Reverse-order shutdown: lowest priority services stop first, then higher priorities
+  - Thread teardown after all services are stopped
+
+- **Host Management**: Thread group-based service hosting
+  - `ServiceHostBase`: Abstract base with shared lifecycle logic
+  - `CooperativeThreadServiceHost`: For UI/main thread with poll-based execution
+  - `ManagedThreadServiceHost`: Owns dedicated thread with `io_context`
+  - `ManagedThreadHost`: Manages thread lifecycle
+  - `ManagedThreadServiceProvider`: Per-thread service provider with priority groups
+
 - **Service Registry**: Central registration and discovery of services
   - Priority-based service launch ordering
   - Thread group assignment for services
   - Service registration records with factory patterns
+  - One-time extraction semantics
+
 - **Service Provider**: Dependency injection and service resolution
-  - Interface-based dependency lookup
+  - `IServiceProvider`: Interface for service lookup
+  - `ServiceProvider`: Type-safe wrapper with template methods
+  - `ServiceProviderProxy`: Proxy with disconnect capability for rollback
   - Thread-local service maps
-  - Provider exception handling
+
 - **Service Lifecycle**: Comprehensive async lifecycle management
   - `IService`: Base interface for all services
-  - `IServiceControl`: Control interface for lifecycle operations
+  - `IServiceControl`: Control interface with `InitAsync`, `Process`, `ShutdownAsync`
   - `IServiceFactory`: Factory pattern for service creation
-  - `AsyncServiceBase`: Base implementation for async services
-- **Host Management**: Thread group-based service hosting (in development)
-  - `ManagedThreadServiceProvider`: Per-thread service provider
-  - `ManagedThreadServiceHost`: Service host management
-  - `ManagedThreadHost`: Thread lifecycle management
-  - Priority validation and ordering
+  - `ASyncServiceBase`: Base implementation for async services
+  - `ProcessResult`: Indicates sleep preferences and quit status
+
 - **Common Utilities**:
   - `AggregateException`: Multi-exception aggregation and handling
   - `SpdLogHelper`: Logging utilities
+
 - **Unit Tests**:
   - Service registry functionality
   - Aggregate exception handling
   - Managed thread service provider
+  - Service host base
+  - Process result
 
 **Components Implemented:**
 - Service interfaces and lifecycle enums (Init/Process/Shutdown results)
 - Service registry with priority and thread group support
 - Service provider with dependency injection
 - Async service base class
+- Host implementations (`ServiceHostBase`, `CooperativeThreadServiceHost`, `ManagedThreadServiceHost`)
+- Thread management (`ManagedThreadHost`, `ManagedThreadServiceProvider`)
 - Exception types for registry, provider, and host
 - Unit test coverage for core components
 
 **Components In Development:**
-- Service Manager for orchestrated multi-threaded service launching
-- Complete host implementation with Boost.Asio integration
+- `LifecycleManager`: Orchestrated multi-threaded service launching with priority coordination
 
 ### Test3 - Placeholder
 Simple test program demonstrating Boost.System integration. Reserved for future experiments.
@@ -199,11 +220,12 @@ ServiceFramework2025/
 │   ├── Test1/           # Test1 service framework headers
 │   └── Test2/
 │       ├── Framework/
-│       │   ├── Service/     # Service interfaces and lifecycle
-│       │   ├── Registry/    # Service registration system
+│       │   ├── Exception/   # Framework-specific exceptions
+│       │   ├── Host/        # Thread management and hosting
+│       │   ├── Lifecycle/   # LifecycleManager orchestration
 │       │   ├── Provider/    # Dependency injection
-│       │   ├── Manager/     # Service manager (in development)
-│       │   └── Host/        # Thread management and hosting
+│       │   ├── Registry/    # Service registration system
+│       │   └── Service/     # Service interfaces and lifecycle
 │       └── Services/        # Concrete service implementations
 ├── UnitTest/            # Unit tests
 │   ├── Common/          # Common utility tests
@@ -268,6 +290,16 @@ Services implement a three-phase lifecycle:
 ### Exception Handling
 - `AggregateException`: Collects and reports multiple exceptions
 - Specific exception types for registry, provider, and host errors
+
+## Architecture Documentation
+
+For detailed architecture diagrams of the Test2 service framework, see [`docs/class-diagrams.md`](docs/class-diagrams.md). This includes:
+
+- High-level layer overview
+- Class diagrams for each framework layer (Lifecycle, Host, Registry, Provider, Service)
+- Service implementation patterns
+- Exception hierarchy
+- Startup and shutdown sequence diagrams
 
 ## License
 
