@@ -52,7 +52,7 @@ namespace Test2
       co_return ServiceInitResult::Success;
     }
 
-    boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync(const ServiceCreateInfo& /*creationInfo*/) override
+    boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() override
     {
       co_return ServiceShutdownResult::Success;
     }
@@ -1288,4 +1288,111 @@ TEST(ManagedThreadServiceProviderTest, ServiceLookupPreservesServiceLifetime)
   retrieved.reset();
 
   EXPECT_TRUE(weakService.expired());
+}
+
+// ========================================
+// Thread-ID Validation Tests
+// ========================================
+
+// Tests: Services can be registered and retrieved from the same thread successfully
+TEST(ManagedThreadServiceProviderTest, SameThreadAccess_Succeeds)
+{
+  ManagedThreadServiceProvider provider;
+
+  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
+
+  // All operations on same thread should succeed
+  auto service = provider.GetService(typeid(ITestInterface1));
+  ASSERT_NE(service, nullptr);
+
+  auto tryService = provider.TryGetService(typeid(ITestInterface1));
+  ASSERT_NE(tryService, nullptr);
+
+  std::vector<std::shared_ptr<IService>> services;
+  bool result = provider.TryGetServices(typeid(ITestInterface1), services);
+  EXPECT_TRUE(result);
+  EXPECT_FALSE(services.empty());
+}
+
+// Tests: Attempting to call GetService from a different thread throws ServiceProviderException
+TEST(ManagedThreadServiceProviderTest, GetService_FromWrongThread_ThrowsException)
+{
+  auto provider = std::make_shared<ManagedThreadServiceProvider>();
+
+  RegisterWithDefaults(*provider, ServiceLaunchPriority(1000), {1, 2});
+
+  // Verify works on owner thread
+  auto service = provider->GetService(typeid(ITestInterface1));
+  ASSERT_NE(service, nullptr);
+
+  // Try to access from different thread
+  bool exceptionThrown = false;
+  std::thread otherThread(
+    [&provider, &exceptionThrown]()
+    {
+      try
+      {
+        (void)provider->GetService(typeid(ITestInterface1));
+      }
+      catch (const ServiceProviderException&)
+      {
+        exceptionThrown = true;
+      }
+    });
+
+  otherThread.join();
+  EXPECT_TRUE(exceptionThrown);
+}
+
+// Tests: Attempting to call TryGetService from a different thread throws ServiceProviderException
+TEST(ManagedThreadServiceProviderTest, TryGetService_FromWrongThread_ThrowsException)
+{
+  auto provider = std::make_shared<ManagedThreadServiceProvider>();
+
+  RegisterWithDefaults(*provider, ServiceLaunchPriority(1000), {1, 2});
+
+  // Try to access from different thread
+  bool exceptionThrown = false;
+  std::thread otherThread(
+    [&provider, &exceptionThrown]()
+    {
+      try
+      {
+        (void)provider->TryGetService(typeid(ITestInterface1));
+      }
+      catch (const ServiceProviderException&)
+      {
+        exceptionThrown = true;
+      }
+    });
+
+  otherThread.join();
+  EXPECT_TRUE(exceptionThrown);
+}
+
+// Tests: Attempting to call TryGetServices from a different thread throws ServiceProviderException
+TEST(ManagedThreadServiceProviderTest, TryGetServices_FromWrongThread_ThrowsException)
+{
+  auto provider = std::make_shared<ManagedThreadServiceProvider>();
+
+  RegisterWithDefaults(*provider, ServiceLaunchPriority(1000), {1, 2});
+
+  // Try to access from different thread
+  bool exceptionThrown = false;
+  std::thread otherThread(
+    [&provider, &exceptionThrown]()
+    {
+      try
+      {
+        std::vector<std::shared_ptr<IService>> services;
+        (void)provider->TryGetServices(typeid(ITestInterface1), services);
+      }
+      catch (const ServiceProviderException&)
+      {
+        exceptionThrown = true;
+      }
+    });
+
+  otherThread.join();
+  EXPECT_TRUE(exceptionThrown);
 }

@@ -13,6 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Common/SpdLogHelper.hpp>
 #include <Test2/Framework/Host/EmptyPriorityGroupException.hpp>
 #include <Test2/Framework/Host/InvalidPriorityOrderException.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
@@ -21,6 +22,8 @@
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Service/IService.hpp>
 #include <memory>
+#include <sstream>
+#include <thread>
 #include <typeindex>
 #include <unordered_map>
 #include <vector>
@@ -41,10 +44,38 @@ namespace Test2
     };
 
   private:
+    LOGGER_NAME(ManagedThreadServiceProvider);
+
+    static std::shared_ptr<spdlog::logger> GetLogger()
+    {
+      static const auto logger = SpdLogHelper::GetLogger<LoggerName_ManagedThreadServiceProvider>();
+      return logger;
+    }
+
     std::vector<PriorityGroup> m_priorityGroups;
     std::unordered_multimap<std::type_index, std::shared_ptr<IServiceControl>> m_servicesByType;
+    std::thread::id m_ownerThreadId;
+
+    /// @brief Validates that the current thread is the owner thread.
+    /// @throws ServiceProviderException if called from a different thread.
+    void ValidateThreadAccess() const
+    {
+      const auto currentThreadId = std::this_thread::get_id();
+      if (currentThreadId != m_ownerThreadId)
+      {
+        std::ostringstream ownerStr, callerStr;
+        ownerStr << m_ownerThreadId;
+        callerStr << currentThreadId;
+        GetLogger()->error("ServiceProvider accessed from wrong thread. Owner: {}, Caller: {}", ownerStr.str(), callerStr.str());
+        throw ServiceProviderException("ServiceProvider accessed from wrong thread");
+      }
+    }
 
   public:
+    ManagedThreadServiceProvider()
+      : m_ownerThreadId(std::this_thread::get_id())
+    {
+    }
     /// @brief Registers a priority group of services.
     ///
     /// Priority groups must be registered in strictly decreasing priority order.
@@ -123,6 +154,7 @@ namespace Test2
     // IServiceProvider interface implementations
     std::shared_ptr<IService> GetService(const std::type_info& type) const override
     {
+      ValidateThreadAccess();
       const std::type_index typeIndex(type);
       auto range = m_servicesByType.equal_range(typeIndex);
 
@@ -147,6 +179,7 @@ namespace Test2
 
     std::shared_ptr<IService> TryGetService(const std::type_info& type) const override
     {
+      ValidateThreadAccess();
       const std::type_index typeIndex(type);
       auto it = m_servicesByType.find(typeIndex);
 
@@ -160,6 +193,7 @@ namespace Test2
 
     bool TryGetServices(const std::type_info& type, std::vector<std::shared_ptr<IService>>& rServices) const override
     {
+      ValidateThreadAccess();
       const std::type_index typeIndex(type);
       auto range = m_servicesByType.equal_range(typeIndex);
 
