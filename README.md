@@ -1,4 +1,4 @@
-# ServiceFramework2025
+# Service Framework Experiments
 
 ⚠️ **Experimental Playground** - This is an experimental project for exploring C++20 coroutines with Boost.Asio
 
