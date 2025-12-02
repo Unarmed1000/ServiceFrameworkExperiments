@@ -101,9 +101,9 @@ namespace Test2
       co_return ServiceShutdownResult::Success;
     }
 
-    ServiceProcessResult Process() override
+    ProcessResult Process() override
     {
-      return ServiceProcessResult{};
+      return ProcessResult::NoSleepLimit();
     }
   };
 

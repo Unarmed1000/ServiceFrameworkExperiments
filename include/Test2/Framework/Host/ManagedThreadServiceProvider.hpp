@@ -203,6 +203,28 @@ namespace Test2
 
       return true;
     }
+
+    /// @brief Get all registered service controls.
+    ///
+    /// Returns all unique IServiceControl instances in registration order.
+    /// This is useful for iterating over all services, e.g., for processing.
+    ///
+    /// @return Vector of all service controls in registration order.
+    [[nodiscard]] std::vector<std::shared_ptr<IServiceControl>> GetAllServiceControls() const
+    {
+      ValidateThreadAccess();
+      std::vector<std::shared_ptr<IServiceControl>> result;
+
+      for (const auto& group : m_priorityGroups)
+      {
+        for (const auto& info : group.Services)
+        {
+          result.push_back(info.Service);
+        }
+      }
+
+      return result;
+    }
   };
 }
 

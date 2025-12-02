@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ISERVICECONTROL_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ISERVICECONTROL_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_PROCESSSTATUS_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_PROCESSSTATUS_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,27 +13,21 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/IService.hpp>
-#include <Test2/Framework/Service/ProcessResult.hpp>
-#include <Test2/Framework/Service/ServiceInitResult.hpp>
-#include <Test2/Framework/Service/ServiceShutdownResult.hpp>
-#include <boost/asio/awaitable.hpp>
-
 namespace Test2
 {
-  struct ServiceCreateInfo;
-
-  class IServiceControl : public IService
+  /// @brief Represents the status result of a service Process() call.
+  enum class ProcessStatus
   {
-  public:
-    virtual ~IServiceControl() = default;
+    /// @brief This process did not result in anything that would limit the sleep time.
+    NoSleepLimit = 0,
 
-    virtual boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& creationInfo) = 0;
-    virtual boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() = 0;
+    /// @brief Duration contains the recommended max time the thread should sleep.
+    ///        This means it's ok for it to be called sooner, but it should not be called much later.
+    SleepLimit = 1,
 
-    virtual ProcessResult Process() = 0;
+    /// @brief The process operation would like to quit.
+    Quit = 2
   };
-
 }
 
 #endif

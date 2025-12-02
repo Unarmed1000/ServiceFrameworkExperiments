@@ -19,9 +19,9 @@
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Service/IService.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
+#include <Test2/Framework/Service/ProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <Test2/Framework/Service/ServiceInitResult.hpp>
-#include <Test2/Framework/Service/ServiceProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceShutdownResult.hpp>
 #include <gtest/gtest.h>
 #include <algorithm>
@@ -58,9 +58,9 @@ namespace Test2
       co_return ServiceShutdownResult::Success;
     }
 
-    ServiceProcessResult Process() override
+    ProcessResult Process() override
     {
-      return ServiceProcessResult{};
+      return ProcessResult::NoSleepLimit();
     }
   };
 

@@ -494,6 +494,7 @@ add_executable(test_managed_thread_service_host
     include/Test2/Framework/Host/ManagedThreadRecord.hpp
     include/Test2/Framework/Host/ManagedThreadServiceHost.hpp
     include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/ServiceHostBase.hpp
     include/Test2/Framework/Host/StartServiceRecord.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
 )
@@ -501,3 +502,29 @@ configure_target(test_managed_thread_service_host)
 target_include_directories(test_managed_thread_service_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test_managed_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp)
+
+# Executable 11: ProcessResult test
+add_executable(test_process_result
+    UnitTest/Test2/Service/ProcessResultTest.cpp
+    include/Test2/Framework/Service/ProcessStatus.hpp
+    include/Test2/Framework/Service/ProcessResult.hpp
+)
+configure_target(test_process_result)
+target_include_directories(test_process_result PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_process_result PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Service/ProcessResultTest.cpp)
+
+# Executable 12: CooperativeThreadServiceHost test
+add_executable(test_cooperative_thread_service_host
+    UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp
+    src/Test2/Service/Provider/ServiceProvider.cpp
+    include/Test2/Framework/Host/CooperativeThreadServiceHost.hpp
+    include/Test2/Framework/Host/ServiceHostBase.hpp
+    include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/StartServiceRecord.hpp
+    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
+)
+configure_target(test_cooperative_thread_service_host)
+target_include_directories(test_cooperative_thread_service_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_cooperative_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp)
