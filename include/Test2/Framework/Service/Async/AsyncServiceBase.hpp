@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ISERVICE_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ISERVICE_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_ASYNCSERVICEBASE_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_ASYNCSERVICEBASE_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -19,14 +19,38 @@ namespace Test2
 {
   struct ServiceCreateInfo;
 
-  class ASyncServiceBase : IServiceControl
+  /// @brief Base class for asynchronous services that run in their own thread.
+  ///
+  /// TODO: This class needs to be completed with:
+  /// - Thread management (io_context, work_guard, thread)
+  /// - A call() method to dispatch work to the service's thread
+  /// - Proper lifecycle management (start/stop)
+  /// - Integration with the service host for thread coordination
+  class ASyncServiceBase : public IServiceControl
   {
   public:
-    ASyncServiceBase(const ServiceCreateInfo& /*creationInfo*/)
+    explicit ASyncServiceBase(const ServiceCreateInfo& /*creationInfo*/)
     {
+      // TODO: Initialize io_context and work_guard here
+      // TODO: Store any needed configuration from creationInfo
     }
+
+    ~ASyncServiceBase() override = default;
+
+  protected:
+    // TODO: Add the following when implementing async functionality:
+    //
+    // boost::asio::io_context m_io_context;
+    // boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work_guard;
+    // std::thread m_thread;
+    //
+    // template <typename Func>
+    // auto call(Func&& func) -> boost::asio::awaitable<decltype(std::declval<std::decay_t<Func>>()())>
+    // {
+    //   // Execute function on service thread via co_spawn
+    // }
   };
 
 }
 
-#endif6
+#endif

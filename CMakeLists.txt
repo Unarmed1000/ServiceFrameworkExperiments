@@ -369,7 +369,23 @@ add_executable(test2
     include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
     include/Test2/Framework/Registry/ServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
-    include/Test2/Services/AddService.hpp
+    include/Test2/Services/ServiceConfig.hpp
+    include/Test2/Services/Add/IAddService.hpp
+    include/Test2/Services/Add/AddService.hpp
+    include/Test2/Services/Add/AddServiceFactory.hpp
+    include/Test2/Services/Subtract/ISubtractService.hpp
+    include/Test2/Services/Subtract/SubtractService.hpp
+    include/Test2/Services/Subtract/SubtractServiceFactory.hpp
+    include/Test2/Services/Multiply/IMultiplyService.hpp
+    include/Test2/Services/Multiply/MultiplyService.hpp
+    include/Test2/Services/Multiply/MultiplyServiceFactory.hpp
+    include/Test2/Services/Divide/IDivideService.hpp
+    include/Test2/Services/Divide/DivideService.hpp
+    include/Test2/Services/Divide/DivideServiceFactory.hpp
+    include/Test2/Services/Calculator/ICalculatorService.hpp
+    include/Test2/Services/Calculator/CalculatorService.hpp
+    include/Test2/Services/Calculator/CalculatorServiceFactory.hpp
+    include/Test2/Services/Calculator/CalculatorServiceRegistration.hpp
 )
 configure_target(test2)
 target_include_directories(test2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -403,7 +419,33 @@ source_group("Header Files\\Test2\\Framework\\Manager" FILES
     include/Test2/Framework/Manager/IServiceManager.hpp
 )
 source_group("Header Files\\Test2\\Services" FILES
-    include/Test2/Services/AddService.hpp
+    include/Test2/Services/ServiceConfig.hpp
+)
+source_group("Header Files\\Test2\\Services\\Add" FILES
+    include/Test2/Services/Add/IAddService.hpp
+    include/Test2/Services/Add/AddService.hpp
+    include/Test2/Services/Add/AddServiceFactory.hpp
+)
+source_group("Header Files\\Test2\\Services\\Subtract" FILES
+    include/Test2/Services/Subtract/ISubtractService.hpp
+    include/Test2/Services/Subtract/SubtractService.hpp
+    include/Test2/Services/Subtract/SubtractServiceFactory.hpp
+)
+source_group("Header Files\\Test2\\Services\\Multiply" FILES
+    include/Test2/Services/Multiply/IMultiplyService.hpp
+    include/Test2/Services/Multiply/MultiplyService.hpp
+    include/Test2/Services/Multiply/MultiplyServiceFactory.hpp
+)
+source_group("Header Files\\Test2\\Services\\Divide" FILES
+    include/Test2/Services/Divide/IDivideService.hpp
+    include/Test2/Services/Divide/DivideService.hpp
+    include/Test2/Services/Divide/DivideServiceFactory.hpp
+)
+source_group("Header Files\\Test2\\Services\\Calculator" FILES
+    include/Test2/Services/Calculator/ICalculatorService.hpp
+    include/Test2/Services/Calculator/CalculatorService.hpp
+    include/Test2/Services/Calculator/CalculatorServiceFactory.hpp
+    include/Test2/Services/Calculator/CalculatorServiceRegistration.hpp
 )
 source_group("Source Files\\Test2\\Service\\Provider" FILES
     src/Test2/Service/Provider/ServiceProvider.cpp

@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_ADDSERVICE_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_ADDSERVICE_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_ISUBTRACTSERVICE_HPP
+#define SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_ISUBTRACTSERVICE_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,34 +13,22 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/AsyncServiceBase.hpp>
-#include <fmt/core.h>
-#include <fmt/ostream.h>
-#include <spdlog/spdlog.h>
-#include <chrono>
-#include <thread>
+#include <Test2/Framework/Service/IService.hpp>
+#include <boost/asio/awaitable.hpp>
 
-namespace Test1
+namespace Test2
 {
-  // Add Service - runs in its own thread
-  class AddService : public AsyncServiceBase
+  /// @brief Interface for the subtraction service.
+  class ISubtractService : public IService
   {
   public:
-    AddService(const ServiceCreateInfo& creationInfo)
-      : AsyncServiceBase(creationInfo)
-    {
-    }
+    ~ISubtractService() override = default;
 
-    boost::asio::awaitable<double> AddAsync(const double a, const double b)
-    {
-      co_return co_await call(
-        [=]()
-        {
-          spdlog::info("[AddService] {} + {}", a, b);
-          std::this_thread::sleep_for(std::chrono::milliseconds(Config::ADD_SERVICE_DELAY_MS));
-          return a + b;
-        });
-    }
+    /// @brief Asynchronously subtracts two numbers.
+    /// @param a The first operand.
+    /// @param b The second operand.
+    /// @return An awaitable yielding the difference (a - b).
+    virtual boost::asio::awaitable<double> SubtractAsync(double a, double b) = 0;
   };
 
 }
