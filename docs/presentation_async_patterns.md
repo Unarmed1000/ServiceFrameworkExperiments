@@ -225,6 +225,183 @@ flowchart TD
 
 ---
 
+# Error Handling by Pattern
+
+## Why Request/Response is Easy
+
+| Aspect | Request/Response |
+|--------|------------------|
+| **Completion points** | Single — one place to catch errors |
+| **Error ownership** | Clear — caller owns the error |
+| **Propagation** | Automatic — exception bubbles up or `future` holds it |
+| **Syntax** | `try`/`catch` around `co_await` just works |
+
+```cpp
+// Request/Response: Clean error handling
+try {
+    auto result = co_await service.DoWorkAsync();
+    process(result);
+} catch (const std::exception& ex) {
+    log_error(ex.what());  // ✅ Single, clear error path
+}
+```
+
+---
+
+# Error Handling: Events & Pub-Sub
+
+## Why Events Are Harder
+
+| Problem | Description |
+|---------|-------------|
+| **N subscribers can fail** | One event → N handlers → N possible exceptions |
+| **No return path** | Publisher has no way to receive exceptions from subscribers |
+| **Who owns the error?** | Publisher? Subscriber? Framework? Ambiguous. |
+| **Unhandled = crash** | Qt: exception in slot → `std::terminate` |
+
+```cpp
+// Pub-Sub: Who handles the error?
+signal.emit(data);  // Calls N subscribers
+// Subscriber 3 throws... now what?
+// - Other subscribers may not run
+// - Publisher doesn't know
+// - Program may crash
+```
+
+---
+
+# Events: The Golden Rule
+
+## Never Let Exceptions Escape to the Publisher
+
+> *Each subscriber is responsible for its own errors.*
+
+### Why?
+- Publisher doesn't know (or care) who subscribed
+- One subscriber's failure shouldn't affect others
+- Publisher has no context to handle subscriber-specific errors
+
+```cpp
+// ❌ BAD: Exception escapes to publisher
+void on_data_received(const Data& data) {
+    process(data);  // Throws → crashes publisher or skips other subscribers
+}
+
+// ✅ GOOD: Subscriber owns its errors
+void on_data_received(const Data& data) {
+    try {
+        process(data);
+    } catch (const std::exception& ex) {
+        spdlog::error("Failed to process data: {}", ex.what());
+        // Decide locally: retry? ignore? alert?
+    }
+}
+```
+
+---
+
+# Events: Subscriber Error Strategies
+
+## Each Subscriber Should Choose a Strategy
+
+| Strategy | When to Use | Example |
+|----------|-------------|--------|
+| **Log and continue** | Non-critical updates | UI refresh failed |
+| **Retry with backoff** | Transient failures | Network hiccup |
+| **Queue for later** | Ordering matters | Persist to retry queue |
+| **Fail-fast locally** | Corrupted state | Disconnect this subscriber |
+| **Escalate via separate channel** | Critical errors | Send error event / metric |
+
+### Framework Support Pattern
+
+```cpp
+// Framework can provide error boundary wrapper
+template<typename Handler>
+auto make_safe_handler(Handler h, ErrorPolicy policy) {
+    return [=](auto&&... args) {
+        try {
+            h(std::forward<decltype(args)>(args)...);
+        } catch (const std::exception& ex) {
+            policy.handle(ex);  // Log, retry, alert, etc.
+        }
+    };
+}
+```
+
+---
+
+# Fire-and-Forget: Why It's Dangerous
+
+## The Hidden Trap
+
+| Issue | Consequence |
+|-------|-------------|
+| **No observer** | No one to receive or handle errors |
+| **Unobserved exceptions** | Silently lost or crash the process |
+| **No completion signal** | Caller can't know if it succeeded |
+| **Resource leaks** | No cleanup on failure |
+
+```cpp
+// ❌ DANGEROUS: Fire-and-forget with detach
+std::thread([&]() {
+    risky_operation();  // Throws? → std::terminate!
+}).detach();
+
+// ❌ DANGEROUS: Ignoring the future
+std::async(std::launch::async, []() {
+    might_fail();  // Exception stored in future... that no one checks
+});
+```
+
+---
+
+# Fire-and-Forget: Safe Alternatives
+
+## If You Must Fire-and-Forget
+
+```cpp
+// ✅ SAFER: Explicit error boundary
+boost::asio::post(io_context, [&]() {
+    try {
+        risky_operation();
+    } catch (const std::exception& ex) {
+        spdlog::error("Background task failed: {}", ex.what());
+        // Decide: retry? alert? metric?
+    }
+});
+
+// ✅ SAFER: Use co_spawn with error handler
+boost::asio::co_spawn(io_context, do_work(),
+    [](std::exception_ptr ep) {
+        if (ep) try { std::rethrow_exception(ep); }
+        catch (const std::exception& ex) {
+            spdlog::error("Coroutine failed: {}", ex.what());
+        }
+    });
+```
+
+### Rule of Thumb
+> *"If you don't observe the result, you must observe the error."*
+
+---
+
+# Error Handling: Pattern Comparison
+
+| Pattern | Error Ownership | Propagation | Unhandled Error Fate |
+|---------|-----------------|-------------|----------------------|
+| **Request/Response** | Caller | Automatic via future/await | Caller receives exception |
+| **Continuation** | Next handler | Chained through `.then()` | Final handler or unobserved |
+| **Fire-and-Forget** | ⚠️ Nobody | None | Silent loss or `terminate` |
+| **Events/Pub-Sub** | ⚠️ Ambiguous | None (no return path) | Crash or silent loss |
+| **Message Queue** | Consumer | Dead-letter queue | Retry or DLQ |
+
+### Key Insight
+
+**Request/Response** has a natural error path back to the caller.
+**Events** and **Fire-and-Forget** require *explicit* error handling design.
+
+---
+
 # Service Threading Models
 
 | Service Type | Can call from any thread? | Executes on | Terms |
