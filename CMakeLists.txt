@@ -1,13 +1,16 @@
 cmake_minimum_required(VERSION 3.23)
 
+# Set up configuration mapping for multi-config generators
+# Map RelWithDebInfo and MinSizeRel to Release since Conan packages only provide Debug and Release
+# These must be CACHE variables with FORCE to persist across project() command
+set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL "Release;RelWithDebInfo;MinSizeRel;Debug" CACHE STRING "Configuration mapping for MinSizeRel" FORCE)
+set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO "Release;RelWithDebInfo;MinSizeRel;Debug" CACHE STRING "Configuration mapping for RelWithDebInfo" FORCE)
+
 # Check for Python 3
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 if(NOT Python3_Interpreter_FOUND)
     message(FATAL_ERROR "Python 3 is required but not found. Please install Python 3.x")
 endif()
-
-# Option to control which configurations to install for multi-config generators
-set(CONAN_INSTALL_CONFIGS "Debug" CACHE STRING "Configurations to install Conan dependencies for (semicolon-separated list or 'ALL')")
 
 # Allow user to specify profile via cache variable or environment variable
 set(CONAN_PROFILE "" CACHE STRING "Conan profile to use (e.g., profiles/windows-vs-debug, profiles/windows-ninja-release)")
@@ -64,12 +67,12 @@ set(CONAN_HASH_FILE "${CMAKE_SOURCE_DIR}/${CONAN_OUTPUT_FOLDER}/.conan_config_ha
 set(CONAN_PROFILE_PATH "${CMAKE_SOURCE_DIR}/${CONAN_PROFILE}")
 
 # Determine if this is a multi-config generator
-if(CMAKE_CONFIGURATION_TYPES)
+# Note: CMAKE_CONFIGURATION_TYPES is not available before project() command,
+# so we detect based on generator name
+if(CMAKE_GENERATOR MATCHES "Visual Studio|Xcode|Ninja Multi-Config")
     set(IS_MULTI_CONFIG TRUE)
-    set(REQUIRED_CONFIGS ${CMAKE_CONFIGURATION_TYPES})
 else()
     set(IS_MULTI_CONFIG FALSE)
-    set(REQUIRED_CONFIGS "${CMAKE_BUILD_TYPE}")
 endif()
 
 # Check if Conan configuration has changed
@@ -104,16 +107,17 @@ endif()
 if(NEED_CONAN_INSTALL)
     message(STATUS "Running Conan install...")
 
-    # For multi-config generators (Visual Studio, Xcode), only install specified configurations
-    if(CMAKE_CONFIGURATION_TYPES)
-        # Determine which configurations to install
-        if(CONAN_INSTALL_CONFIGS STREQUAL "ALL")
-            set(SUPPORTED_CONFIGS ${CMAKE_CONFIGURATION_TYPES})
-            message(STATUS "Installing Conan dependencies for all configurations: ${SUPPORTED_CONFIGS}")
-        else()
-            set(SUPPORTED_CONFIGS ${CONAN_INSTALL_CONFIGS})
-            message(STATUS "Installing Conan dependencies for selected configurations: ${SUPPORTED_CONFIGS}")
-        endif()
+    # Verify Conan is available
+    find_program(CONAN_EXECUTABLE conan)
+    if(NOT CONAN_EXECUTABLE)
+        message(FATAL_ERROR "Conan not found. Please install Conan (pip install conan) and ensure it's in PATH.")
+    endif()
+
+    # For multi-config generators (Visual Studio, Xcode), install all configurations
+    if(CMAKE_GENERATOR MATCHES "Visual Studio|Xcode|Ninja Multi-Config")
+        # Only install Debug and Release since Conan packages don't support RelWithDebInfo/MinSizeRel
+        set(SUPPORTED_CONFIGS "Debug;Release")
+        message(STATUS "Installing Conan dependencies for configurations: ${SUPPORTED_CONFIGS}")
 
         set(CONFIGS_TO_INSTALL)
 
@@ -133,6 +137,7 @@ if(NEED_CONAN_INSTALL)
         endif()
 
         if(CONFIGS_TO_INSTALL)
+            # Install all configurations first before creating any marker files
             foreach(CONFIG_TYPE ${CONFIGS_TO_INSTALL})
                 message(STATUS "Installing Conan dependencies for ${CONFIG_TYPE}...")
 
@@ -168,8 +173,11 @@ if(NEED_CONAN_INSTALL)
                 if(NOT CONAN_RESULT EQUAL 0)
                     message(FATAL_ERROR "Conan install failed for ${CONFIG_TYPE}:\n${CONAN_ERROR}")
                 endif()
+            endforeach()
 
-                # Create marker file to track installation
+            # Create all marker files only after ALL installs succeed
+            foreach(CONFIG_TYPE ${CONFIGS_TO_INSTALL})
+                set(CONFIG_MARKER "${CMAKE_SOURCE_DIR}/${CONAN_OUTPUT_FOLDER}/build/.conan_installed_${CONFIG_TYPE}")
                 file(WRITE "${CONFIG_MARKER}" "${CONFIG_TYPE} installed at ${CMAKE_CURRENT_LIST_FILE}")
             endforeach()
         else()
@@ -214,6 +222,11 @@ if(NEED_CONAN_INSTALL)
         message(WARNING "Failed to update Conan configuration hash:\n${CONAN_HASH_ERROR}")
     endif()
 endif()
+
+# Map non-standard configurations to Conan-supported configurations
+# Conan only provides Debug and Release, not RelWithDebInfo or MinSizeRel
+set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL Release)
+set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
 
 project(ServiceFramework2025
     VERSION 0.1.0

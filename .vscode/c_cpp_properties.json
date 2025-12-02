@@ -10,9 +10,9 @@
                 "${workspaceFolder}/src",
                 "C:/Users/live/.conan2/p/b/boost145c000417d25/p\\include",
                 "C:/Users/live/.conan2/p/b/bzip2c50d21f65cb25/p\\include",
-                "C:/Users/live/.conan2/p/b/fmt5ad69cf3cc557/p\\include",
+                "C:/Users/live/.conan2/p/b/fmtf570999b7980f/p\\include",
                 "C:/Users/live/.conan2/p/b/gtesta3a5a29ec4e1f/p\\include",
-                "C:/Users/live/.conan2/p/b/spdloc1c86d38d1a94/p\\include",
+                "C:/Users/live/.conan2/p/b/spdlo7ac09ce658bd6/p\\include",
                 "C:/Users/live/.conan2/p/b/zliba343d0e3ac23e/p\\include"
             ],
             "defines": [
@@ -24,7 +24,6 @@
                 "\"BOOST_STACKTRACE_USE_WINDBG\"",
                 "\"SPDLOG_COMPILED_LIB",
                 "BOOST_STACKTRACE_USE_WINDBG_CACHED\"",
-                "FMT_UNICODE=0",
                 "SPDLOG_FMT_EXTERNAL\""
             ],
             "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
@@ -41,9 +40,9 @@
                 "${workspaceFolder}/src",
                 "C:/Users/live/.conan2/p/b/boost5c7d7936bbcee/p\\include",
                 "C:/Users/live/.conan2/p/b/bzip267e4939604fc3/p\\include",
-                "C:/Users/live/.conan2/p/b/fmt47b88a97be90c/p\\include",
+                "C:/Users/live/.conan2/p/b/fmt2c0568f818163/p\\include",
                 "C:/Users/live/.conan2/p/b/gtest440b4ed4b6caa/p\\include",
-                "C:/Users/live/.conan2/p/b/spdloe2644f93177c0/p\\include",
+                "C:/Users/live/.conan2/p/b/spdloe1d41bbc61d3f/p\\include",
                 "C:/Users/live/.conan2/p/b/zlib8e468b10de648/p\\include"
             ],
             "defines": [
@@ -55,7 +54,6 @@
                 "\"BOOST_STACKTRACE_USE_WINDBG\"",
                 "\"SPDLOG_COMPILED_LIB",
                 "BOOST_STACKTRACE_USE_WINDBG_CACHED\"",
-                "FMT_UNICODE=0",
                 "SPDLOG_FMT_EXTERNAL\""
             ],
             "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
@@ -69,25 +67,12 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/include",
-                "${workspaceFolder}/src",
-                "C:/Users/live/.conan2/p/b/boostc3e64e943b3f9/p\\include",
-                "C:/Users/live/.conan2/p/b/bzip2a173cfdc2ca58/p\\include",
-                "C:/Users/live/.conan2/p/b/fmtd4452443cbffa/p\\include",
-                "C:/Users/live/.conan2/p/b/gtest960998e66379b/p\\include",
-                "C:/Users/live/.conan2/p/b/spdlo3862fdab3fb89/p\\include",
-                "C:/Users/live/.conan2/p/b/zlibc82ce2c731afa/p\\include"
+                "${workspaceFolder}/src"
             ],
             "defines": [
                 "UNICODE",
                 "_UNICODE",
-                "NDEBUG",
-                "\"BOOST_ALL_NO_LIB",
-                "\"BOOST_STACKTRACE_USE_NOOP\"",
-                "\"BOOST_STACKTRACE_USE_WINDBG\"",
-                "\"SPDLOG_COMPILED_LIB",
-                "BOOST_STACKTRACE_USE_WINDBG_CACHED\"",
-                "FMT_UNICODE=0",
-                "SPDLOG_FMT_EXTERNAL\""
+                "NDEBUG"
             ],
             "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
             "cStandard": "c17",

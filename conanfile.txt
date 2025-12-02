@@ -1,8 +1,8 @@
 [requires]
 boost/1.84.0
-fmt/10.2.1
+fmt/12.0.0
 gtest/1.14.0
-spdlog/1.12.0
+spdlog/1.16.0
 
 [generators]
 CMakeDeps
