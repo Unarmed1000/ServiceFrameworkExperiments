@@ -538,13 +538,18 @@ UpdateUI(result);  // ✅ Automatically back on UI thread
 ## C++ Solution: Executors / `io_context`
 
 ```cpp
-// Explicitly bind coroutine to UI context
+// Option 1: Spawn coroutine bound to UI executor (stays on UI thread)
+boost::asio::co_spawn(ui_io_context, do_work(), detached);
+
+// Option 2: Explicit post back after cross-executor await
+auto result = co_await background_service.DoWorkAsync();
 co_await boost::asio::post(ui_io_context, boost::asio::use_awaitable);
 update_ui(result);  // ✅ Now on UI thread
-
-// Or: spawn coroutine on specific executor
-boost::asio::co_spawn(ui_io_context, do_work(), detached);
 ```
+
+**Key insight**: Coroutines spawned via `co_spawn` stay on their executor for all *internal* `co_await`s. Manual marshaling is only needed after awaiting a *different* executor.
+
+See [Appendix A12](#appendix-a12-c-thread-affinity-patterns) for UI framework comparison and `resume_on` helper.
 
 ---
 
@@ -1281,3 +1286,53 @@ signal.connect(make_safe_handler(
 ```
 
 **Key Point**: The wrapper ensures one subscriber's exception never affects the publisher or other subscribers.
+
+---
+
+# Appendix A12: C++ Thread Affinity Patterns
+
+## UI Framework Comparison
+
+| Framework | Thread Marshaling | Coroutine Support |
+|-----------|-------------------|-------------------|
+| **Qt** | `QMetaObject::invokeMethod(obj, Qt::QueuedConnection)` | No built-in; use custom awaiter |
+| **wxWidgets** | `CallAfter(fn)` or `wxEvtHandler::QueueEvent()` | No built-in |
+| **JUCE** | `MessageManager::callAsync(fn)` | No built-in |
+| **Win32** | `PostMessage()` / `SendMessage()` | No built-in |
+| **GTK** | `g_idle_add()` | No built-in |
+
+**Key insight**: No widely-adopted C++ UI framework has automatic coroutine context capture like C#'s `SynchronizationContext`.
+
+## The Cleanest Pattern: `resume_on` Awaitable
+
+```cpp
+// Wrapper that awaits an operation then resumes on a specific executor
+template<typename Awaitable>
+auto resume_on(boost::asio::any_io_executor exec, Awaitable awaitable)
+    -> boost::asio::awaitable<typename Awaitable::value_type>
+{
+    auto result = co_await std::move(awaitable);
+    co_await boost::asio::post(exec, boost::asio::use_awaitable);
+    co_return result;
+}
+```
+
+## Usage Example
+
+```cpp
+// Store UI executor at coroutine start
+auto ui_exec = co_await boost::asio::this_coro::executor;
+
+// Await background work and automatically resume on UI thread
+auto data = co_await resume_on(ui_exec, background_service.FetchDataAsync());
+update_ui(data);  // ✅ Guaranteed to be on UI thread
+```
+
+## Why This Works
+
+1. **Captures executor once** at coroutine start
+2. **Wraps any awaitable** — no changes needed to background services
+3. **Explicit but concise** — makes thread transitions visible without boilerplate
+4. **Composable** — works with any `awaitable<T>`
+
+**Trade-off**: Requires explicit wrapping (unlike C# automatic capture), but makes thread transitions visible and intentional.
