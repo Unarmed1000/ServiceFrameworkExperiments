@@ -84,6 +84,13 @@ namespace Test2
 
     boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, const ServicePriority currentPriority)
     {
+      // Handle empty service list
+      if (services.empty())
+      {
+        spdlog::warn("TryStartServicesAsync called with empty service list at priority {}", currentPriority.GetValue());
+        co_return;
+      }
+
       // Validate service factories
       for (const auto& serviceRecord : services)
       {

@@ -369,3 +369,16 @@ configure_target(test_service_provider_proxy)
 target_include_directories(test_service_provider_proxy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test_service_provider_proxy PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Provider/ServiceProviderProxyTest.cpp)
+
+# Executable 9: ManagedThreadServiceHost test
+add_executable(test_managed_thread_service_host
+    UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp
+    include/Test2/Framework/Host/ManagedThreadServiceHost.hpp
+    include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/StartServiceRecord.hpp
+    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
+)
+configure_target(test_managed_thread_service_host)
+target_include_directories(test_managed_thread_service_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_managed_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp)
