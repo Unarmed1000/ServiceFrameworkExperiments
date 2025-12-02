@@ -448,7 +448,7 @@ source_group("Source Files\\UnitTest\\Common" FILES UnitTest/Common/AggregateExc
 add_executable(test_managed_thread_service_provider
     UnitTest/Test2/Host/ManagedThreadServiceProviderTest.cpp
     include/Test2/Framework/Service/IService.hpp
-    include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
     include/Test2/Framework/Exception/InvalidPriorityOrderException.hpp
     include/Test2/Framework/Exception/EmptyPriorityGroupException.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
@@ -490,10 +490,10 @@ source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Prov
 add_executable(test_service_host_base
     UnitTest/Test2/Host/ServiceHostBaseTest.cpp
     src/Test2/Service/Provider/ServiceProvider.cpp
-    include/Test2/Framework/Host/ManagedThreadHost.hpp
-    include/Test2/Framework/Host/ManagedThreadRecord.hpp
-    include/Test2/Framework/Host/ManagedThreadServiceHost.hpp
-    include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
     include/Test2/Framework/Host/ServiceHostBase.hpp
     include/Test2/Framework/Host/StartServiceRecord.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
@@ -507,10 +507,10 @@ source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/Ser
 add_executable(test_managed_thread_service_host
     UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp
     src/Test2/Service/Provider/ServiceProvider.cpp
-    include/Test2/Framework/Host/ManagedThreadHost.hpp
-    include/Test2/Framework/Host/ManagedThreadRecord.hpp
-    include/Test2/Framework/Host/ManagedThreadServiceHost.hpp
-    include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
     include/Test2/Framework/Host/ServiceHostBase.hpp
     include/Test2/Framework/Host/StartServiceRecord.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
@@ -535,9 +535,9 @@ source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Servi
 add_executable(test_cooperative_thread_service_host
     UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp
     src/Test2/Service/Provider/ServiceProvider.cpp
-    include/Test2/Framework/Host/CooperativeThreadServiceHost.hpp
+    include/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
     include/Test2/Framework/Host/ServiceHostBase.hpp
-    include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
     include/Test2/Framework/Host/StartServiceRecord.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
 )

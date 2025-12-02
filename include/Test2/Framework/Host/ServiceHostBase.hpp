@@ -15,7 +15,7 @@
 
 #include <Common/AggregateException.hpp>
 #include <Test2/Framework/Exception/InvalidServiceFactoryException.hpp>
-#include <Test2/Framework/Host/ManagedThreadServiceProvider.hpp>
+#include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Provider/ServiceProvider.hpp>

@@ -13,9 +13,9 @@
 
 #include <Common/AggregateException.hpp>
 #include <Test2/Framework/Exception/EmptyPriorityGroupException.hpp>
-#include <Test2/Framework/Host/CooperativeThreadServiceHost.hpp>
-#include <Test2/Framework/Host/ManagedThreadServiceHost.hpp>
-#include <Test2/Framework/Host/ManagedThreadServiceProvider.hpp>
+#include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
+#include <Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp>
+#include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Service/IServiceFactory.hpp>
