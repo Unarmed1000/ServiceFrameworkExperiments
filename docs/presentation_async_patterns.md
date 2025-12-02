@@ -125,14 +125,29 @@ boost::asio::awaitable<void> do_work() {
 
 # C++23/26: The Future
 
-## `std::execution` (P2300)
+## `std::execution` (P2300) vs Boost.Asio
 
-A new model for asynchronous programming:
+| Aspect | Boost.Asio | std::execution (P2300) |
+|--------|------------|------------------------|
+| **Availability** | Now (mature, production-ready) | C++26 target (stdexec library today) |
+| **Model** | Proactor pattern, completion handlers | Senders & Receivers |
+| **Coroutine support** | `awaitable<T>`, `use_awaitable` | Native sender/receiver composition |
+| **Function coloring** | Yes (async functions differ) | No (same function can be sync or async) |
+| **Cancellation** | `cancellation_signal`, manual | Built-in via `stop_token`, structured |
+| **Scope** | I/O focused (networking, timers) | General async execution |
 
-- **Senders & Receivers** — composable async operations
-- **Schedulers** — abstract thread/execution context
-- **Structured concurrency** — parent operations own child operations
-- **No function coloring** — same function can be sync or async
+### Why This Framework Uses Boost.Asio
+
+- **Available today** — P2300 is still being standardized
+- **C++20 coroutine support** — `awaitable<T>` works well with `co_await`
+- **I/O primitives** — networking, timers already included
+- **Future path** — Boost.Asio expected to integrate with P2300
+
+---
+
+# std::execution Code Example
+
+## Sender/Receiver Model (P2300)
 
 ```cpp
 // Future C++ (conceptual)
