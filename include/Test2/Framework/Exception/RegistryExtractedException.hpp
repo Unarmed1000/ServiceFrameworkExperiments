@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_SERVICEREGISTRYEXCEPTION_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_SERVICEREGISTRYEXCEPTION_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_REGISTRYEXTRACTEDEXCEPTION_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_REGISTRYEXTRACTEDEXCEPTION_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -18,19 +18,6 @@
 
 namespace Test2
 {
-  /// @brief Exception thrown when attempting to register a factory that has already been registered.
-  ///
-  /// This exception is thrown by ServiceRegistry::RegisterService when a factory of the same
-  /// type (same typeid) has already been registered. Each factory type can only be registered once.
-  class DuplicateServiceRegistrationException : public std::logic_error
-  {
-  public:
-    explicit DuplicateServiceRegistrationException(const std::string& message)
-      : std::logic_error(message)
-    {
-    }
-  };
-
   /// @brief Exception thrown when attempting to register a service after ExtractRegistrations has been called.
   ///
   /// This exception is thrown by ServiceRegistry::RegisterService when called after
@@ -44,21 +31,6 @@ namespace Test2
     {
     }
   };
-
-  /// @brief Exception thrown when attempting to register an invalid service factory.
-  ///
-  /// This exception is thrown by ServiceRegistry::RegisterService when a factory
-  /// reports zero supported service interfaces via GetSupportedInterfaces(),
-  /// or when a null factory pointer is provided.
-  class InvalidServiceFactoryException : public std::logic_error
-  {
-  public:
-    explicit InvalidServiceFactoryException(const std::string& message)
-      : std::logic_error(message)
-    {
-    }
-  };
-
 }
 
 #endif

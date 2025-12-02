@@ -157,7 +157,8 @@ namespace Test2
       {
         if (!serviceRecord.Factory)
         {
-          throw InvalidServiceFactoryException(serviceRecord.ServiceName);
+          throw InvalidServiceFactoryException(
+            fmt::format("Invalid service factory in StartServiceRecord for service: {}", serviceRecord.ServiceName));
         }
       }
     }

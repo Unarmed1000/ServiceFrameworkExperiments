@@ -13,7 +13,9 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Exception/ServiceRegistryException.hpp>
+#include <Test2/Framework/Exception/DuplicateServiceRegistrationException.hpp>
+#include <Test2/Framework/Exception/InvalidServiceFactoryException.hpp>
+#include <Test2/Framework/Exception/RegistryExtractedException.hpp>
 #include <Test2/Framework/Registry/IServiceRegistry.hpp>
 #include <Test2/Framework/Registry/ServiceRegistrationRecord.hpp>
 #include <Test2/Framework/Service/IServiceFactory.hpp>

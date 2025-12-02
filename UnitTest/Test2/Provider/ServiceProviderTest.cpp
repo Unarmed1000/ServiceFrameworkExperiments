@@ -11,7 +11,8 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Exception/ServiceProviderException.hpp>
+#include <Test2/Framework/Exception/ServiceCastException.hpp>
+#include <Test2/Framework/Exception/UnknownServiceException.hpp>
 #include <Test2/Framework/Provider/ServiceProvider.hpp>
 #include <gtest/gtest.h>
 #include <memory>

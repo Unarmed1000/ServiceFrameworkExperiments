@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_INVALIDSERVICEFACTORYEXCEPTION_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_INVALIDSERVICEFACTORYEXCEPTION_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_MULTIPLESERVICESFOUNDEXCEPTION_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_MULTIPLESERVICESFOUNDEXCEPTION_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -18,16 +18,15 @@
 
 namespace Test2
 {
-  /// @brief Exception thrown when attempting to register an invalid service factory.
+  /// @brief Exception thrown when multiple services are found but only one was expected.
   ///
-  /// This exception is thrown by ServiceRegistry::RegisterService when a factory
-  /// reports zero supported service interfaces via GetSupportedInterfaces(),
-  /// or when a null factory pointer is provided.
-  class InvalidServiceFactoryException : public std::logic_error
+  /// This exception is thrown by IServiceProvider::GetService when more than one service
+  /// matches the requested type information. Use TryGetServices to retrieve all matching services.
+  class MultipleServicesFoundException : public std::runtime_error
   {
   public:
-    explicit InvalidServiceFactoryException(const std::string& message)
-      : std::logic_error(message)
+    explicit MultipleServicesFoundException(const std::string& message)
+      : std::runtime_error(message)
     {
     }
   };

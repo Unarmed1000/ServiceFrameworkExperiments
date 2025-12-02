@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_INVALIDSERVICEFACTORYEXCEPTION_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_INVALIDSERVICEFACTORYEXCEPTION_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_UNKNOWNSERVICEEXCEPTION_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_UNKNOWNSERVICEEXCEPTION_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -18,16 +18,15 @@
 
 namespace Test2
 {
-  /// @brief Exception thrown when attempting to register an invalid service factory.
+  /// @brief Exception thrown when a requested service is not found.
   ///
-  /// This exception is thrown by ServiceRegistry::RegisterService when a factory
-  /// reports zero supported service interfaces via GetSupportedInterfaces(),
-  /// or when a null factory pointer is provided.
-  class InvalidServiceFactoryException : public std::logic_error
+  /// This exception is thrown by IServiceProvider::GetService when no service
+  /// matching the requested type information is registered.
+  class UnknownServiceException : public std::runtime_error
   {
   public:
-    explicit InvalidServiceFactoryException(const std::string& message)
-      : std::logic_error(message)
+    explicit UnknownServiceException(const std::string& message)
+      : std::runtime_error(message)
     {
     }
   };

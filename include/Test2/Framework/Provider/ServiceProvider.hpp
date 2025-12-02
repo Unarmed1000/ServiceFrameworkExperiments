@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Exception/ServiceProviderException.hpp>
+#include <Test2/Framework/Exception/ServiceCastException.hpp>
 #include <Test2/Framework/Provider/IServiceProvider.hpp>
 #include <spdlog/spdlog.h>
 #include <memory>

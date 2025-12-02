@@ -15,7 +15,9 @@
 
 #include <Test2/Framework/Exception/EmptyPriorityGroupException.hpp>
 #include <Test2/Framework/Exception/InvalidPriorityOrderException.hpp>
+#include <Test2/Framework/Exception/MultipleServicesFoundException.hpp>
 #include <Test2/Framework/Exception/ServiceProviderException.hpp>
+#include <Test2/Framework/Exception/UnknownServiceException.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Provider/IServiceProvider.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
