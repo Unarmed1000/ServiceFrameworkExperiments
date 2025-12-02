@@ -204,6 +204,29 @@ namespace Test2
       return true;
     }
 
+    /// @brief Get the total count of registered services.
+    ///
+    /// Validates thread access and logs a warning if called from wrong thread.
+    ///
+    /// @return The total number of services across all priority groups, or 0 if called from wrong thread.
+    [[nodiscard]] std::size_t GetServiceCount() const noexcept
+    {
+      const auto currentThreadId = std::this_thread::get_id();
+      if (currentThreadId != m_ownerThreadId)
+      {
+        spdlog::warn("GetServiceCount called from wrong thread. Owner: {}, Caller: {}", std::hash<std::thread::id>{}(m_ownerThreadId),
+                     std::hash<std::thread::id>{}(currentThreadId));
+        return 0;
+      }
+
+      std::size_t count = 0;
+      for (const auto& group : m_priorityGroups)
+      {
+        count += group.Services.size();
+      }
+      return count;
+    }
+
     /// @brief Get all registered service controls.
     ///
     /// Returns all unique IServiceControl instances in registration order.

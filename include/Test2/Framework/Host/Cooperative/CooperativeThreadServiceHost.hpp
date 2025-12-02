@@ -68,6 +68,25 @@ namespace Test2
 
     ~CooperativeThreadServiceHost() override
     {
+      // Verify shutdown assumptions - log warnings for any violations
+      {
+        const auto serviceCount = m_provider->GetServiceCount();
+        if (serviceCount > 0)
+        {
+          spdlog::warn("CooperativeThreadServiceHost destroyed with {} services still registered", serviceCount);
+        }
+      }
+      if (!m_ioContext->stopped())
+      {
+        spdlog::warn("CooperativeThreadServiceHost destroyed while io_context has not been stopped");
+      }
+      {
+        std::lock_guard<std::mutex> lock(m_wakeMutex);
+        if (m_wakeCallback)
+        {
+          spdlog::warn("CooperativeThreadServiceHost destroyed with wake callback still set");
+        }
+      }
       spdlog::info("CooperativeThreadServiceHost destroying at {}", static_cast<void*>(this));
     }
 
