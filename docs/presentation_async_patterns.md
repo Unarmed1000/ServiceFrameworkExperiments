@@ -105,31 +105,9 @@ boost::asio::awaitable<void> do_work() {
 | **No standard library support** | Must use Boost.Asio, cppcoro, or custom implementations |
 | **Heap allocations** | Coroutine frames typically heap-allocated |
 | **HALO optimization limits** | Heap Allocation eLision Optimization only works in specific cases (inlining required) |
-| **No async callstacks** | Debuggers support async callstacks for other languages, but not yet for C++ coroutines |
-| **Debugging difficulty** | Suspended coroutines have fragmented stack traces |
+| **No async callstacks** | Debuggers support async callstacks for other languages, but not yet for C++ coroutines (tooling improving) |
+| **Debugging difficulty** | Suspended coroutines have fragmented stack traces (tooling improving) |
 | **Customization complexity** | `promise_type`, `awaiter` concepts have steep learning curve |
-
----
-
-# Alternative Approach: Java Project Loom
-
-## Virtual Threads (Java 21+)
-
-Instead of async/await syntax, Java chose **lightweight threads**:
-
-```java
-// No async/await needed — just write synchronous code
-try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-    executor.submit(() -> {
-        var result = blockingOperation();  // Cheap to block!
-        return result;
-    });
-}
-```
-
-**Philosophy**: If threads are cheap enough, you don't need special syntax.
-
-**Trade-off**: Requires runtime support; C++ cannot easily adopt this approach.
 
 ---
 
