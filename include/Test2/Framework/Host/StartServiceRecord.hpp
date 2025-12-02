@@ -13,6 +13,9 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Service/IServiceFactory.hpp>
+#include <memory>
+#include <string>
 
 namespace Test2
 {
