@@ -15,6 +15,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <typeinfo>
 
 namespace Test2
 {
@@ -54,6 +55,26 @@ namespace Test2
     explicit ServiceProviderException(const std::string& message)
       : std::runtime_error(message)
     {
+    }
+  };
+
+  /// @brief Exception thrown when a service cast fails.
+  ///
+  /// This exception is thrown when a service is found but cannot be cast to the requested type.
+  /// This indicates a fundamental type mismatch between the registered service and the requested interface.
+  class ServiceCastException : public std::bad_cast
+  {
+    std::string m_message;
+
+  public:
+    ServiceCastException(const std::string& requestedTypeName, const std::string& actualTypeName)
+      : m_message("ServiceCastException: Failed to cast service from '" + actualTypeName + "' to requested type '" + requestedTypeName + "'")
+    {
+    }
+
+    [[nodiscard]] const char* what() const noexcept override
+    {
+      return m_message.c_str();
     }
   };
 }

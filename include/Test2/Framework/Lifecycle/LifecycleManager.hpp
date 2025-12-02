@@ -17,10 +17,11 @@
 
 namespace Test2
 {
-  class IServiceLauncher
+  class LifecycleManager
   {
   public:
-    virtual ~IServiceLauncher() = default;
+    boost::asio::awaitable<void> StartServices() = 0;
+    boost::asio::awaitable<void> ShutdownServices() = 0;
   };
 
 }

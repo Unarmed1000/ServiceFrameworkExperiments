@@ -370,7 +370,6 @@ add_executable(test2
     include/Test2/Framework/Registry/ServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
     include/Test2/Framework/Exception/ServiceRegistryException.hpp
-    include/Test2/Framework/Manager/IServiceManager.hpp
     include/Test2/Services/AddService.hpp
 )
 configure_target(test2)
@@ -472,7 +471,21 @@ target_include_directories(test_service_provider_proxy PRIVATE ${CMAKE_CURRENT_S
 target_link_libraries(test_service_provider_proxy PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Provider/ServiceProviderProxyTest.cpp)
 
-# Executable 9: ManagedThreadServiceHost test
+# Executable 9: ServiceProvider template methods test
+add_executable(test_service_provider
+    UnitTest/Test2/Provider/ServiceProviderTest.cpp
+    src/Test2/Service/Provider/ServiceProvider.cpp
+    include/Test2/Framework/Service/IService.hpp
+    include/Test2/Framework/Provider/IServiceProvider.hpp
+    include/Test2/Framework/Provider/ServiceProvider.hpp
+    include/Test2/Framework/Exception/ServiceProviderException.hpp
+)
+configure_target(test_service_provider)
+target_include_directories(test_service_provider PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_service_provider PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Provider/ServiceProviderTest.cpp)
+
+# Executable 10: ManagedThreadServiceHost test
 add_executable(test_managed_thread_service_host
     UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp
     src/Test2/Service/Provider/ServiceProvider.cpp
