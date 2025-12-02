@@ -6,6 +6,9 @@ if(NOT Python3_Interpreter_FOUND)
     message(FATAL_ERROR "Python 3 is required but not found. Please install Python 3.x")
 endif()
 
+# Option to control which configurations to install for multi-config generators
+set(CONAN_INSTALL_CONFIGS "Debug" CACHE STRING "Configurations to install Conan dependencies for (semicolon-separated list or 'ALL')")
+
 # Allow user to specify profile via cache variable or environment variable
 set(CONAN_PROFILE "" CACHE STRING "Conan profile to use (e.g., profiles/windows-vs-debug, profiles/windows-ninja-release)")
 if(NOT CONAN_PROFILE AND DEFINED ENV{CONAN_PROFILE})
@@ -60,12 +63,23 @@ set(CONAN_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/${CONAN_OUTPUT_FOLDER}/build/gener
 set(CONAN_HASH_FILE "${CMAKE_SOURCE_DIR}/${CONAN_OUTPUT_FOLDER}/.conan_config_hash.json")
 set(CONAN_PROFILE_PATH "${CMAKE_SOURCE_DIR}/${CONAN_PROFILE}")
 
+# Determine if this is a multi-config generator
+if(CMAKE_CONFIGURATION_TYPES)
+    set(IS_MULTI_CONFIG TRUE)
+    set(REQUIRED_CONFIGS ${CMAKE_CONFIGURATION_TYPES})
+else()
+    set(IS_MULTI_CONFIG FALSE)
+    set(REQUIRED_CONFIGS "${CMAKE_BUILD_TYPE}")
+endif()
+
 # Check if Conan configuration has changed
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/check_conan_config.py
         --conanfile ${CMAKE_SOURCE_DIR}/conanfile.txt
         --profile ${CONAN_PROFILE_PATH}
         --hash-file ${CONAN_HASH_FILE}
+        --generator "${CMAKE_GENERATOR}"
+        --multi-config ${IS_MULTI_CONFIG}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     RESULT_VARIABLE CONAN_CONFIG_CHECK
     OUTPUT_VARIABLE CONAN_CHECK_OUTPUT
@@ -90,20 +104,93 @@ endif()
 if(NEED_CONAN_INSTALL)
     message(STATUS "Running Conan install...")
 
-    # Run conan install
-    execute_process(
-        COMMAND conan install .
-            --output-folder=${CONAN_OUTPUT_FOLDER}
-            --profile=${CONAN_PROFILE}
-            --build=missing
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        RESULT_VARIABLE CONAN_RESULT
-        OUTPUT_VARIABLE CONAN_OUTPUT
-        ERROR_VARIABLE CONAN_ERROR
-    )
+    # For multi-config generators (Visual Studio, Xcode), only install specified configurations
+    if(CMAKE_CONFIGURATION_TYPES)
+        # Determine which configurations to install
+        if(CONAN_INSTALL_CONFIGS STREQUAL "ALL")
+            set(SUPPORTED_CONFIGS ${CMAKE_CONFIGURATION_TYPES})
+            message(STATUS "Installing Conan dependencies for all configurations: ${SUPPORTED_CONFIGS}")
+        else()
+            set(SUPPORTED_CONFIGS ${CONAN_INSTALL_CONFIGS})
+            message(STATUS "Installing Conan dependencies for selected configurations: ${SUPPORTED_CONFIGS}")
+        endif()
 
-    if(NOT CONAN_RESULT EQUAL 0)
-        message(FATAL_ERROR "Conan install failed:\n${CONAN_ERROR}")
+        set(CONFIGS_TO_INSTALL)
+
+        # Check which configurations need installation by looking for marker files
+        foreach(CONFIG_TYPE ${SUPPORTED_CONFIGS})
+            set(CONFIG_MARKER "${CMAKE_SOURCE_DIR}/${CONAN_OUTPUT_FOLDER}/build/.conan_installed_${CONFIG_TYPE}")
+
+            if(NOT EXISTS "${CONFIG_MARKER}")
+                list(APPEND CONFIGS_TO_INSTALL ${CONFIG_TYPE})
+            endif()
+        endforeach()
+
+        # If any configs are missing or hash changed, install all (safer for consistency)
+        if(CONAN_CONFIG_CHECK EQUAL 1)
+            set(CONFIGS_TO_INSTALL ${SUPPORTED_CONFIGS})
+            message(STATUS "Configuration changed, reinstalling all build types")
+        endif()
+
+        if(CONFIGS_TO_INSTALL)
+            foreach(CONFIG_TYPE ${CONFIGS_TO_INSTALL})
+                message(STATUS "Installing Conan dependencies for ${CONFIG_TYPE}...")
+
+                # Determine the profile for this configuration
+                string(TOLOWER ${CONFIG_TYPE} CONFIG_LOWER)
+                string(REPLACE "${CMAKE_SOURCE_DIR}/profiles/" "" PROFILE_BASE ${CONAN_PROFILE})
+                string(REGEX REPLACE "-debug$|-release$" "" PROFILE_PREFIX ${PROFILE_BASE})
+
+                # Map configuration types to profile suffixes
+                if(CONFIG_TYPE STREQUAL "Debug")
+                    set(CONFIG_PROFILE "${CMAKE_SOURCE_DIR}/profiles/${PROFILE_PREFIX}-debug")
+                else()
+                    set(CONFIG_PROFILE "${CMAKE_SOURCE_DIR}/profiles/${PROFILE_PREFIX}-release")
+                endif()
+
+                # Fallback to original profile if specific one doesn't exist
+                if(NOT EXISTS "${CONFIG_PROFILE}")
+                    set(CONFIG_PROFILE "${CONAN_PROFILE_PATH}")
+                endif()
+
+                execute_process(
+                    COMMAND conan install .
+                        --output-folder=${CONAN_OUTPUT_FOLDER}
+                        --profile=${CONFIG_PROFILE}
+                        --build=missing
+                        -s build_type=${CONFIG_TYPE}
+                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    RESULT_VARIABLE CONAN_RESULT
+                    OUTPUT_VARIABLE CONAN_OUTPUT
+                    ERROR_VARIABLE CONAN_ERROR
+                )
+
+                if(NOT CONAN_RESULT EQUAL 0)
+                    message(FATAL_ERROR "Conan install failed for ${CONFIG_TYPE}:\n${CONAN_ERROR}")
+                endif()
+
+                # Create marker file to track installation
+                file(WRITE "${CONFIG_MARKER}" "${CONFIG_TYPE} installed at ${CMAKE_CURRENT_LIST_FILE}")
+            endforeach()
+        else()
+            message(STATUS "All configurations already installed")
+        endif()
+    else()
+        # Single-config generator (Ninja, Unix Makefiles, etc.)
+        execute_process(
+            COMMAND conan install .
+                --output-folder=${CONAN_OUTPUT_FOLDER}
+                --profile=${CONAN_PROFILE}
+                --build=missing
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            RESULT_VARIABLE CONAN_RESULT
+            OUTPUT_VARIABLE CONAN_OUTPUT
+            ERROR_VARIABLE CONAN_ERROR
+        )
+
+        if(NOT CONAN_RESULT EQUAL 0)
+            message(FATAL_ERROR "Conan install failed:\n${CONAN_ERROR}")
+        endif()
     endif()
 
     message(STATUS "Conan dependencies installed successfully")
@@ -114,6 +201,8 @@ if(NEED_CONAN_INSTALL)
             --conanfile ${CMAKE_SOURCE_DIR}/conanfile.txt
             --profile ${CONAN_PROFILE_PATH}
             --hash-file ${CONAN_HASH_FILE}
+            --generator "${CMAKE_GENERATOR}"
+            --multi-config ${IS_MULTI_CONFIG}
             --update-hash
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         RESULT_VARIABLE CONAN_HASH_UPDATE

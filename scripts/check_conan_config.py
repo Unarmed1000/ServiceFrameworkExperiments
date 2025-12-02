@@ -38,7 +38,9 @@ def get_conan_env_vars() -> dict:
     return {k: v for k, v in sorted(os.environ.items()) if k.startswith("CONAN_")}
 
 
-def compute_config_hash(conanfile: Path, profile: Path) -> str:
+def compute_config_hash(
+    conanfile: Path, profile: Path, generator: str = "", is_multi_config: bool = False
+) -> str:
     """Compute combined hash of all Conan configuration."""
     md5 = hashlib.md5()
 
@@ -49,6 +51,10 @@ def compute_config_hash(conanfile: Path, profile: Path) -> str:
     # Hash profile file (empty string if doesn't exist)
     profile_hash = compute_file_hash(profile) if profile.exists() else ""
     md5.update(f"profile:{profile_hash}".encode())
+
+    # Hash generator type and multi-config flag (critical for determining installation strategy)
+    md5.update(f"generator:{generator}".encode())
+    md5.update(f"multi_config:{is_multi_config}".encode())
 
     # Hash CONAN_* environment variables (sorted)
     env_vars = get_conan_env_vars()
@@ -70,13 +76,22 @@ def load_hash_file(hash_file: Path) -> dict:
         return {}
 
 
-def save_hash_file(hash_file: Path, config_hash: str, conanfile: Path, profile: Path):
+def save_hash_file(
+    hash_file: Path,
+    config_hash: str,
+    conanfile: Path,
+    profile: Path,
+    generator: str = "",
+    is_multi_config: bool = False,
+):
     """Save hash file with current configuration."""
     hash_file.parent.mkdir(parents=True, exist_ok=True)
 
     data = {
         "hash": config_hash,
         "timestamp": datetime.utcnow().isoformat() + "Z",
+        "generator": generator,
+        "multi_config": is_multi_config,
         "files": {
             "conanfile.txt": str(conanfile.absolute()),
             "conanfile_hash": compute_file_hash(conanfile),
@@ -103,6 +118,12 @@ def main():
     parser.add_argument(
         "--hash-file", required=True, type=Path, help="Path to hash file"
     )
+    parser.add_argument("--generator", default="", help="CMake generator name")
+    parser.add_argument(
+        "--multi-config",
+        default="FALSE",
+        help="Whether this is a multi-config generator (TRUE/FALSE)",
+    )
     parser.add_argument(
         "--update-hash",
         action="store_true",
@@ -117,12 +138,24 @@ def main():
             print(f"Error: conanfile not found: {args.conanfile}", file=sys.stderr)
             return 2
 
+        # Parse multi-config flag
+        is_multi_config = args.multi_config.upper() in ("TRUE", "ON", "1", "YES")
+
         # Compute current configuration hash
-        current_hash = compute_config_hash(args.conanfile, args.profile)
+        current_hash = compute_config_hash(
+            args.conanfile, args.profile, args.generator, is_multi_config
+        )
 
         if args.update_hash:
             # Update mode: save the hash file
-            save_hash_file(args.hash_file, current_hash, args.conanfile, args.profile)
+            save_hash_file(
+                args.hash_file,
+                current_hash,
+                args.conanfile,
+                args.profile,
+                args.generator,
+                is_multi_config,
+            )
             print(f"Updated hash file: {args.hash_file}")
             return 0
         else:

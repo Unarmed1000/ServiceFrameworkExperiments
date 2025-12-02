@@ -29,6 +29,25 @@
 
 namespace Test2
 {
+  // Helper to track service lifecycle events for testing
+  struct ServiceLifecycleTracker
+  {
+    std::atomic<bool> initCalled{false};
+    std::atomic<bool> shutdownCalled{false};
+    std::string serviceName;
+
+    void RecordInit(const std::string& name)
+    {
+      serviceName = name;
+      initCalled = true;
+    }
+
+    void RecordShutdown()
+    {
+      shutdownCalled = true;
+    }
+  };
+
   // Mock service for testing
   class MockService : public IServiceControl
   {
@@ -36,14 +55,15 @@ namespace Test2
     std::string m_name;
     bool m_initShouldFail;
     bool m_shutdownShouldFail;
-    mutable bool m_initCalled = false;
-    mutable bool m_shutdownCalled = false;
+    std::shared_ptr<ServiceLifecycleTracker> m_tracker;
 
   public:
-    explicit MockService(std::string name, bool initShouldFail = false, bool shutdownShouldFail = false)
+    explicit MockService(std::string name, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr, bool initShouldFail = false,
+                         bool shutdownShouldFail = false)
       : m_name(std::move(name))
       , m_initShouldFail(initShouldFail)
       , m_shutdownShouldFail(shutdownShouldFail)
+      , m_tracker(std::move(tracker))
     {
     }
 
@@ -52,20 +72,13 @@ namespace Test2
       return m_name;
     }
 
-    [[nodiscard]] bool WasInitCalled() const noexcept
-    {
-      return m_initCalled;
-    }
-
-    [[nodiscard]] bool WasShutdownCalled() const noexcept
-    {
-      return m_shutdownCalled;
-    }
-
     boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*createInfo*/) override
     {
       spdlog::info("MockService::InitAsync called for {}", m_name);
-      m_initCalled = true;
+      if (m_tracker)
+      {
+        m_tracker->RecordInit(m_name);
+      }
       if (m_initShouldFail)
       {
         spdlog::error("MockService::InitAsync throwing for {}", m_name);
@@ -77,7 +90,10 @@ namespace Test2
 
     boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() override
     {
-      m_shutdownCalled = true;
+      if (m_tracker)
+      {
+        m_tracker->RecordShutdown();
+      }
       if (m_shutdownShouldFail)
       {
         throw std::runtime_error("Shutdown failed for " + m_name);
@@ -100,13 +116,15 @@ namespace Test2
   {
   private:
     std::string m_serviceName;
+    std::shared_ptr<ServiceLifecycleTracker> m_tracker;
     bool m_initShouldFail;
     bool m_shutdownShouldFail;
-    mutable std::shared_ptr<MockService> m_createdService;
 
   public:
-    explicit MockServiceFactory(std::string serviceName, bool initShouldFail = false, bool shutdownShouldFail = false)
+    explicit MockServiceFactory(std::string serviceName, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr, bool initShouldFail = false,
+                                bool shutdownShouldFail = false)
       : m_serviceName(std::move(serviceName))
+      , m_tracker(std::move(tracker))
       , m_initShouldFail(initShouldFail)
       , m_shutdownShouldFail(shutdownShouldFail)
     {
@@ -120,13 +138,7 @@ namespace Test2
 
     std::shared_ptr<IServiceControl> Create(const std::type_info& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
     {
-      m_createdService = std::make_shared<MockService>(m_serviceName, m_initShouldFail, m_shutdownShouldFail);
-      return m_createdService;
-    }
-
-    [[nodiscard]] std::shared_ptr<MockService> GetCreatedService() const
-    {
-      return m_createdService;
+      return std::make_shared<MockService>(m_serviceName, m_tracker, m_initShouldFail, m_shutdownShouldFail);
     }
   };
 
@@ -149,54 +161,50 @@ namespace Test2
   {
     ManagedThreadServiceHost host;
 
-    auto factory = std::make_unique<MockServiceFactory>("TestService");
-    auto factoryPtr = factory.get();
-
-    // Move factory into a shared location that outlives the coroutine
-    auto factoryShared = std::make_shared<std::unique_ptr<MockServiceFactory>>(std::move(factory));
+    auto tracker = std::make_shared<ServiceLifecycleTracker>();
+    auto factory = std::make_unique<MockServiceFactory>("TestService", tracker);
 
     bool completed = false;
     std::exception_ptr exceptionPtr;
 
     // Start the host's io_context on a separate thread (as it would be in production)
     std::thread hostThread(
-      [&host, factoryShared, &completed, &exceptionPtr]()
+      [&host, &completed, &exceptionPtr, factory = std::move(factory)]() mutable
       {
         spdlog::info("Host thread started");
-        // Post the coroutine to run on the host's thread
-        boost::asio::post(host.GetIoContext(),
-                          [&]()
-                          {
-                            spdlog::info("Post handler executing, spawning coroutine");
-                            boost::asio::co_spawn(
-                              host.GetIoContext(),
-                              [&]() -> boost::asio::awaitable<void>
-                              {
-                                spdlog::info("Coroutine started");
-                                try
-                                {
-                                  std::vector<StartServiceRecord> services;
-                                  services.emplace_back("TestService", std::move(*factoryShared));
 
-                                  spdlog::info("Calling TryStartServicesAsync");
-                                  co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
-                                  spdlog::info("TryStartServicesAsync completed");
-                                  completed = true;
+        // Post the coroutine work to the io_context
+        boost::asio::co_spawn(
+          host.GetIoContext(),
+          [&]() -> boost::asio::awaitable<void>
+          {
+            spdlog::info("Coroutine started");
+            try
+            {
+              std::vector<StartServiceRecord> services;
+              services.emplace_back("TestService", std::move(factory));
 
-                                  // Stop the io_context so it exits
-                                  host.GetIoContext().stop();
-                                }
-                                catch (...)
-                                {
-                                  spdlog::error("Exception in coroutine");
-                                  exceptionPtr = std::current_exception();
-                                  host.GetIoContext().stop();
-                                }
-                                spdlog::info("Coroutine ending");
-                              },
-                              boost::asio::detached);
-                            spdlog::info("Post handler completed");
-                          });
+              spdlog::info("Calling TryStartServicesAsync");
+              co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
+              spdlog::info("TryStartServicesAsync completed");
+              completed = true;
+            }
+            catch (...)
+            {
+              spdlog::error("Exception in coroutine");
+              exceptionPtr = std::current_exception();
+            }
+            spdlog::info("Coroutine ending");
+          },
+          [&host](std::exception_ptr e)
+          {
+            if (e)
+            {
+              spdlog::error("Unhandled exception in coroutine");
+            }
+            // Stop the io_context when coroutine completes
+            host.GetIoContext().stop();
+          });
 
         spdlog::info("Calling io_context.run()");
         host.GetIoContext().run();
@@ -213,22 +221,20 @@ namespace Test2
     }
 
     EXPECT_TRUE(completed);
-    auto service = factoryPtr->GetCreatedService();
-    ASSERT_NE(service, nullptr);
-    EXPECT_TRUE(service->WasInitCalled());
-    EXPECT_FALSE(service->WasShutdownCalled());
+    EXPECT_TRUE(tracker->initCalled);
+    EXPECT_FALSE(tracker->shutdownCalled);
   }
   TEST(ManagedThreadServiceHostTest, MultipleServices_InitializeInOrder)
   {
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory1 = std::make_unique<MockServiceFactory>("Service1");
-    auto factory2 = std::make_unique<MockServiceFactory>("Service2");
-    auto factory3 = std::make_unique<MockServiceFactory>("Service3");
-    auto f1Ptr = factory1.get();
-    auto f2Ptr = factory2.get();
-    auto f3Ptr = factory3.get();
+    auto tracker1 = std::make_shared<ServiceLifecycleTracker>();
+    auto tracker2 = std::make_shared<ServiceLifecycleTracker>();
+    auto tracker3 = std::make_shared<ServiceLifecycleTracker>();
+    auto factory1 = std::make_unique<MockServiceFactory>("Service1", tracker1);
+    auto factory2 = std::make_unique<MockServiceFactory>("Service2", tracker2);
+    auto factory3 = std::make_unique<MockServiceFactory>("Service3", tracker3);
 
     services.emplace_back("Service1", std::move(factory1));
     services.emplace_back("Service2", std::move(factory2));
@@ -242,14 +248,21 @@ namespace Test2
         co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
         completed = true;
       },
-      boost::asio::detached);
+      [&host](std::exception_ptr e)
+      {
+        if (e)
+        {
+          std::rethrow_exception(e);
+        }
+        host.GetIoContext().stop();
+      });
 
     host.GetIoContext().run();
 
     EXPECT_TRUE(completed);
-    EXPECT_TRUE(f1Ptr->GetCreatedService()->WasInitCalled());
-    EXPECT_TRUE(f2Ptr->GetCreatedService()->WasInitCalled());
-    EXPECT_TRUE(f3Ptr->GetCreatedService()->WasInitCalled());
+    EXPECT_TRUE(tracker1->initCalled);
+    EXPECT_TRUE(tracker2->initCalled);
+    EXPECT_TRUE(tracker3->initCalled);
   }
 
   // ========================================
@@ -261,11 +274,12 @@ namespace Test2
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory1 = std::make_unique<MockServiceFactory>("Service1", false);
-    auto factory2 = std::make_unique<MockServiceFactory>("Service2", true);    // This will fail
-    auto factory3 = std::make_unique<MockServiceFactory>("Service3", false);
-    auto f1Ptr = factory1.get();
-    auto f2Ptr = factory2.get();
+    auto tracker1 = std::make_shared<ServiceLifecycleTracker>();
+    auto tracker2 = std::make_shared<ServiceLifecycleTracker>();
+    auto tracker3 = std::make_shared<ServiceLifecycleTracker>();
+    auto factory1 = std::make_unique<MockServiceFactory>("Service1", tracker1, false);
+    auto factory2 = std::make_unique<MockServiceFactory>("Service2", tracker2, true);    // This will fail
+    auto factory3 = std::make_unique<MockServiceFactory>("Service3", tracker3, false);
 
     services.emplace_back("Service1", std::move(factory1));
     services.emplace_back("Service2", std::move(factory2));
@@ -285,15 +299,22 @@ namespace Test2
           exceptionThrown = true;
         }
       },
-      boost::asio::detached);
+      [&host](std::exception_ptr e)
+      {
+        if (e)
+        {
+          std::rethrow_exception(e);
+        }
+        host.GetIoContext().stop();
+      });
 
     host.GetIoContext().run();
 
     EXPECT_TRUE(exceptionThrown);
-    EXPECT_TRUE(f1Ptr->GetCreatedService()->WasInitCalled());
-    EXPECT_TRUE(f1Ptr->GetCreatedService()->WasShutdownCalled());     // Should be rolled back
-    EXPECT_TRUE(f2Ptr->GetCreatedService()->WasInitCalled());         // Failed during init
-    EXPECT_FALSE(f2Ptr->GetCreatedService()->WasShutdownCalled());    // Never successfully initialized
+    EXPECT_TRUE(tracker1->initCalled);
+    EXPECT_TRUE(tracker1->shutdownCalled);     // Should be rolled back
+    EXPECT_TRUE(tracker2->initCalled);         // Failed during init
+    EXPECT_FALSE(tracker2->shutdownCalled);    // Never successfully initialized
   }
 
   TEST(ManagedThreadServiceHostTest, FirstServiceFails_NoRollbackNeeded)
@@ -301,8 +322,8 @@ namespace Test2
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory = std::make_unique<MockServiceFactory>("Service1", true);
-    auto factoryPtr = factory.get();
+    auto tracker = std::make_shared<ServiceLifecycleTracker>();
+    auto factory = std::make_unique<MockServiceFactory>("Service1", tracker, true);
     services.emplace_back("Service1", std::move(factory));
 
     bool exceptionThrown = false;
@@ -319,13 +340,20 @@ namespace Test2
           exceptionThrown = true;
         }
       },
-      boost::asio::detached);
+      [&host](std::exception_ptr e)
+      {
+        if (e)
+        {
+          std::rethrow_exception(e);
+        }
+        host.GetIoContext().stop();
+      });
 
     host.GetIoContext().run();
 
     EXPECT_TRUE(exceptionThrown);
-    EXPECT_TRUE(factoryPtr->GetCreatedService()->WasInitCalled());
-    EXPECT_FALSE(factoryPtr->GetCreatedService()->WasShutdownCalled());
+    EXPECT_TRUE(tracker->initCalled);
+    EXPECT_FALSE(tracker->shutdownCalled);
   }
 
   // ========================================
@@ -337,9 +365,12 @@ namespace Test2
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory1 = std::make_unique<MockServiceFactory>("Service1", true);    // Fails
-    auto factory2 = std::make_unique<MockServiceFactory>("Service2", false);
-    auto factory3 = std::make_unique<MockServiceFactory>("Service3", true);    // Fails
+    auto tracker1 = std::make_shared<ServiceLifecycleTracker>();
+    auto tracker2 = std::make_shared<ServiceLifecycleTracker>();
+    auto tracker3 = std::make_shared<ServiceLifecycleTracker>();
+    auto factory1 = std::make_unique<MockServiceFactory>("Service1", tracker1, true);    // Fails
+    auto factory2 = std::make_unique<MockServiceFactory>("Service2", tracker2, false);
+    auto factory3 = std::make_unique<MockServiceFactory>("Service3", tracker3, true);    // Fails
 
     services.emplace_back("Service1", std::move(factory1));
     services.emplace_back("Service2", std::move(factory2));
@@ -359,7 +390,14 @@ namespace Test2
           caughtException.emplace(ex);
         }
       },
-      boost::asio::detached);
+      [&host](std::exception_ptr e)
+      {
+        if (e)
+        {
+          std::rethrow_exception(e);
+        }
+        host.GetIoContext().stop();
+      });
 
     host.GetIoContext().run();
 
@@ -372,8 +410,10 @@ namespace Test2
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory1 = std::make_unique<MockServiceFactory>("Service1", false, true);    // Shutdown fails
-    auto factory2 = std::make_unique<MockServiceFactory>("Service2", true);           // Init fails
+    auto tracker1 = std::make_shared<ServiceLifecycleTracker>();
+    auto tracker2 = std::make_shared<ServiceLifecycleTracker>();
+    auto factory1 = std::make_unique<MockServiceFactory>("Service1", tracker1, false, true);    // Shutdown fails
+    auto factory2 = std::make_unique<MockServiceFactory>("Service2", tracker2, true);           // Init fails
 
     services.emplace_back("Service1", std::move(factory1));
     services.emplace_back("Service2", std::move(factory2));
@@ -392,7 +432,14 @@ namespace Test2
           caughtException.emplace(ex);
         }
       },
-      boost::asio::detached);
+      [&host](std::exception_ptr e)
+      {
+        if (e)
+        {
+          std::rethrow_exception(e);
+        }
+        host.GetIoContext().stop();
+      });
 
     host.GetIoContext().run();
 

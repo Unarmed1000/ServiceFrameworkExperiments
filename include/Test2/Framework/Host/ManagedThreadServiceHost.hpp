@@ -93,6 +93,15 @@ namespace Test2
 
     boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority currentPriority)
     {
+      co_await boost::asio::co_spawn(
+        *m_ioContext, [this, services = std::move(services), currentPriority]() mutable -> boost::asio::awaitable<void>
+        { co_await DoTryStartServicesAsync(std::move(services), currentPriority); }, boost::asio::use_awaitable);
+      co_return;
+    }
+
+  private:
+    boost::asio::awaitable<void> DoTryStartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority currentPriority)
+    {
       // Handle empty service list
       if (services.empty())
       {
@@ -133,7 +142,6 @@ namespace Test2
       co_return;
     }
 
-  private:
     struct ServiceInitRecord
     {
       std::string ServiceName;
@@ -219,6 +227,7 @@ namespace Test2
 
       co_return;
     }
+
 
     boost::asio::awaitable<void> ProcessInitializationResults(std::vector<ServiceInitRecord>& initRecords, ServiceLaunchPriority currentPriority,
                                                               std::shared_ptr<ServiceProviderProxy> providerProxy)

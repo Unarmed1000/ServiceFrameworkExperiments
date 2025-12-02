@@ -38,12 +38,25 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/include",
-                "${workspaceFolder}/src"
+                "${workspaceFolder}/src",
+                "C:/Users/live/.conan2/p/b/boost5c7d7936bbcee/p\\include",
+                "C:/Users/live/.conan2/p/b/bzip267e4939604fc3/p\\include",
+                "C:/Users/live/.conan2/p/b/fmt47b88a97be90c/p\\include",
+                "C:/Users/live/.conan2/p/b/gtest440b4ed4b6caa/p\\include",
+                "C:/Users/live/.conan2/p/b/spdloe2644f93177c0/p\\include",
+                "C:/Users/live/.conan2/p/b/zlib8e468b10de648/p\\include"
             ],
             "defines": [
                 "UNICODE",
                 "_UNICODE",
-                "NDEBUG"
+                "NDEBUG",
+                "\"BOOST_ALL_NO_LIB",
+                "\"BOOST_STACKTRACE_USE_NOOP\"",
+                "\"BOOST_STACKTRACE_USE_WINDBG\"",
+                "\"SPDLOG_COMPILED_LIB",
+                "BOOST_STACKTRACE_USE_WINDBG_CACHED\"",
+                "FMT_UNICODE=0",
+                "SPDLOG_FMT_EXTERNAL\""
             ],
             "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
             "cStandard": "c17",
@@ -56,12 +69,25 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/include",
-                "${workspaceFolder}/src"
+                "${workspaceFolder}/src",
+                "C:/Users/live/.conan2/p/b/boostc3e64e943b3f9/p\\include",
+                "C:/Users/live/.conan2/p/b/bzip2a173cfdc2ca58/p\\include",
+                "C:/Users/live/.conan2/p/b/fmtd4452443cbffa/p\\include",
+                "C:/Users/live/.conan2/p/b/gtest960998e66379b/p\\include",
+                "C:/Users/live/.conan2/p/b/spdlo3862fdab3fb89/p\\include",
+                "C:/Users/live/.conan2/p/b/zlibc82ce2c731afa/p\\include"
             ],
             "defines": [
                 "UNICODE",
                 "_UNICODE",
-                "NDEBUG"
+                "NDEBUG",
+                "\"BOOST_ALL_NO_LIB",
+                "\"BOOST_STACKTRACE_USE_NOOP\"",
+                "\"BOOST_STACKTRACE_USE_WINDBG\"",
+                "\"SPDLOG_COMPILED_LIB",
+                "BOOST_STACKTRACE_USE_WINDBG_CACHED\"",
+                "FMT_UNICODE=0",
+                "SPDLOG_FMT_EXTERNAL\""
             ],
             "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
             "cStandard": "c17",
