@@ -467,7 +467,9 @@ function A()
 process queued callbacks safely
 ```
 
-**This is exactly what event loops do**: JavaScript, Qt, game engines, `io_context`
+**This is exactly what event loops do**: JavaScript, game engines, `io_context`
+
+> ⚠️ **Qt caveat**: By default, Qt uses `Qt::DirectConnection` for same-thread signals, which executes slots *synchronously* — this can still cause re-entrancy! Use `Qt::QueuedConnection` explicitly to force queuing.
 
 ---
 
