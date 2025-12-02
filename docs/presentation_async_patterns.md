@@ -1139,8 +1139,9 @@ void ConfigureServices(ServiceRegistry& registry) {
 | Runtime flexibility | Hidden dependencies |
 | No constructor changes | Harder to test |
 | Decouples callers | Less explicit contracts |
+| Simple to implement | Can't statically analyze dependency graph |
 
-**Recommendation**: Use Service Locator at boundaries; prefer constructor injection within components.
+**Why this framework uses Service Locator**: Constructor-based DI is more explicit and allows static analysis of the dependency graph, but Service Locator is simpler to implement. This framework chose Service Locator as a pragmatic first iteration — it can be evolved toward constructor injection later if needed.
 
 ---
 
