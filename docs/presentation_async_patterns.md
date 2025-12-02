@@ -4,6 +4,8 @@
 
 > This presentation distills lessons learned from implementing service frameworks across multiple C++ versions and modern C# since 2001.
 
+<small>*Created with AI assistance*</small>
+
 ---
 
 # Agenda
