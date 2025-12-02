@@ -551,7 +551,7 @@ update_ui(result);  // ✅ Now on UI thread
 
 **Key insight**: Coroutines spawned via `co_spawn` stay on their executor for all *internal* `co_await`s. Manual marshaling is only needed after awaiting a *different* executor.
 
-See [Appendix A12](#appendix-a12-c-thread-affinity-patterns) for UI framework comparison and `resume_on` helper.
+See [Appendix A12](#appendix-a12-c-thread-affinity-patterns) for UI framework comparison and `resume_on` helper, or [Appendix A3](#appendix-a3-custom-ui_thread_awaiter--idea) for a Qt-specific custom awaiter.
 
 ---
 
