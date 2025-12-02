@@ -101,7 +101,7 @@ namespace Test2
       if (m_registrations.find(factoryType) != m_registrations.end())
       {
         spdlog::error("ServiceRegistry::RegisterService: factory type '{}' is already registered", factoryType.name());
-        throw DuplicateServiceRegistrationException(std::string("Factory type '") + factoryType.name() + "' is already registered");
+        throw DuplicateServiceRegistrationException(fmt::format("Factory type '{}' is already registered", factoryType.name()));
       }
 
       // Register the factory

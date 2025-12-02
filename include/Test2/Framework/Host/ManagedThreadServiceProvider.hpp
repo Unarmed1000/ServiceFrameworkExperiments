@@ -84,7 +84,7 @@ namespace Test2
     {
       if (services.empty())
       {
-        throw EmptyPriorityGroupException(std::string("Cannot register empty priority group for priority ") + std::to_string(priority.GetValue()));
+        throw EmptyPriorityGroupException(fmt::format("Cannot register empty priority group for priority {}", priority.GetValue()));
       }
 
       if (!m_priorityGroups.empty())
@@ -92,9 +92,10 @@ namespace Test2
         const auto lastPriority = m_priorityGroups.back().Priority;
         if (priority >= lastPriority)
         {
-          throw InvalidPriorityOrderException(std::string("Priority order violation: attempting to register priority ") +
-                                              std::to_string(priority.GetValue()) + " after priority " + std::to_string(lastPriority.GetValue()) +
-                                              ". Priority groups must be registered in strictly decreasing order (high to low).");
+          throw InvalidPriorityOrderException(
+            fmt::format("Priority order violation: attempting to register priority {} after priority {}. "
+                        "Priority groups must be registered in strictly decreasing order (high to low).",
+                        priority.GetValue(), lastPriority.GetValue()));
         }
       }
 
@@ -103,11 +104,11 @@ namespace Test2
       {
         if (!services[i].Service)
         {
-          throw std::invalid_argument(std::string("Service at index ") + std::to_string(i) + " has null service pointer");
+          throw std::invalid_argument(fmt::format("Service at index {} has null service pointer", i));
         }
         if (services[i].SupportedInterfaces.empty())
         {
-          throw std::invalid_argument(std::string("Service at index ") + std::to_string(i) + " has no supported interfaces");
+          throw std::invalid_argument(fmt::format("Service at index {} has no supported interfaces", i));
         }
 
         // Index service by each supported interface type

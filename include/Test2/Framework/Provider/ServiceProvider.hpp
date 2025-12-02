@@ -22,15 +22,56 @@
 
 namespace Test2
 {
+  /// @brief A lightweight wrapper around IServiceProvider that provides type-safe service retrieval.
+  ///
+  /// ServiceProvider holds a weak reference to an underlying IServiceProvider and provides
+  /// both type_info-based and template-based methods for retrieving services. The template
+  /// methods offer compile-time type checking and automatic casting to the requested interface type.
+  ///
+  /// @note The underlying provider is held via weak_ptr, so operations will fail gracefully
+  /// if the provider has been destroyed.
+  ///
+  /// Example usage:
+  /// @code
+  /// ServiceProvider provider(weakProviderPtr);
+  ///
+  /// // Type-safe retrieval with automatic casting (throws on failure)
+  /// auto myService = provider.GetService<IMyService>();
+  ///
+  /// // Optional retrieval (returns nullptr if not found or cast fails)
+  /// auto optionalService = provider.TryGetService<IMyService>();
+  ///
+  /// // Retrieve multiple services
+  /// std::vector<std::shared_ptr<IMyService>> services;
+  /// if (provider.TryGetServices<IMyService>(services)) {
+  ///   // Process services
+  /// }
+  /// @endcode
   class ServiceProvider
   {
     std::weak_ptr<IServiceProvider> m_provider;
 
   public:
+    /// @brief Constructs a ServiceProvider wrapping the given IServiceProvider.
+    /// @param provider A weak pointer to the underlying service provider.
     explicit ServiceProvider(std::weak_ptr<IServiceProvider> provider);
 
+    /// @brief Gets a service matching the specified type.
+    /// @param type The type_info of the service interface to retrieve.
+    /// @return A shared pointer to the service.
+    /// @throws UnknownServiceException if no service matches the type.
+    /// @throws std::runtime_error if the underlying provider has been destroyed.
     std::shared_ptr<IService> GetService(const std::type_info& type) const;
+
+    /// @brief Tries to get a service matching the specified type.
+    /// @param type The type_info of the service interface to retrieve.
+    /// @return A shared pointer to the service, or nullptr if not found or provider expired.
     std::shared_ptr<IService> TryGetService(const std::type_info& type) const;
+
+    /// @brief Tries to get all services matching the specified type.
+    /// @param type The type_info of the service interface to retrieve.
+    /// @param rServices Reference to vector that will be populated with matching services.
+    /// @return true if one or more services were found, false otherwise.
     bool TryGetServices(const std::type_info& type, std::vector<std::shared_ptr<IService>>& rServices) const;
 
     /// @brief Gets a service and casts it to the specified type.

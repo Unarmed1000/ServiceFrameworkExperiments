@@ -178,14 +178,14 @@ namespace Test2
         auto supportedInterfaces = serviceRecord.Factory->GetSupportedInterfaces();
         if (supportedInterfaces.empty())
         {
-          throw std::invalid_argument("Factory for service '" + serviceRecord.ServiceName + "' reports no supported interfaces");
+          throw std::invalid_argument(fmt::format("Factory for service '{}' reports no supported interfaces", serviceRecord.ServiceName));
         }
 
         // Create service instance using first supported interface
         record.Service = serviceRecord.Factory->Create(supportedInterfaces[0], createInfo);
         if (!record.Service)
         {
-          throw std::runtime_error("Factory for service '" + serviceRecord.ServiceName + "' returned null service");
+          throw std::runtime_error(fmt::format("Factory for service '{}' returned null service", serviceRecord.ServiceName));
         }
 
         // Prepare InstanceInfo
