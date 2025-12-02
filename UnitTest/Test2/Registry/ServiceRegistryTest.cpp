@@ -11,8 +11,8 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Exception/ServiceRegistryException.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
-#include <Test2/Framework/Registry/ServiceRegistryException.hpp>
 #include <Test2/Framework/Service/IServiceFactory.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <gtest/gtest.h>

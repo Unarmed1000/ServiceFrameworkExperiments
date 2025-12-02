@@ -13,9 +13,9 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Exception/ServiceRegistryException.hpp>
 #include <Test2/Framework/Registry/IServiceRegistry.hpp>
 #include <Test2/Framework/Registry/ServiceRegistrationRecord.hpp>
-#include <Test2/Framework/Registry/ServiceRegistryException.hpp>
 #include <Test2/Framework/Service/IServiceFactory.hpp>
 #include <spdlog/spdlog.h>
 #include <typeindex>

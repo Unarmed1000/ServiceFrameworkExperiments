@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_HOST_INVALIDPRIORITYORDEREXCEPTION_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_HOST_INVALIDPRIORITYORDEREXCEPTION_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_INVALIDSERVICEFACTORYEXCEPTION_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_EXCEPTION_INVALIDSERVICEFACTORYEXCEPTION_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -18,21 +18,15 @@
 
 namespace Test2
 {
-  /// @brief Exception thrown when priority groups are registered in incorrect order.
-  ///
-  /// This exception is thrown by ManagedThreadServiceProvider::RegisterPriorityGroup when
-  /// attempting to register a priority group with a priority value that is greater than or
-  /// equal to the previously registered priority. Priority groups must be registered in
-  /// strictly decreasing priority order (high to low).
-  class InvalidPriorityOrderException : public std::logic_error
+  /// @brief Exception thrown when a service factory is invalid or null.
+  class InvalidServiceFactoryException : public std::runtime_error
   {
   public:
-    explicit InvalidPriorityOrderException(const std::string& message)
-      : std::logic_error(message)
+    explicit InvalidServiceFactoryException(const std::string& serviceName)
+      : std::runtime_error("Invalid service factory in StartServiceRecord for service: " + serviceName)
     {
     }
   };
-
 }
 
 #endif

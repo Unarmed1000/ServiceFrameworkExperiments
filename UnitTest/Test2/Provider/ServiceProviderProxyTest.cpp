@@ -11,7 +11,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Provider/ServiceProviderException.hpp>
+#include <Test2/Framework/Exception/ServiceProviderException.hpp>
 #include <Test2/Framework/Provider/ServiceProviderProxy.hpp>
 #include <gtest/gtest.h>
 #include <memory>

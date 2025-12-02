@@ -13,11 +13,11 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Host/EmptyPriorityGroupException.hpp>
-#include <Test2/Framework/Host/InvalidPriorityOrderException.hpp>
+#include <Test2/Framework/Exception/EmptyPriorityGroupException.hpp>
+#include <Test2/Framework/Exception/InvalidPriorityOrderException.hpp>
+#include <Test2/Framework/Exception/ServiceProviderException.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Provider/IServiceProvider.hpp>
-#include <Test2/Framework/Provider/ServiceProviderException.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Service/IService.hpp>
 #include <spdlog/spdlog.h>

@@ -13,8 +13,8 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Exception/ServiceProviderException.hpp>
 #include <Test2/Framework/Provider/IServiceProvider.hpp>
-#include <Test2/Framework/Provider/ServiceProviderException.hpp>
 #include <memory>
 
 namespace Test2

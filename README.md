@@ -262,7 +262,7 @@ Run any executable from the build directory:
 ### Async Lifecycle
 Services implement a three-phase lifecycle:
 1. **Init**: `co_await InitAsync(info)` - Initialize with dependencies
-2. **Process**: `co_await ProcessAsync()` - Main service loop
+2. **Process**: `Process()` - Custom processing
 3. **Shutdown**: `co_await ShutdownAsync()` - Clean shutdown
 
 ### Exception Handling
