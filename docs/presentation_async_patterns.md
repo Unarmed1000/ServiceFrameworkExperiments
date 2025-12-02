@@ -1067,15 +1067,26 @@ private slots:
 
 ```mermaid
 graph TD
-    subgraph Interfaces["Interfaces Package (header-only)"]
+    subgraph IAddPkg["IAddService Package"]
         IAdd[IAddService.hpp]
+    end
+
+    subgraph ISubPkg["ISubtractService Package"]
         ISub[ISubtractService.hpp]
+    end
+
+    subgraph ICalcPkg["ICalculatorService Package"]
         ICalc[ICalculatorService.hpp]
     end
 
     subgraph AddPkg["AddService Package"]
         AddH[AddService.hpp]
         AddCpp[AddService.cpp]
+    end
+
+    subgraph SubPkg["SubtractService Package"]
+        SubH[SubtractService.hpp]
+        SubCpp[SubtractService.cpp]
     end
 
     subgraph CalcPkg["CalculatorService Package"]
@@ -1086,17 +1097,25 @@ graph TD
     AddH --> IAdd
     AddCpp --> AddH
 
+    SubH --> ISub
+    SubCpp --> SubH
+
     CalcH --> IAdd
     CalcH --> ISub
     CalcH --> ICalc
     CalcCpp --> CalcH
 
-    style Interfaces fill:#e1f5fe
+    style IAddPkg fill:#e1f5fe
+    style ISubPkg fill:#e1f5fe
+    style ICalcPkg fill:#e1f5fe
     style AddPkg fill:#fff3e0
+    style SubPkg fill:#e8f5e9
     style CalcPkg fill:#f3e5f5
 ```
 
-**Key**: Calculator depends only on *interfaces*, not AddService implementation.
+**Key**: Each interface lives in its own package. Consumers depend only on the interface packages they need ("include what you use"). Implementation packages are never pulled in transitively. Users of `ICalculatorService` have no visibility into how it's implemented — they don't know (or care) that it uses `IAddService` and `ISubtractService` internally.
+
+**When to use this pattern**: Large codebases, or when multiple implementations of an interface exist (e.g., `MockAddService` for testing). For smaller projects, placing the interface in the same package as its implementation is simpler and often sufficient.
 
 ---
 
