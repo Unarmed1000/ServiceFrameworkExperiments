@@ -47,12 +47,12 @@ namespace Test2
       , m_work(boost::asio::make_work_guard(*m_ioContext))
       , m_provider(std::make_shared<ManagedThreadServiceProvider>())
     {
-      spdlog::trace("Created at {}", static_cast<void*>(this));
+      spdlog::info("Created at {}", static_cast<void*>(this));
     }
 
     ~ManagedThreadServiceHost()
     {
-      spdlog::trace("Destroying at {}", static_cast<void*>(this));
+      spdlog::info("Destroying at {}", static_cast<void*>(this));
       // Called on the managed thread during shutdown
       m_work.reset();
     }
@@ -105,7 +105,8 @@ namespace Test2
 
       // Create proxy for provider - can be cleared on failure
       auto providerProxy = std::make_shared<ServiceProviderProxy>(m_provider);
-      ServiceProvider serviceProvider(providerProxy);
+      std::weak_ptr<IServiceProvider> providerWeak = providerProxy;
+      ServiceProvider serviceProvider(providerWeak);
       ServiceCreateInfo createInfo(serviceProvider);
 
 
@@ -195,32 +196,28 @@ namespace Test2
     {
       for (auto& record : initRecords)
       {
-        co_await boost::asio::co_spawn(
-          *m_ioContext,
-          [&record, &createInfo]() -> boost::asio::awaitable<void>
+        try
+        {
+          spdlog::info("Initializing service: {}", record.ServiceName);
+
+          auto initResult = co_await record.Service->InitAsync(createInfo);
+          if (initResult != ServiceInitResult::Success)
           {
-            try
-            {
-              spdlog::info("Initializing service: {}", record.ServiceName);
+            throw std::runtime_error("Service '" + record.ServiceName +
+                                     "' initialization failed with result: " + std::to_string(static_cast<int>(initResult)));
+          }
 
-              auto initResult = co_await record.Service->InitAsync(createInfo);
-              if (initResult != ServiceInitResult::Success)
-              {
-                throw std::runtime_error("Service '" + record.ServiceName +
-                                         "' initialization failed with result: " + std::to_string(static_cast<int>(initResult)));
-              }
-
-              record.InitSucceeded = true;
-              spdlog::info("Service initialized successfully: {}", record.ServiceName);
-            }
-            catch (...)
-            {
-              record.InitException = std::current_exception();
-              spdlog::error("Service initialization failed: {}", record.ServiceName);
-            }
-          },
-          boost::asio::use_awaitable);
+          record.InitSucceeded = true;
+          spdlog::info("Service initialized successfully: {}", record.ServiceName);
+        }
+        catch (...)
+        {
+          record.InitException = std::current_exception();
+          spdlog::error("Service initialization failed: {}", record.ServiceName);
+        }
       }
+
+      co_return;
     }
 
     boost::asio::awaitable<void> ProcessInitializationResults(std::vector<ServiceInitRecord>& initRecords, ServiceLaunchPriority currentPriority,
@@ -255,7 +252,7 @@ namespace Test2
         allFailures.insert(allFailures.end(), shutdownFailures.begin(), shutdownFailures.end());
 
         // Throw aggregate exception with all failures
-        throw AggregateException("Service initialization failed", std::move(allFailures));
+        throw Common::AggregateException("Service initialization failed", std::move(allFailures));
       }
 
       // All services initialized successfully - register with provider

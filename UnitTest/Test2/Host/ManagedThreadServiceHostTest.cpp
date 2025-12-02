@@ -21,9 +21,11 @@
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/post.hpp>
 #include <gtest/gtest.h>
 #include <memory>
 #include <stdexcept>
+#include <thread>
 
 namespace Test2
 {
@@ -62,11 +64,14 @@ namespace Test2
 
     boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*createInfo*/) override
     {
+      spdlog::info("MockService::InitAsync called for {}", m_name);
       m_initCalled = true;
       if (m_initShouldFail)
       {
+        spdlog::error("MockService::InitAsync throwing for {}", m_name);
         throw std::runtime_error("Init failed for " + m_name);
       }
+      spdlog::info("MockService::InitAsync returning success for {}", m_name);
       co_return ServiceInitResult::Success;
     }
 
@@ -97,7 +102,6 @@ namespace Test2
     std::string m_serviceName;
     bool m_initShouldFail;
     bool m_shutdownShouldFail;
-    const std::type_info* m_interface;
     mutable std::shared_ptr<MockService> m_createdService;
 
   public:
@@ -105,13 +109,13 @@ namespace Test2
       : m_serviceName(std::move(serviceName))
       , m_initShouldFail(initShouldFail)
       , m_shutdownShouldFail(shutdownShouldFail)
-      , m_interface(&typeid(ITestInterface))
     {
     }
 
     std::span<const std::type_info> GetSupportedInterfaces() const override
     {
-      return std::span<const std::type_info>(m_interface, m_interface + 1);
+      static const std::type_info* interfaces[] = {&typeid(ITestInterface)};
+      return std::span<const std::type_info>(reinterpret_cast<const std::type_info*>(interfaces), 1);
     }
 
     std::shared_ptr<IServiceControl> Create(const std::type_info& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
@@ -144,23 +148,69 @@ namespace Test2
   TEST(ManagedThreadServiceHostTest, SingleService_InitializesSuccessfully)
   {
     ManagedThreadServiceHost host;
-    std::vector<StartServiceRecord> services;
 
-    auto factory = std::make_shared<MockServiceFactory>("TestService");
+    auto factory = std::make_unique<MockServiceFactory>("TestService");
     auto factoryPtr = factory.get();
-    services.emplace_back("TestService", std::move(factory));
+
+    // Move factory into a shared location that outlives the coroutine
+    auto factoryShared = std::make_shared<std::unique_ptr<MockServiceFactory>>(std::move(factory));
 
     bool completed = false;
-    boost::asio::co_spawn(
-      host.GetIoContext(),
-      [&]() -> boost::asio::awaitable<void>
-      {
-        co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
-        completed = true;
-      },
-      boost::asio::detached);
+    std::exception_ptr exceptionPtr;
 
-    host.GetIoContext().run();
+    // Start the host's io_context on a separate thread (as it would be in production)
+    std::thread hostThread(
+      [&host, factoryShared, &completed, &exceptionPtr]()
+      {
+        spdlog::info("Host thread started");
+        // Post the coroutine to run on the host's thread
+        boost::asio::post(host.GetIoContext(),
+                          [&]()
+                          {
+                            spdlog::info("Post handler executing, spawning coroutine");
+                            boost::asio::co_spawn(
+                              host.GetIoContext(),
+                              [&]() -> boost::asio::awaitable<void>
+                              {
+                                spdlog::info("Coroutine started");
+                                try
+                                {
+                                  std::vector<StartServiceRecord> services;
+                                  services.emplace_back("TestService", std::move(*factoryShared));
+
+                                  spdlog::info("Calling TryStartServicesAsync");
+                                  co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
+                                  spdlog::info("TryStartServicesAsync completed");
+                                  completed = true;
+
+                                  // Stop the io_context so it exits
+                                  host.GetIoContext().stop();
+                                }
+                                catch (...)
+                                {
+                                  spdlog::error("Exception in coroutine");
+                                  exceptionPtr = std::current_exception();
+                                  host.GetIoContext().stop();
+                                }
+                                spdlog::info("Coroutine ending");
+                              },
+                              boost::asio::detached);
+                            spdlog::info("Post handler completed");
+                          });
+
+        spdlog::info("Calling io_context.run()");
+        host.GetIoContext().run();
+        spdlog::info("io_context.run() completed");
+      });
+
+    spdlog::info("Waiting for host thread to join");
+    hostThread.join();
+    spdlog::info("Host thread joined");
+
+    if (exceptionPtr)
+    {
+      std::rethrow_exception(exceptionPtr);
+    }
 
     EXPECT_TRUE(completed);
     auto service = factoryPtr->GetCreatedService();
@@ -168,15 +218,14 @@ namespace Test2
     EXPECT_TRUE(service->WasInitCalled());
     EXPECT_FALSE(service->WasShutdownCalled());
   }
-
   TEST(ManagedThreadServiceHostTest, MultipleServices_InitializeInOrder)
   {
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory1 = std::make_shared<MockServiceFactory>("Service1");
-    auto factory2 = std::make_shared<MockServiceFactory>("Service2");
-    auto factory3 = std::make_shared<MockServiceFactory>("Service3");
+    auto factory1 = std::make_unique<MockServiceFactory>("Service1");
+    auto factory2 = std::make_unique<MockServiceFactory>("Service2");
+    auto factory3 = std::make_unique<MockServiceFactory>("Service3");
     auto f1Ptr = factory1.get();
     auto f2Ptr = factory2.get();
     auto f3Ptr = factory3.get();
@@ -212,12 +261,11 @@ namespace Test2
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory1 = std::make_shared<MockServiceFactory>("Service1", false);
-    auto factory2 = std::make_shared<MockServiceFactory>("Service2", true);    // This will fail
-    auto factory3 = std::make_shared<MockServiceFactory>("Service3", false);
+    auto factory1 = std::make_unique<MockServiceFactory>("Service1", false);
+    auto factory2 = std::make_unique<MockServiceFactory>("Service2", true);    // This will fail
+    auto factory3 = std::make_unique<MockServiceFactory>("Service3", false);
     auto f1Ptr = factory1.get();
     auto f2Ptr = factory2.get();
-    auto f3Ptr = factory3.get();
 
     services.emplace_back("Service1", std::move(factory1));
     services.emplace_back("Service2", std::move(factory2));
@@ -232,7 +280,7 @@ namespace Test2
         {
           co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
         }
-        catch (const AggregateException&)
+        catch (const Common::AggregateException&)
         {
           exceptionThrown = true;
         }
@@ -253,7 +301,7 @@ namespace Test2
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory = std::make_shared<MockServiceFactory>("Service1", true);
+    auto factory = std::make_unique<MockServiceFactory>("Service1", true);
     auto factoryPtr = factory.get();
     services.emplace_back("Service1", std::move(factory));
 
@@ -266,7 +314,7 @@ namespace Test2
         {
           co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
         }
-        catch (const AggregateException&)
+        catch (const Common::AggregateException&)
         {
           exceptionThrown = true;
         }
@@ -289,16 +337,15 @@ namespace Test2
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory1 = std::make_shared<MockServiceFactory>("Service1", true);    // Fails
-    auto factory2 = std::make_shared<MockServiceFactory>("Service2", false);
-    auto factory3 = std::make_shared<MockServiceFactory>("Service3", true);    // Fails
+    auto factory1 = std::make_unique<MockServiceFactory>("Service1", true);    // Fails
+    auto factory2 = std::make_unique<MockServiceFactory>("Service2", false);
+    auto factory3 = std::make_unique<MockServiceFactory>("Service3", true);    // Fails
 
     services.emplace_back("Service1", std::move(factory1));
     services.emplace_back("Service2", std::move(factory2));
     services.emplace_back("Service3", std::move(factory3));
 
-    AggregateException caughtException;
-    bool exceptionThrown = false;
+    std::optional<Common::AggregateException> caughtException;
     boost::asio::co_spawn(
       host.GetIoContext(),
       [&]() -> boost::asio::awaitable<void>
@@ -307,18 +354,17 @@ namespace Test2
         {
           co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
         }
-        catch (const AggregateException& ex)
+        catch (const Common::AggregateException& ex)
         {
-          caughtException = ex;
-          exceptionThrown = true;
+          caughtException.emplace(ex);
         }
       },
       boost::asio::detached);
 
     host.GetIoContext().run();
 
-    EXPECT_TRUE(exceptionThrown);
-    EXPECT_GE(caughtException.GetExceptions().size(), 2);    // At least 2 init failures
+    ASSERT_TRUE(caughtException.has_value());
+    EXPECT_GE(caughtException->GetInnerExceptions().size(), 2);    // At least 2 init failures
   }
 
   TEST(ManagedThreadServiceHostTest, RollbackFailure_IncludedInAggregateException)
@@ -326,14 +372,13 @@ namespace Test2
     ManagedThreadServiceHost host;
     std::vector<StartServiceRecord> services;
 
-    auto factory1 = std::make_shared<MockServiceFactory>("Service1", false, true);    // Shutdown fails
-    auto factory2 = std::make_shared<MockServiceFactory>("Service2", true);           // Init fails
+    auto factory1 = std::make_unique<MockServiceFactory>("Service1", false, true);    // Shutdown fails
+    auto factory2 = std::make_unique<MockServiceFactory>("Service2", true);           // Init fails
 
     services.emplace_back("Service1", std::move(factory1));
     services.emplace_back("Service2", std::move(factory2));
 
-    AggregateException caughtException;
-    bool exceptionThrown = false;
+    std::optional<Common::AggregateException> caughtException;
     boost::asio::co_spawn(
       host.GetIoContext(),
       [&]() -> boost::asio::awaitable<void>
@@ -342,17 +387,16 @@ namespace Test2
         {
           co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
         }
-        catch (const AggregateException& ex)
+        catch (const Common::AggregateException& ex)
         {
-          caughtException = ex;
-          exceptionThrown = true;
+          caughtException.emplace(ex);
         }
       },
       boost::asio::detached);
 
     host.GetIoContext().run();
 
-    EXPECT_TRUE(exceptionThrown);
-    EXPECT_GE(caughtException.GetExceptions().size(), 2);    // Init failure + shutdown failure
+    ASSERT_TRUE(caughtException.has_value());
+    EXPECT_GE(caughtException->GetInnerExceptions().size(), 2);    // Init failure + shutdown failure
   }
 }

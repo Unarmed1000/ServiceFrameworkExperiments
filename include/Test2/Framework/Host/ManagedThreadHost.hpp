@@ -121,6 +121,16 @@ namespace Test2
     {
       return m_serviceHost->GetIoContext();
     }
+
+    ManagedThreadServiceHost& GetServiceHost()
+    {
+      return *m_serviceHost;
+    }
+
+    const ManagedThreadServiceHost& GetServiceHost() const
+    {
+      return *m_serviceHost;
+    }
   };
 }
 

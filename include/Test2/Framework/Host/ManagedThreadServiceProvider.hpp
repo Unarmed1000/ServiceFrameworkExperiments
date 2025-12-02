@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_HOST_MANAGEDTHREADSERVICEHOST_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_HOST_MANAGEDTHREADSERVICEHOST_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_HOST_MANAGEDTHREADSERVICEPROVIDER_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_HOST_MANAGEDTHREADSERVICEPROVIDER_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -30,7 +30,7 @@
 
 namespace Test2
 {
-  class ManagedThreadServiceProvider : IServiceProvider
+  class ManagedThreadServiceProvider : public IServiceProvider
   {
   public:
     /// @brief Represents a group of services at a specific priority level.

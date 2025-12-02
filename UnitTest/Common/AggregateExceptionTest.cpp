@@ -41,6 +41,13 @@ namespace Common
 
 using namespace Common;
 
+TEST(AggregateExceptionTest, DefaultConstruction)
+{
+  AggregateException aggEx;
+  EXPECT_EQ(aggEx.InnerExceptionCount(), 0);
+  EXPECT_EQ(std::string(aggEx.what()), "One or more errors occurred.");
+}
+
 TEST(AggregateExceptionTest, BasicConstructionWithVector)
 {
   std::vector<std::exception_ptr> exceptions;

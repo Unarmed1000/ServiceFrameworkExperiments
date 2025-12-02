@@ -267,7 +267,7 @@ add_executable(test2
     include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
     include/Test2/Framework/Registry/ServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
-    include/Test2/Framework/Registry/ServiceRegistryException.hpp
+    include/Test2/Framework/Exception/ServiceRegistryException.hpp
     include/Test2/Framework/Manager/IServiceManager.hpp
     include/Test2/Services/AddService.hpp
 )
@@ -298,7 +298,7 @@ source_group("Header Files\\Test2\\Framework\\Registry" FILES
     include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
     include/Test2/Framework/Registry/ServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
-    include/Test2/Framework/Registry/ServiceRegistryException.hpp
+    include/Test2/Framework/Exception/ServiceRegistryException.hpp
 )
 source_group("Header Files\\Test2\\Framework\\Manager" FILES
     include/Test2/Framework/Manager/IServiceManager.hpp
@@ -326,7 +326,7 @@ add_executable(test_service_registry
     include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
     include/Test2/Framework/Registry/ServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
-    include/Test2/Framework/Registry/ServiceRegistryException.hpp
+    include/Test2/Framework/Exception/ServiceRegistryException.hpp
 )
 configure_target(test_service_registry)
 target_include_directories(test_service_registry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -348,8 +348,8 @@ add_executable(test_managed_thread_service_provider
     UnitTest/Test2/Host/ManagedThreadServiceProviderTest.cpp
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
-    include/Test2/Framework/Host/InvalidPriorityOrderException.hpp
-    include/Test2/Framework/Host/EmptyPriorityGroupException.hpp
+    include/Test2/Framework/Exception/InvalidPriorityOrderException.hpp
+    include/Test2/Framework/Exception/EmptyPriorityGroupException.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
 )
 configure_target(test_managed_thread_service_provider)
@@ -363,7 +363,7 @@ add_executable(test_service_provider_proxy
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Provider/IServiceProvider.hpp
     include/Test2/Framework/Provider/ServiceProviderProxy.hpp
-    include/Test2/Framework/Provider/ServiceProviderException.hpp
+    include/Test2/Framework/Exception/ServiceProviderException.hpp
 )
 configure_target(test_service_provider_proxy)
 target_include_directories(test_service_provider_proxy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -373,6 +373,9 @@ source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Prov
 # Executable 9: ManagedThreadServiceHost test
 add_executable(test_managed_thread_service_host
     UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp
+    src/Test2/Service/Provider/ServiceProvider.cpp
+    include/Test2/Framework/Host/ManagedThreadHost.hpp
+    include/Test2/Framework/Host/ManagedThreadRecord.hpp
     include/Test2/Framework/Host/ManagedThreadServiceHost.hpp
     include/Test2/Framework/Host/ManagedThreadServiceProvider.hpp
     include/Test2/Framework/Host/StartServiceRecord.hpp

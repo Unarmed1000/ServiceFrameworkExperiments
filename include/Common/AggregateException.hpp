@@ -58,6 +58,13 @@ namespace Common
     }
 
   public:
+    /// @brief Default constructor that creates an AggregateException with no inner exceptions.
+    AggregateException()
+      : std::runtime_error("One or more errors occurred.")
+      , m_innerExceptions()
+    {
+    }
+
     /// @brief Initializes a new instance of the AggregateException class with a collection of exception pointers.
     /// @param innerExceptions The exceptions that are the cause of the current exception.
     /// @throws std::invalid_argument if innerExceptions is empty.
