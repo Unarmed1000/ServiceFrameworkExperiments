@@ -406,6 +406,18 @@ boost::asio::co_spawn(io_context, do_work(),
 - **Single-threaded**: Caller must be on correct thread (UI frameworks)
 - **Marshaled**: Framework handles thread switching (`io_context::post()`)
 
+### When This Model Fits — And When It Doesn't
+
+| Workload Type | This Framework? | Better Alternative |
+|---------------|-----------------|--------------------|
+| **I/O-bound** (networking, file I/O, timers) | ✅ Yes | — |
+| **UI/event-driven** (Qt, game loops) | ✅ Yes | — |
+| **Light compute** (parsing, validation) | ✅ Yes | — |
+| **CPU-bound parallel** (image processing, physics, ML inference) | ❌ No | Thread pools, task systems, SIMD |
+| **Data-parallel** (batch transforms, matrix ops) | ❌ No | TBB, OpenMP, GPU compute |
+
+> *This framework excels at **coordination** and **I/O-bound async**. For CPU-bound parallelism across multiple cores, use dedicated parallel runtimes (TBB, `std::execution` parallel algorithms, or GPU compute) and integrate results back via the service framework.*
+
 ---
 
 <!-- ============================================================ -->
@@ -773,6 +785,30 @@ ProcessResult MyService::Process() {
 If a service *must* do blocking work (legacy library, CPU-heavy computation):
 - Move it to its own `ThreadGroup` — architect decision, not service code change
 - Or offload blocking work to a separate thread pool and `co_await` the result
+
+## CPU-Bound Parallel Work: Use the Right Tool
+
+This framework is designed for **I/O-bound** and **coordination** workloads, not CPU-bound parallelism:
+
+| Need | Wrong Approach | Right Approach |
+|------|----------------|----------------|
+| Process 1000 images | 1000 services on 1000 threads | Thread pool + `co_await` result |
+| Physics simulation | Service per physics object | Data-parallel batch in dedicated system |
+| ML inference | Blocking service call | GPU/TPU runtime, async completion |
+
+```cpp
+// ✅ Pattern: Offload CPU work, await result
+boost::asio::awaitable<ProcessedImage> ProcessImageAsync(Image img) {
+    // Offload to thread pool, resume on service executor
+    auto result = co_await boost::asio::post(
+        thread_pool,
+        boost::asio::use_awaitable_t<boost::asio::any_io_executor>{})
+        .then([img]() { return heavy_cpu_work(img); });
+    co_return result;
+}
+```
+
+> *Think of services as **coordinators**. Heavy parallel compute should happen in specialized subsystems; services orchestrate and consume results.*
 
 ---
 
