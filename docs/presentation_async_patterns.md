@@ -581,6 +581,33 @@ Both are provided by `boost::asio::io_context`.
 <!-- PHASE 4: SERVICE FRAMEWORK ARCHITECTURE                       -->
 <!-- ============================================================ -->
 
+# Why a Service Framework?
+
+## The Problems It Solves
+
+| Without Framework | With Framework |
+|-------------------|----------------|
+| Singletons with hidden global state | `ServiceProvider` — explicit, testable dependencies |
+| Init order bugs ("works on my machine") | Priority-ordered startup — deterministic every time |
+| Scattered error handling | `AggregateException` — all failures collected and reported |
+| Shutdown crashes (dangling references) | Reverse-priority shutdown — dependents stop first |
+| Each service decides its threading | Architect configures thread groups centrally |
+| Ad-hoc async patterns | Well-defined patterns for request/response, events, callbacks |
+
+## From Pitfalls to Solutions
+
+The threading pitfalls we just covered are **solved by design**:
+
+| Pitfall | Framework Solution |
+|---------|-------------------|
+| Re-entrancy | All work queued via `io_context::post()` |
+| Cross-thread callbacks | Each host owns its `io_context` |
+| Coroutine thread affinity | `co_spawn` bound to host's executor |
+
+> *A well-defined lifecycle and consistent patterns eliminate entire categories of bugs.*
+
+---
+
 # Service Framework: 5-Layer Architecture
 
 ```mermaid
@@ -622,6 +649,110 @@ ProcessResult Update();
 // Wake callback for cross-thread notification
 void SetWakeCallback(WakeCallback callback);
 ```
+
+---
+
+# Why Centralized Service Configuration Matters
+
+## The Problem with Distributed Threading Decisions
+
+| Who Decides? | Consequence |
+|--------------|-------------|
+| Each service writer | Thread affinity scattered, hard to optimize, inconsistent |
+| Architect / Platform Lead | Holistic view, can optimize for target hardware |
+
+## Why the Architect Should Own Thread Groups
+
+- **Embedded systems**: Limited cores, tight memory — need global optimization
+- **Game engines**: Render thread, game logic thread, audio thread are platform decisions
+- **Consoles**: Fixed hardware, predictable threading model critical for certification
+- **Mobile**: Battery/thermal constraints require careful thread balancing
+
+> *"The service writer knows **what** the service does. The architect knows **where** it should run."*
+
+## Real-World Examples
+
+| Domain | Threading Decision | Who Decides |
+|--------|-------------------|-------------|
+| **Unreal Engine** | GameThread, RenderThread, RHIThread | Engine architects |
+| **Unity DOTS** | Main thread vs Job System worker threads | Platform team |
+| **Android Services** | Main thread vs background executor | App architect |
+| **Automotive (AUTOSAR)** | Task-to-core mapping in RTE configuration | System integrator |
+
+---
+
+# Startup Priority Benefits
+
+## Why Priority-Ordered Startup?
+
+| Benefit | Example |
+|---------|---------|
+| **Dependency guarantees** | Logger starts before services that need logging |
+| **Deterministic initialization** | Same order every run — easier debugging |
+| **Graceful degradation** | Critical services start first; optional services can fail safely |
+| **Shutdown symmetry** | Reverse order ensures dependents stop before dependencies |
+
+## Service Access Based on Priority
+
+```cpp
+// Services can only access services at HIGHER priority (already initialized)
+auto logger = provider.GetService<ILogger>();      // ✅ Priority 100, started first
+auto config = provider.GetService<IConfig>();      // ✅ Priority 90, started second
+auto network = provider.GetService<INetwork>();    // ❌ Priority 40, not yet available!
+```
+
+## Flexibility: Reassign Without Code Changes
+
+```cpp
+// Initial configuration: all on main thread
+registry.Register<AudioService>(Priority(60), ThreadGroup::Main);
+
+// Performance issue discovered — move audio to dedicated thread
+registry.Register<AudioService>(Priority(60), ThreadGroup::Audio);  // ← Only this changes
+```
+
+> *The service code doesn't change. Only the architect's configuration changes.*
+
+---
+
+# Cooperative Multitasking Within Thread Groups
+
+## Services Sharing a Thread Must Cooperate
+
+When multiple services run on the same `io_context` / thread group:
+
+| Rule | Reason |
+|------|--------|
+| **No blocking calls** | Blocks the entire thread group — starves other services |
+| **No `sleep()` or busy waits** | Use timers (`deadline_timer`) instead |
+| **No synchronous I/O** | Use async I/O with `co_await` |
+| **Keep `Process()` fast** | Return control to the event loop quickly |
+
+## What Happens If You Block?
+
+```cpp
+// ❌ BAD: Blocks the entire thread group
+void MyService::Process() {
+    auto data = file.read_all();  // Synchronous I/O — all other services freeze!
+    std::this_thread::sleep_for(100ms);  // Sleep — nothing else runs!
+}
+
+// ✅ GOOD: Cooperative async
+boost::asio::awaitable<void> MyService::DoWorkAsync() {
+    auto data = co_await async_read(file, buffer, use_awaitable);  // Yields to other services
+    co_await timer.async_wait(use_awaitable);  // Non-blocking wait
+}
+```
+
+## The Contract
+
+> *Services on a shared thread use **cooperative multitasking**. If you block, you block everyone.*
+
+## When Blocking Is Unavoidable
+
+If a service *must* do blocking work (legacy library, CPU-heavy computation):
+- Move it to its own `ThreadGroup` — architect decision, not service code change
+- Or offload blocking work to a separate thread pool and `co_await` the result
 
 ---
 
@@ -900,11 +1031,13 @@ sequenceDiagram
 
 3. **Queuing is the solution** — `io_context::post()` solves re-entrancy; executors solve affinity
 
-4. **Interfaces enable fast builds** — Dependency injection via `ServiceProvider` limits compile-time coupling
+4. **Centralized configuration enables optimization** — Architect owns thread groups; service code doesn't change
 
-5. **Framework provides guardrails** — 5-layer architecture enforces separation of concerns
+5. **Well-defined lifecycle eliminates bug categories** — Priority ordering, controlled init/shutdown, error aggregation
 
-6. **Legacy integration is possible** — `CooperativeThreadServiceHost` bridges to Qt, game engines, etc.
+6. **Interfaces enable fast builds** — Dependency injection via `ServiceProvider` limits compile-time coupling
+
+7. **Legacy integration is possible** — `CooperativeThreadServiceHost` bridges to Qt, game engines, etc.
 
 ---
 
