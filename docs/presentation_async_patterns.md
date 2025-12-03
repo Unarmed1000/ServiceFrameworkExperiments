@@ -593,6 +593,7 @@ Both are provided by `boost::asio::io_context`.
 | Shutdown crashes (dangling references) | Reverse-priority shutdown — dependents stop first |
 | Each service decides its threading | Architect configures thread groups centrally |
 | Ad-hoc async patterns | Well-defined patterns for request/response, events, callbacks |
+| Hard to unit test (tight coupling) | Testable — mock services injected via `ServiceProvider` |
 
 ## From Pitfalls to Solutions
 
@@ -748,6 +749,25 @@ boost::asio::awaitable<void> MyService::DoWorkAsync() {
 
 > *Services on a shared thread use **cooperative multitasking**. If you block, you block everyone.*
 
+## ProcessResult: Scheduling Hints
+
+Services return `ProcessResult` to hint their needs to the host:
+
+| Result | Meaning | Host Behavior |
+|--------|---------|---------------|
+| `Idle` | No work pending | May reduce polling frequency |
+| `NeedsMoreTime` | More work queued | Continue polling immediately |
+| `WantsSleep(duration)` | Wake me after delay | Host can sleep or poll others |
+
+```cpp
+ProcessResult MyService::Process() {
+    if (m_workQueue.empty())
+        return ProcessResult::Idle;
+    ProcessOneItem();
+    return m_workQueue.empty() ? ProcessResult::Idle : ProcessResult::NeedsMoreTime;
+}
+```
+
 ## When Blocking Is Unavoidable
 
 If a service *must* do blocking work (legacy library, CPU-heavy computation):
@@ -885,10 +905,16 @@ sequenceDiagram
         TH->>Svc: InitAsync()
         Svc-->>TH: ServiceInitResult
         Note over LM: Wait for all at this priority
+        alt InitAsync fails
+            TH->>TH: ServiceProviderProxy.Clear()
+            Note over TH: Rollback registrations
+        end
     end
 
     LM-->>App: All services started
 ```
+
+> *See [Appendix A13](#appendix-a13-service-lifecycle-state-diagram) for detailed state transitions.*
 
 ---
 
@@ -912,6 +938,8 @@ public:
 ```
 
 **Key Point**: `awaitable<T>` enables `co_await` for async initialization/shutdown.
+
+> *See [Appendix A13](#appendix-a13-service-lifecycle-state-diagram) for lifecycle state diagram.*
 
 ---
 
@@ -1497,3 +1525,49 @@ update_ui(data);  // ✅ Guaranteed to be on UI thread
 4. **Composable** — works with any `awaitable<T>`
 
 **Trade-off**: Requires explicit wrapping (unlike C# automatic capture), but makes thread transitions visible and intentional.
+
+---
+
+# Appendix A13: Service Lifecycle State Diagram
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> Created : Factory creates instance
+    Created --> Initializing : InitAsync() called
+    Initializing --> Running : InitAsync() succeeds
+    Initializing --> Failed : InitAsync() throws
+    Running --> ShuttingDown : ShutdownAsync() called
+    ShuttingDown --> Stopped : ShutdownAsync() completes
+    Failed --> [*] : Service removed
+    Stopped --> [*] : Service removed
+
+    note right of Running
+        Process() called each tick
+        Returns ProcessResult
+    end note
+
+    note right of Failed
+        ServiceProviderProxy.Clear()
+        rolls back registrations
+    end note
+```
+
+## State Transitions
+
+| State | Entry Condition | Exit Condition |
+|-------|-----------------|----------------|
+| **Created** | Factory instantiates service | `InitAsync()` begins |
+| **Initializing** | `InitAsync()` in progress | Success → Running, Exception → Failed |
+| **Running** | `InitAsync()` returned success | `ShutdownAsync()` called |
+| **ShuttingDown** | Lifecycle manager stops service | `ShutdownAsync()` completes |
+| **Stopped** | Clean shutdown complete | Service removed from provider |
+| **Failed** | `InitAsync()` threw exception | Proxy rolled back, service discarded |
+
+## Key Design Points
+
+- **Priority ordering**: Services at higher priority complete `Initializing` before lower priority services begin
+- **Rollback on failure**: `ServiceProviderProxy::Clear()` removes partially-registered services
+- **Reverse shutdown**: Services stop in reverse priority order (dependents before dependencies)
+- **Process() only in Running**: Host only calls `Process()` on fully initialized services
