@@ -2,7 +2,7 @@
 
 **A presentation for senior C++ developers and architects**
 
-> This presentation distills lessons learned from implementing service frameworks across multiple C++ versions and modern C# since 2001.
+> This presentation distills lessons learned from building and using service frameworks across C++, C#, Java, and other languages over 20+ years.
 
 <small>*Created with AI assistance*</small>
 
