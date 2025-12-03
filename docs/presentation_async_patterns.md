@@ -460,6 +460,8 @@ for (auto it = v.begin(); it != v.end(); ++it) {
 
 > ⚠️ **UB is not "probably fine"** — compilers assume UB never happens and optimize accordingly. This can cause [surprising and catastrophic results](https://blog.tchatzigiannakis.com/undefined-behavior-can-literally-erase-your-hard-disk/).
 
+> 💡 **In real codebases**, the callback often originates in a completely different class and travels through multiple function calls before re-entering the original object—making these bugs much harder to spot. See [Appendix A14](#appendix-a14-real-world-re-entrancy-example) for a realistic multi-class example.
+
 ---
 
 # Solution: Queue Callbacks
@@ -485,7 +487,11 @@ process queued callbacks safely
 
 **This is exactly what event loops do**: JavaScript, game engines, `io_context`
 
+> ✅ **Queuing solves the entire class** of same-thread re-entrancy problems with minimal overhead. The cost varies by implementation—some queues require a heap allocation per item, others use pre-allocated ring buffers or arenas. For most applications, this cost is negligible compared to the bugs it prevents.
+
 > ⚠️ **Qt caveat**: By default, Qt uses `Qt::DirectConnection` for same-thread signals, which executes slots *synchronously* — this can still cause re-entrancy! Use `Qt::QueuedConnection` explicitly to force queuing.
+
+See [Appendix A15](#appendix-a15-queuing-trade-offs--pitfalls) for queuing pitfalls and advanced considerations.
 
 ---
 
@@ -760,6 +766,8 @@ boost::asio::awaitable<void> MyService::DoWorkAsync() {
 ## The Contract
 
 > *Services on a shared thread use **cooperative multitasking**. If you block, you block everyone.*
+
+See [Appendix A15](#appendix-a15-queuing-trade-offs--pitfalls) for trade-offs of the queuing model.
 
 ## ProcessResult: Scheduling Hints
 
@@ -1609,3 +1617,77 @@ stateDiagram-v2
 - **Rollback on failure**: `ServiceProviderProxy::Clear()` removes partially-registered services
 - **Reverse shutdown**: Services stop in reverse priority order (dependents before dependencies)
 - **Process() only in Running**: Host only calls `Process()` on fully initialized services
+
+---
+
+# Appendix A14: Real-World Re-Entrancy Example
+
+## Why These Bugs Are Hard to Spot
+
+In real codebases, the callback rarely lives next to the code it re-enters. Instead, it travels through multiple classes:
+
+```mermaid
+sequenceDiagram
+    participant Inv as InventoryManager
+    participant Item as ItemWidget
+    participant UI as UIController
+    participant CB as OnItemRemoved callback
+
+    Inv->>Inv: RemoveItem(id)
+    Note over Inv: Iterating m_items...
+    Inv->>Item: NotifyRemoved()
+    Item->>UI: UpdateDisplay()
+    UI->>CB: Fire OnItemRemoved event
+    CB->>Inv: RefreshInventory()
+    Note over Inv: Modifies m_items!
+    Note over Inv: Iterator invalidated → UB
+```
+
+## The Trap
+
+- `InventoryManager` doesn't know `NotifyRemoved()` eventually calls back into it
+- Each class in the chain looks correct in isolation
+- The bug only manifests with specific event handler registrations
+- Code review misses it because the path spans multiple files
+
+## The Fix
+
+Queue the notification instead of firing it synchronously:
+
+```cpp
+void InventoryManager::RemoveItem(ItemId id) {
+    m_items.erase(id);
+    // ✅ Deferred: fires after RemoveItem() completes
+    m_ioContext.post([this, id]() { m_onItemRemoved.fire(id); });
+}
+```
+
+---
+
+# Appendix A15: Queuing Trade-offs & Pitfalls
+
+## Why Queuing Works
+
+Queuing callbacks via `io_context::post()` eliminates same-thread re-entrancy by ensuring operations complete before callbacks fire.
+
+## Trade-offs
+
+| Aspect | Impact | Mitigation |
+|--------|--------|------------|
+| **Performance** | Small overhead per `post()` (varies by queue type) | Negligible for most apps; use pre-allocated queues if critical |
+| **Latency** | Deferred execution (not immediate) | Usually desirable; use direct call only when proven safe |
+| **Debugging** | Non-obvious execution order | Logging, async-aware debuggers |
+| **Ordering** | FIFO by default | Usually correct; see priority queues below |
+
+## Ordering Pitfall
+
+Queued work executes in FIFO order. If your application needs different ordering:
+
+| Scenario | Problem | Solution |
+|----------|---------|----------|
+| UI responsiveness | User input delayed behind heavy work | Separate `io_context` for UI events |
+| Priority inversion | Critical work waits behind low-priority | Priority queue (see below) |
+
+### Advanced: Priority Queues
+
+When FIFO isn't sufficient, use a priority-based work queue instead of raw `post()`. Trade-off: added complexity and potential starvation of low-priority work if not carefully managed.
