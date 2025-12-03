@@ -939,6 +939,8 @@ public:
 
 **Key Point**: `awaitable<T>` enables `co_await` for async initialization/shutdown.
 
+> **Note on "tick"**: A tick is a single iteration of the host's main loop—not a fixed time interval. The host determines when to call `Process()`, and the `ProcessResult` returned by services can influence the timing of the next tick (e.g., requesting immediate processing, idle delays, or specific wake-up times).
+
 > *See [Appendix A13](#appendix-a13-service-lifecycle-state-diagram) for lifecycle state diagram.*
 
 ---
