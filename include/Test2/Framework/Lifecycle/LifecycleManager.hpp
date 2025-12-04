@@ -15,6 +15,7 @@
 
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadHost.hpp>
+#include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp>
 #include <Test2/Framework/Registry/ServiceRegistrationRecord.hpp>
 #include <Test2/Framework/Registry/ServiceThreadGroupId.hpp>
@@ -76,7 +77,31 @@ namespace Test2
     /// @throws AggregateException if any service fails to start (after rollback).
     boost::asio::awaitable<void> StartServicesAsync()
     {
-      // TODO: Implement in Phase 2
+      if (m_registrations.empty())
+      {
+        co_return;
+      }
+
+      // Phase 2: For now, just handle main thread group with single priority
+      // Convert registrations to StartServiceRecords and start them
+      std::vector<StartServiceRecord> mainThreadServices;
+      ServiceLaunchPriority currentPriority;
+
+      for (auto& reg : m_registrations)
+      {
+        // Get the service name from the factory's supported interfaces
+        auto interfaces = reg.Factory->GetSupportedInterfaces();
+        std::string serviceName = interfaces.empty() ? "UnknownService" : interfaces[0].name();
+
+        mainThreadServices.emplace_back(std::move(serviceName), std::move(reg.Factory));
+        currentPriority = reg.Priority;
+      }
+
+      if (!mainThreadServices.empty())
+      {
+        co_await m_mainHost.TryStartServicesAsync(std::move(mainThreadServices), currentPriority);
+      }
+
       co_return;
     }
 

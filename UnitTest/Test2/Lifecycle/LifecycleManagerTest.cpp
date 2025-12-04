@@ -11,6 +11,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Config/ThreadGroupConfig.hpp>
 #include <Test2/Framework/Lifecycle/LifecycleManager.hpp>
 #include <Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
@@ -20,6 +21,8 @@
 #include <Test2/Framework/Service/IServiceFactory.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 #include <gtest/gtest.h>
 #include <memory>
 #include <span>
@@ -170,6 +173,103 @@ namespace Test2
 
     auto result = manager.Update();
     EXPECT_EQ(result.Status, ProcessStatus::NoSleepLimit);
+  }
+
+  // ============================================================================
+  // Phase 2: Single Thread Group (Main Only) Tests
+  // ============================================================================
+
+  // Helper to run async operations synchronously using polling
+  void RunAsyncWithPolling(LifecycleManager& manager, std::function<boost::asio::awaitable<void>()> asyncOp)
+  {
+    bool done = false;
+    boost::asio::co_spawn(
+      manager.GetMainHost().GetIoContext(),
+      [&asyncOp, &done]() -> boost::asio::awaitable<void>
+      {
+        co_await asyncOp();
+        done = true;
+      },
+      boost::asio::detached);
+
+    while (!done)
+    {
+      manager.Poll();
+    }
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_WithEmptyRegistrations_Succeeds)
+  {
+    LifecycleManagerConfig config;
+    std::vector<ServiceRegistrationRecord> registrations;
+
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // Should complete without throwing
+    SUCCEED();
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_SingleService_MainThreadGroup_ServiceInitialized)
+  {
+    auto service = std::make_shared<MockLifecycleService>();
+    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    EXPECT_FALSE(service->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    EXPECT_TRUE(service->IsInitialized());
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_SingleService_MainThreadGroup_ProcessCalled)
+  {
+    auto service = std::make_shared<MockLifecycleService>();
+    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    EXPECT_EQ(service->GetProcessCallCount(), 0);
+
+    manager.Update();
+
+    EXPECT_EQ(service->GetProcessCallCount(), 1);
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MultipleServices_SamePriority_MainThreadGroup_AllInitialized)
+  {
+    auto service1 = std::make_shared<MockLifecycleService>();
+    auto service2 = std::make_shared<MockLifecycleService>();
+    auto factory1 = std::make_unique<MockLifecycleServiceFactory>(service1);
+    auto factory2 = std::make_unique<MockLifecycleServiceFactory>(service2);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory1), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::move(factory2), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    EXPECT_FALSE(service1->IsInitialized());
+    EXPECT_FALSE(service2->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    EXPECT_TRUE(service1->IsInitialized());
+    EXPECT_TRUE(service2->IsInitialized());
   }
 
 }
