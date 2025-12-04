@@ -114,9 +114,9 @@ namespace Test2
         }
 
         // Index service by each supported interface type
-        for (const std::type_info* typeInfo : services[i].SupportedInterfaces)
+        for (const std::type_index& typeIndex : services[i].SupportedInterfaces)
         {
-          m_servicesByType.emplace(std::type_index(*typeInfo), services[i].Service);
+          m_servicesByType.emplace(typeIndex, services[i].Service);
         }
       }
 

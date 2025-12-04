@@ -20,6 +20,7 @@
 #include <memory>
 #include <span>
 #include <stdexcept>
+#include <typeindex>
 
 namespace Test2
 {
@@ -30,15 +31,15 @@ namespace Test2
     MultiplyServiceFactory() = default;
     ~MultiplyServiceFactory() override = default;
 
-    std::span<const std::type_info> GetSupportedInterfaces() const override
+    std::span<const std::type_index> GetSupportedInterfaces() const override
     {
-      static const std::type_info* interfaces[] = {&typeid(IMultiplyService)};
-      return std::span<const std::type_info>(reinterpret_cast<const std::type_info*>(interfaces), 1);
+      static const std::type_index interfaces[] = {std::type_index(typeid(IMultiplyService))};
+      return std::span<const std::type_index>(interfaces);
     }
 
-    std::shared_ptr<IServiceControl> Create(const std::type_info& type, const ServiceCreateInfo& createInfo) override
+    std::shared_ptr<IServiceControl> Create(const std::type_index& type, const ServiceCreateInfo& createInfo) override
     {
-      if (type == typeid(IMultiplyService))
+      if (type == std::type_index(typeid(IMultiplyService)))
       {
         return std::make_shared<MultiplyService>(createInfo);
       }

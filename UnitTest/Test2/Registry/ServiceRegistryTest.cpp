@@ -18,6 +18,7 @@
 #include <Test2/Framework/Service/IServiceFactory.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <gtest/gtest.h>
+#include <typeindex>
 
 namespace Test2
 {
@@ -27,13 +28,13 @@ namespace Test2
   public:
     MockServiceFactory() = default;
 
-    std::span<const std::type_info> GetSupportedInterfaces() const override
+    std::span<const std::type_index> GetSupportedInterfaces() const override
     {
-      static const std::type_info* interfaces[] = {&typeid(IService)};
-      return std::span<const std::type_info>(reinterpret_cast<const std::type_info*>(interfaces), 1);
+      static const std::type_index interfaces[] = {std::type_index(typeid(IService))};
+      return std::span<const std::type_index>(interfaces);
     }
 
-    std::shared_ptr<IServiceControl> Create(const std::type_info& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }
@@ -45,13 +46,13 @@ namespace Test2
   public:
     AnotherMockServiceFactory() = default;
 
-    std::span<const std::type_info> GetSupportedInterfaces() const override
+    std::span<const std::type_index> GetSupportedInterfaces() const override
     {
-      static const std::type_info* interfaces[] = {&typeid(IService)};
-      return std::span<const std::type_info>(reinterpret_cast<const std::type_info*>(interfaces), 1);
+      static const std::type_index interfaces[] = {std::type_index(typeid(IService))};
+      return std::span<const std::type_index>(interfaces);
     }
 
-    std::shared_ptr<IServiceControl> Create(const std::type_info& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }
@@ -63,12 +64,12 @@ namespace Test2
   public:
     EmptyServiceFactory() = default;
 
-    std::span<const std::type_info> GetSupportedInterfaces() const override
+    std::span<const std::type_index> GetSupportedInterfaces() const override
     {
-      return std::span<const std::type_info>();    // Empty span
+      return std::span<const std::type_index>();    // Empty span
     }
 
-    std::shared_ptr<IServiceControl> Create(const std::type_info& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }

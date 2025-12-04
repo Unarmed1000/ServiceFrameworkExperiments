@@ -15,7 +15,7 @@
 
 #include <Test2/Framework/Service/IServiceControl.hpp>
 #include <memory>
-#include <typeinfo>
+#include <typeindex>
 #include <vector>
 
 namespace Test2
@@ -27,7 +27,7 @@ namespace Test2
   struct ServiceInstanceInfo
   {
     std::shared_ptr<IServiceControl> Service;
-    std::vector<const std::type_info*> SupportedInterfaces;
+    std::vector<std::type_index> SupportedInterfaces;
   };
 }
 

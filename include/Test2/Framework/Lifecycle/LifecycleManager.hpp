@@ -82,24 +82,32 @@ namespace Test2
         co_return;
       }
 
-      // Phase 2: For now, just handle main thread group with single priority
-      // Convert registrations to StartServiceRecords and start them
-      std::vector<StartServiceRecord> mainThreadServices;
-      ServiceLaunchPriority currentPriority;
+      // Group registrations by priority
+      std::map<ServiceLaunchPriority, std::vector<ServiceRegistrationRecord*>, std::greater<ServiceLaunchPriority>> priorityGroups;
 
       for (auto& reg : m_registrations)
       {
-        // Get the service name from the factory's supported interfaces
-        auto interfaces = reg.Factory->GetSupportedInterfaces();
-        std::string serviceName = interfaces.empty() ? "UnknownService" : interfaces[0].name();
-
-        mainThreadServices.emplace_back(std::move(serviceName), std::move(reg.Factory));
-        currentPriority = reg.Priority;
+        priorityGroups[reg.Priority].push_back(&reg);
       }
 
-      if (!mainThreadServices.empty())
+      // Start services in priority order (highest first due to std::greater comparator)
+      for (auto& [priority, regsInGroup] : priorityGroups)
       {
-        co_await m_mainHost.TryStartServicesAsync(std::move(mainThreadServices), currentPriority);
+        std::vector<StartServiceRecord> servicesForPriority;
+
+        for (auto* reg : regsInGroup)
+        {
+          // Get service name from first supported interface
+          auto interfaces = reg->Factory->GetSupportedInterfaces();
+          std::string serviceName = interfaces.empty() ? "UnknownService" : interfaces[0].name();
+
+          servicesForPriority.emplace_back(std::move(serviceName), std::move(reg->Factory));
+        }
+
+        if (!servicesForPriority.empty())
+        {
+          co_await m_mainHost.TryStartServicesAsync(std::move(servicesForPriority), priority);
+        }
       }
 
       co_return;

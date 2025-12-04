@@ -192,9 +192,9 @@ namespace Test2
         // Prepare InstanceInfo
         record.InstanceInfo.Service = record.Service;
         record.InstanceInfo.SupportedInterfaces.reserve(supportedInterfaces.size());
-        for (const auto& typeInfo : supportedInterfaces)
+        for (const auto& typeIndex : supportedInterfaces)
         {
-          record.InstanceInfo.SupportedInterfaces.push_back(&typeInfo);
+          record.InstanceInfo.SupportedInterfaces.push_back(typeIndex);
         }
 
         initRecords.push_back(std::move(record));

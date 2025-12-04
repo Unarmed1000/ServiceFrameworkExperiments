@@ -16,6 +16,7 @@
 #include <Test2/Framework/Service/IServiceControl.hpp>
 #include <memory>
 #include <span>
+#include <typeindex>
 #include <vector>
 
 namespace Test2
@@ -37,13 +38,12 @@ namespace Test2
 
     /// @brief Retrieves the list of service interface types that this factory can create.
     ///
-    /// This method populates the provided vector with type_info objects representing all
+    /// This method returns a span of type_index objects representing all
     /// the service interfaces that this factory supports. The framework uses this information
     /// to determine which factory to use when a specific service type is requested.
     ///
-    /// @param rInterfaceTypes Vector to be populated with the supported interface types.
-    ///                       The vector will be filled with std::type_info references.
-    virtual std::span<const std::type_info> GetSupportedInterfaces() const = 0;
+    /// @return A span of type_index objects for the supported interface types.
+    virtual std::span<const std::type_index> GetSupportedInterfaces() const = 0;
 
     /// @brief Creates a new service instance of the specified type.
     ///
@@ -52,12 +52,12 @@ namespace Test2
     /// GetSupportedInterfaces(). The createInfo parameter provides access to the service
     /// provider, allowing the new service to retrieve dependencies during construction.
     ///
-    /// @param type The type information of the service interface to create.
+    /// @param type The type index of the service interface to create.
     /// @param createInfo Context information for service creation, including the service
     ///                   provider for accessing dependencies.
     /// @return A shared pointer to the newly created service instance.
     /// @throws std::invalid_argument if the requested type is not supported by this factory.
-    virtual std::shared_ptr<IServiceControl> Create(const std::type_info& type, const ServiceCreateInfo& createInfo) = 0;
+    virtual std::shared_ptr<IServiceControl> Create(const std::type_index& type, const ServiceCreateInfo& createInfo) = 0;
   };
 
 }

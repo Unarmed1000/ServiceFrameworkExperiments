@@ -25,11 +25,36 @@
 #include <boost/asio/detached.hpp>
 #include <gtest/gtest.h>
 #include <memory>
+#include <mutex>
 #include <span>
+#include <typeindex>
 #include <vector>
 
 namespace Test2
 {
+  // ============================================================================
+  // Shared initialization order tracker
+  // ============================================================================
+
+  class InitializationOrderTracker
+  {
+  public:
+    std::vector<std::string> Order;
+    std::mutex Mutex;
+
+    void RecordInit(const std::string& serviceName)
+    {
+      std::lock_guard<std::mutex> lock(Mutex);
+      Order.push_back(serviceName);
+    }
+
+    void Clear()
+    {
+      std::lock_guard<std::mutex> lock(Mutex);
+      Order.clear();
+    }
+  };
+
   // ============================================================================
   // Mock Service for Testing
   // ============================================================================
@@ -41,6 +66,8 @@ namespace Test2
     std::atomic<int> m_processCallCount{0};
     std::atomic<bool> m_initialized{false};
     std::atomic<bool> m_shutdown{false};
+    std::string m_name;
+    InitializationOrderTracker* m_tracker{nullptr};
 
   public:
     explicit MockLifecycleService(ProcessResult processResult = ProcessResult::NoSleepLimit())
@@ -48,9 +75,20 @@ namespace Test2
     {
     }
 
+    MockLifecycleService(const std::string& name, InitializationOrderTracker* tracker, ProcessResult processResult = ProcessResult::NoSleepLimit())
+      : m_processResult(processResult)
+      , m_name(name)
+      , m_tracker(tracker)
+    {
+    }
+
     boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*createInfo*/) override
     {
       m_initialized = true;
+      if (m_tracker)
+      {
+        m_tracker->RecordInit(m_name);
+      }
       co_return ServiceInitResult::Success;
     }
 
@@ -103,13 +141,13 @@ namespace Test2
     {
     }
 
-    std::span<const std::type_info> GetSupportedInterfaces() const override
+    std::span<const std::type_index> GetSupportedInterfaces() const override
     {
-      static const std::type_info* interfaces[] = {&typeid(ITestInterface)};
-      return std::span<const std::type_info>(reinterpret_cast<const std::type_info*>(interfaces), 1);
+      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
+      return std::span<const std::type_index>(interfaces);
     }
 
-    std::shared_ptr<IServiceControl> Create(const std::type_info& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
     {
       return m_service;
     }
@@ -270,6 +308,99 @@ namespace Test2
 
     EXPECT_TRUE(service1->IsInitialized());
     EXPECT_TRUE(service2->IsInitialized());
+  }
+
+  // ============================================================================
+  // Phase 3: Multiple Priorities Tests
+  // ============================================================================
+
+  TEST(LifecycleManager, StartServicesAsync_TwoPriorities_HigherPriorityInitializedFirst)
+  {
+    InitializationOrderTracker tracker;
+
+    auto highPriorityService = std::make_shared<MockLifecycleService>("HighPriority", &tracker);
+    auto lowPriorityService = std::make_shared<MockLifecycleService>("LowPriority", &tracker);
+    auto highFactory = std::make_unique<MockLifecycleServiceFactory>(highPriorityService);
+    auto lowFactory = std::make_unique<MockLifecycleServiceFactory>(lowPriorityService);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    // Register in reverse order to ensure priority sorting works
+    registrations.emplace_back(std::move(lowFactory), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::move(highFactory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // High priority (1000) should be initialized before low priority (100)
+    ASSERT_EQ(tracker.Order.size(), 2u);
+    EXPECT_EQ(tracker.Order[0], "HighPriority");
+    EXPECT_EQ(tracker.Order[1], "LowPriority");
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_ThreePriorities_InitializedHighestToLowest)
+  {
+    InitializationOrderTracker tracker;
+
+    auto highService = std::make_shared<MockLifecycleService>("High", &tracker);
+    auto medService = std::make_shared<MockLifecycleService>("Medium", &tracker);
+    auto lowService = std::make_shared<MockLifecycleService>("Low", &tracker);
+    auto highFactory = std::make_unique<MockLifecycleServiceFactory>(highService);
+    auto medFactory = std::make_unique<MockLifecycleServiceFactory>(medService);
+    auto lowFactory = std::make_unique<MockLifecycleServiceFactory>(lowService);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    // Register in scrambled order
+    registrations.emplace_back(std::move(medFactory), ServiceLaunchPriority(500), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::move(lowFactory), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::move(highFactory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // Should be initialized highest to lowest: 1000 -> 500 -> 100
+    ASSERT_EQ(tracker.Order.size(), 3u);
+    EXPECT_EQ(tracker.Order[0], "High");
+    EXPECT_EQ(tracker.Order[1], "Medium");
+    EXPECT_EQ(tracker.Order[2], "Low");
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MultipleServicesPerPriority_GroupedByPriority)
+  {
+    InitializationOrderTracker tracker;
+
+    auto high1 = std::make_shared<MockLifecycleService>("High1", &tracker);
+    auto high2 = std::make_shared<MockLifecycleService>("High2", &tracker);
+    auto low1 = std::make_shared<MockLifecycleService>("Low1", &tracker);
+    auto low2 = std::make_shared<MockLifecycleService>("Low2", &tracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    // Interleave high and low priority registrations
+    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(low1), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(high1), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(low2), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(high2), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // All high priority services should come before all low priority services
+    ASSERT_EQ(tracker.Order.size(), 4u);
+    // First two should be High1 and High2 (order within same priority may vary)
+    std::vector<std::string> highPriorityNames(tracker.Order.begin(), tracker.Order.begin() + 2);
+    std::vector<std::string> lowPriorityNames(tracker.Order.begin() + 2, tracker.Order.end());
+
+    EXPECT_TRUE(std::find(highPriorityNames.begin(), highPriorityNames.end(), "High1") != highPriorityNames.end());
+    EXPECT_TRUE(std::find(highPriorityNames.begin(), highPriorityNames.end(), "High2") != highPriorityNames.end());
+    EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "Low1") != lowPriorityNames.end());
+    EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "Low2") != lowPriorityNames.end());
   }
 
 }

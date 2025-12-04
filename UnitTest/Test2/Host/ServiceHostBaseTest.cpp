@@ -27,6 +27,7 @@
 #include <memory>
 #include <stdexcept>
 #include <thread>
+#include <typeindex>
 
 namespace Test2
 {
@@ -131,13 +132,13 @@ namespace Test2
     {
     }
 
-    std::span<const std::type_info> GetSupportedInterfaces() const override
+    std::span<const std::type_index> GetSupportedInterfaces() const override
     {
-      static const std::type_info* interfaces[] = {&typeid(ITestInterface)};
-      return std::span<const std::type_info>(reinterpret_cast<const std::type_info*>(interfaces), 1);
+      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
+      return std::span<const std::type_index>(interfaces);
     }
 
-    std::shared_ptr<IServiceControl> Create(const std::type_info& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
     {
       return std::make_shared<MockService>(m_serviceName, m_tracker, m_initShouldFail, m_shutdownShouldFail);
     }
