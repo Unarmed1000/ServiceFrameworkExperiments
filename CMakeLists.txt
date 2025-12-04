@@ -587,3 +587,27 @@ configure_target(test_cooperative_thread_service_host)
 target_include_directories(test_cooperative_thread_service_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test_cooperative_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp)
+
+# Executable 14: LifecycleManager test
+add_executable(test_lifecycle_manager
+    UnitTest/Test2/Lifecycle/LifecycleManagerTest.cpp
+    src/Test2/Service/Provider/ServiceProvider.cpp
+    include/Test2/Framework/Lifecycle/LifecycleManager.hpp
+    include/Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp
+    include/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
+    include/Test2/Framework/Host/ServiceHostBase.hpp
+    include/Test2/Framework/Host/StartServiceRecord.hpp
+    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
+    include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
+    include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
+)
+configure_target(test_lifecycle_manager)
+target_include_directories(test_lifecycle_manager PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(test_lifecycle_manager PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Lifecycle" FILES UnitTest/Test2/Lifecycle/LifecycleManagerTest.cpp)

@@ -17,6 +17,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <future>
 #include <memory>
 #include <thread>
 #include "ManagedThreadRecord.hpp"
@@ -90,10 +91,10 @@ namespace Test2
       startedFuture.wait();
 
       // Create the lifetime awaitable from the future
-      auto& executor = co_await boost::asio::this_coro::executor;
-      co_return ManagedThreadRecord{[](std::shared_future<void> future, auto executor) -> boost::asio::awaitable<void>
+      auto executor = co_await boost::asio::this_coro::executor;
+      co_return ManagedThreadRecord{[](std::shared_future<void> future, auto exec) -> boost::asio::awaitable<void>
                                     {
-                                      co_await boost::asio::post(executor, boost::asio::use_awaitable);
+                                      co_await boost::asio::post(exec, boost::asio::use_awaitable);
                                       future.wait();
                                       co_return;
                                     }(std::move(lifetimeFuture).share(), executor)};
@@ -103,8 +104,8 @@ namespace Test2
     {
       if (m_serviceHost)
       {
-        // Post the stop call to the managed thread
-        boost::asio::post(m_serviceHost->GetIoContext(), [this]() { m_serviceHost->Stop(); });
+        // Post the stop call to the managed thread - stop the io_context
+        boost::asio::post(m_serviceHost->GetIoContext(), [this]() { m_serviceHost->GetIoContext().stop(); });
       }
       if (m_thread.joinable())
       {
