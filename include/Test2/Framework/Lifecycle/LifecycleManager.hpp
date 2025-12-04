@@ -13,6 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Common/AggregateException.hpp>
 #include <Test2/Framework/Config/ThreadGroupConfig.hpp>
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadHost.hpp>
@@ -21,6 +22,7 @@
 #include <Test2/Framework/Registry/ServiceRegistrationRecord.hpp>
 #include <Test2/Framework/Registry/ServiceThreadGroupId.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
+#include <Test2/Framework/Service/ServiceShutdownResult.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <map>
 #include <memory>
@@ -49,6 +51,17 @@ namespace Test2
     CooperativeThreadServiceHost m_mainHost;
     std::vector<ServiceRegistrationRecord> m_registrations;
     std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>> m_threadHosts;
+
+    /// @brief Tracks a successfully started priority level for rollback/shutdown.
+    struct StartedPriorityRecord
+    {
+      ServiceLaunchPriority Priority;
+      ServiceThreadGroupId ThreadGroupId;
+    };
+
+    /// @brief Priority levels that were successfully started, in start order.
+    /// Used for rollback on failure and for normal shutdown (processed in reverse).
+    std::vector<StartedPriorityRecord> m_startedPriorities;
 
   public:
     /// @brief Constructs a LifecycleManager with the given configuration and service registrations.
@@ -113,25 +126,50 @@ namespace Test2
 
           if (!servicesForGroup.empty())
           {
-            if (threadGroupId == ThreadGroupConfig::MainThreadGroupId)
+            std::exception_ptr startupException;
+            try
             {
-              // Main thread group - use cooperative host
-              co_await m_mainHost.TryStartServicesAsync(std::move(servicesForGroup), priority);
-            }
-            else
-            {
-              // Non-main thread group - ensure ManagedThreadHost exists and start it
-              auto it = m_threadHosts.find(threadGroupId);
-              if (it == m_threadHosts.end())
+              if (threadGroupId == ThreadGroupConfig::MainThreadGroupId)
               {
-                auto host = std::make_unique<ManagedThreadHost>();
-                // Start the thread (it will run io_context.run())
-                co_await host->StartAsync();
-                it = m_threadHosts.emplace(threadGroupId, std::move(host)).first;
+                // Main thread group - use cooperative host
+                co_await m_mainHost.TryStartServicesAsync(std::move(servicesForGroup), priority);
+              }
+              else
+              {
+                // Non-main thread group - ensure ManagedThreadHost exists and start it
+                auto it = m_threadHosts.find(threadGroupId);
+                if (it == m_threadHosts.end())
+                {
+                  auto host = std::make_unique<ManagedThreadHost>();
+                  // Start the thread (it will run io_context.run())
+                  co_await host->StartAsync();
+                  it = m_threadHosts.emplace(threadGroupId, std::move(host)).first;
+                }
+
+                // Start services on the managed thread host
+                co_await it->second->GetServiceHost().TryStartServicesAsync(std::move(servicesForGroup), priority);
               }
 
-              // Start services on the managed thread host
-              co_await it->second->GetServiceHost().TryStartServicesAsync(std::move(servicesForGroup), priority);
+              // Track successfully started priority level
+              m_startedPriorities.push_back({priority, threadGroupId});
+            }
+            catch (...)
+            {
+              startupException = std::current_exception();
+            }
+
+            // Handle startup failure outside catch block (co_await not allowed in catch)
+            if (startupException)
+            {
+              // Rollback all previously started priority levels
+              auto rollbackErrors = co_await ShutdownServicesAsync();
+
+              // Combine startup error with any rollback errors
+              std::vector<std::exception_ptr> allErrors;
+              allErrors.push_back(startupException);
+              allErrors.insert(allErrors.end(), rollbackErrors.begin(), rollbackErrors.end());
+
+              throw Common::AggregateException("Service startup failed", std::move(allErrors));
             }
           }
         }
@@ -140,13 +178,41 @@ namespace Test2
       co_return;
     }
 
-    /// @brief Shuts down all services in reverse priority order.
+    /// @brief Shuts down all started services in reverse priority order.
     ///
-    /// @return Awaitable that completes when all services are shut down.
-    boost::asio::awaitable<void> ShutdownServicesAsync()
+    /// Iterates through started priority levels in reverse order and shuts down
+    /// each one by calling TryShutdownServicesAsync on the appropriate host.
+    ///
+    /// @return Vector of any exceptions that occurred during shutdown.
+    boost::asio::awaitable<std::vector<std::exception_ptr>> ShutdownServicesAsync()
     {
-      // TODO: Implement in Phase 6
-      co_return;
+      std::vector<std::exception_ptr> allErrors;
+
+      // Shutdown in reverse order of startup (lowest priority first, then higher)
+      for (auto it = m_startedPriorities.rbegin(); it != m_startedPriorities.rend(); ++it)
+      {
+        std::vector<std::exception_ptr> errors;
+
+        if (it->ThreadGroupId == ThreadGroupConfig::MainThreadGroupId)
+        {
+          errors = co_await m_mainHost.TryShutdownServicesAsync(it->Priority);
+        }
+        else
+        {
+          auto hostIt = m_threadHosts.find(it->ThreadGroupId);
+          if (hostIt != m_threadHosts.end())
+          {
+            errors = co_await hostIt->second->GetServiceHost().TryShutdownServicesAsync(it->Priority);
+          }
+        }
+
+        allErrors.insert(allErrors.end(), errors.begin(), errors.end());
+      }
+
+      // Clear the tracking
+      m_startedPriorities.clear();
+
+      co_return allErrors;
     }
 
     /// @brief Polls the main thread's io_context and processes all services.

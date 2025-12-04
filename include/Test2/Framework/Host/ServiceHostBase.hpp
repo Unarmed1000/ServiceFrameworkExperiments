@@ -326,6 +326,49 @@ namespace Test2
       spdlog::info("Successfully initialized and registered {} services at priority {}", initRecords.size(), currentPriority.GetValue());
     }
 
+    /// @brief Implementation of service shutdown logic for a specific priority level.
+    ///
+    /// Unregisters services at the given priority from the provider and shuts them down.
+    /// Services within the priority group are shut down in reverse registration order.
+    /// Any shutdown failures are collected and returned.
+    ///
+    /// @param priority The priority level to shut down.
+    /// @return Awaitable containing any exceptions that occurred during shutdown.
+    boost::asio::awaitable<std::vector<std::exception_ptr>> DoTryShutdownServicesAsync(ServiceLaunchPriority priority)
+    {
+      std::vector<std::exception_ptr> shutdownFailures;
+
+      // Unregister services at this priority level
+      auto services = m_provider->UnregisterPriorityGroup(priority);
+
+      if (services.empty())
+      {
+        co_return shutdownFailures;
+      }
+
+      spdlog::info("Shutting down {} services at priority {}", services.size(), priority.GetValue());
+
+      // Shutdown services in reverse registration order
+      for (auto it = services.rbegin(); it != services.rend(); ++it)
+      {
+        try
+        {
+          auto shutdownResult = co_await it->Service->ShutdownAsync();
+          if (shutdownResult != ServiceShutdownResult::Success)
+          {
+            spdlog::warn("Service shutdown returned non-success result: {}", static_cast<int>(shutdownResult));
+          }
+        }
+        catch (...)
+        {
+          shutdownFailures.push_back(std::current_exception());
+          spdlog::error("Exception during service shutdown");
+        }
+      }
+
+      co_return shutdownFailures;
+    }
+
     /// @brief Execute function on the service thread.
     /// @tparam Func Callable type.
     /// @param func Function to execute.

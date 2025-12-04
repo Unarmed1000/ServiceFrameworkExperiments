@@ -150,7 +150,7 @@ namespace Test2
 using namespace Test2;
 
 // ========================================
-// Normal Use Cases
+// Normal Use Cases - Registration
 // ========================================
 
 // Tests: Basic registration of a single priority group with multiple services succeeds without exceptions
@@ -160,7 +160,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterSinglePriorityGroup)
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2, 3});
 
-  // Should not throw
+  // Should not throw - verify via GetServiceCount
+  EXPECT_EQ(provider.GetServiceCount(), 3);
 }
 
 // Tests: Multiple priority groups can be registered in descending priority order (high to low)
@@ -172,12 +173,16 @@ TEST(ManagedThreadServiceProviderTest, RegisterMultiplePriorityGroupsDescending)
   RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3, 4});
   RegisterWithDefaults(provider, ServiceLaunchPriority(100), {5, 6});
 
-  // Should not throw
+  // Should not throw - verify via GetServiceCount
+  EXPECT_EQ(provider.GetServiceCount(), 6);
 }
 
-// Tests: UnregisterAllServices returns priority groups in reverse order (low to high) for proper shutdown sequence
-// Verifies: Shutdown order is opposite of startup order, services registered at priority 100, 500, 1000 are returned as 100, 500, 1000
-TEST(ManagedThreadServiceProviderTest, UnregisterAllServicesReturnsReversedOrder)
+// ========================================
+// UnregisterPriorityGroup Tests
+// ========================================
+
+// Tests: UnregisterPriorityGroup returns services for a valid priority level
+TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_ReturnsServicesForValidPriority)
 {
   ManagedThreadServiceProvider provider;
 
@@ -185,174 +190,134 @@ TEST(ManagedThreadServiceProviderTest, UnregisterAllServicesReturnsReversedOrder
   RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3, 4});
   RegisterWithDefaults(provider, ServiceLaunchPriority(100), {5, 6});
 
-  auto groups = provider.UnregisterAllServices();
+  auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(500));
 
-  ASSERT_EQ(groups.size(), 3);
+  ASSERT_EQ(services.size(), 2);
+  EXPECT_EQ(ExtractServiceIds(services), std::vector<int>({3, 4}));
 
-  // Verify shutdown order: low to high priority
-  EXPECT_EQ(groups[0].Priority.GetValue(), 100);
-  EXPECT_EQ(groups[1].Priority.GetValue(), 500);
-  EXPECT_EQ(groups[2].Priority.GetValue(), 1000);
-
-  // Verify service IDs
-  EXPECT_EQ(ExtractServiceIds(groups[0].Services), std::vector<int>({5, 6}));
-  EXPECT_EQ(ExtractServiceIds(groups[1].Services), std::vector<int>({3, 4}));
-  EXPECT_EQ(ExtractServiceIds(groups[2].Services), std::vector<int>({1, 2}));
+  // Other priorities should still have their services
+  EXPECT_EQ(provider.GetServiceCount(), 4);
 }
 
-// Tests: Service vector is moved (not copied) during registration for efficiency
-// Verifies: Original vector is empty or has different data pointer after RegisterPriorityGroup
-TEST(ManagedThreadServiceProviderTest, ServicesAreMovedDuringRegistration)
+// Tests: UnregisterPriorityGroup returns empty vector for unknown priority
+TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_ReturnsEmptyForUnknownPriority)
 {
   ManagedThreadServiceProvider provider;
 
-  std::vector<Test2::ServiceInstanceInfo> serviceInfos;
-  for (int id : {1, 2, 3})
-  {
-    Test2::ServiceInstanceInfo info;
-    info.Service = std::make_shared<MockServiceControl>(id);
-    info.SupportedInterfaces = {std::type_index(typeid(IService)), std::type_index(typeid(ITestInterface1))};
-    serviceInfos.push_back(std::move(info));
-  }
-  auto* originalPtr = serviceInfos.data();
+  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
 
-  provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), std::move(serviceInfos));
+  auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(500));
 
-  // After move, original vector should be empty or in moved-from state
-  EXPECT_TRUE(serviceInfos.empty() || serviceInfos.data() != originalPtr);
+  EXPECT_TRUE(services.empty());
+  EXPECT_EQ(provider.GetServiceCount(), 2);
 }
 
-// Tests: Service ownership is transferred (moved) to caller during unregister operation
-// Verifies: Returned priority groups contain the correct services in the correct order
-TEST(ManagedThreadServiceProviderTest, ServicesAreMovedDuringUnregister)
+// Tests: UnregisterPriorityGroup removes services from type index
+TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_RemovesFromTypeIndex)
 {
   ManagedThreadServiceProvider provider;
 
-  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2, 3});
+  auto service1 = std::make_shared<MockServiceControl>(1);
+  auto service2 = std::make_shared<MockServiceControl>(2);
 
-  auto groups = provider.UnregisterAllServices();
+  provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), {{service1, {std::type_index(typeid(ITestInterface1))}}});
+  provider.RegisterPriorityGroup(ServiceLaunchPriority(500), {{service2, {std::type_index(typeid(ITestInterface2))}}});
 
-  ASSERT_EQ(groups.size(), 1);
-  EXPECT_EQ(ExtractServiceIds(groups[0].Services), std::vector<int>({1, 2, 3}));
+  // Before unregister - both types available
+  EXPECT_NE(provider.TryGetService(typeid(ITestInterface1)), nullptr);
+  EXPECT_NE(provider.TryGetService(typeid(ITestInterface2)), nullptr);
+
+  // Unregister priority 1000
+  auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
+  EXPECT_EQ(services.size(), 1);
+
+  // After unregister - ITestInterface1 no longer available
+  EXPECT_EQ(provider.TryGetService(typeid(ITestInterface1)), nullptr);
+  EXPECT_NE(provider.TryGetService(typeid(ITestInterface2)), nullptr);
 }
 
-// Tests: Services within a single priority group maintain their registration order
-// Verifies: Services registered as [1,2,3,4,5] are returned in the same order during unregister
-TEST(ManagedThreadServiceProviderTest, PreservesRegistrationOrderWithinPriorityGroup)
+// Tests: UnregisterPriorityGroup on empty provider returns empty
+TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_EmptyProviderReturnsEmpty)
+{
+  ManagedThreadServiceProvider provider;
+
+  auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
+
+  EXPECT_TRUE(services.empty());
+}
+
+// Tests: Multiple sequential UnregisterPriorityGroup calls work correctly
+TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_MultipleCallsWorkCorrectly)
+{
+  ManagedThreadServiceProvider provider;
+
+  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1});
+  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {2});
+  RegisterWithDefaults(provider, ServiceLaunchPriority(100), {3});
+
+  // Unregister in shutdown order (low to high priority)
+  auto services100 = provider.UnregisterPriorityGroup(ServiceLaunchPriority(100));
+  EXPECT_EQ(ExtractServiceIds(services100), std::vector<int>({3}));
+  EXPECT_EQ(provider.GetServiceCount(), 2);
+
+  auto services500 = provider.UnregisterPriorityGroup(ServiceLaunchPriority(500));
+  EXPECT_EQ(ExtractServiceIds(services500), std::vector<int>({2}));
+  EXPECT_EQ(provider.GetServiceCount(), 1);
+
+  auto services1000 = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
+  EXPECT_EQ(ExtractServiceIds(services1000), std::vector<int>({1}));
+  EXPECT_EQ(provider.GetServiceCount(), 0);
+}
+
+// Tests: Unregister same priority twice - second call returns empty
+TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_SecondCallForSamePriorityReturnsEmpty)
+{
+  ManagedThreadServiceProvider provider;
+
+  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
+
+  auto services1 = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
+  EXPECT_EQ(services1.size(), 2);
+
+  auto services2 = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
+  EXPECT_TRUE(services2.empty());
+}
+
+// Tests: Services preserve order within priority group after unregister
+TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_PreservesServiceOrder)
 {
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2, 3, 4, 5});
 
-  auto groups = provider.UnregisterAllServices();
+  auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
 
-  ASSERT_EQ(groups.size(), 1);
-  EXPECT_EQ(ExtractServiceIds(groups[0].Services), std::vector<int>({1, 2, 3, 4, 5}));
+  EXPECT_EQ(ExtractServiceIds(services), std::vector<int>({1, 2, 3, 4, 5}));
 }
 
-// Tests: UnregisterAllServices clears all internal state, allowing provider to be reused
-// Verifies: Second consecutive unregister returns empty vector
-TEST(ManagedThreadServiceProviderTest, UnregisterClearsInternalState)
+// Tests: Unregister removes service with multiple interfaces from all type entries
+TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_RemovesAllInterfaceEntries)
 {
   ManagedThreadServiceProvider provider;
 
-  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3, 4});
+  auto service = std::make_shared<MockServiceControl>(42);
+  provider.RegisterPriorityGroup(
+    ServiceLaunchPriority(1000),
+    {{service, {std::type_index(typeid(IService)), std::type_index(typeid(ITestInterface1)), std::type_index(typeid(ITestInterface2))}}});
 
-  auto groups1 = provider.UnregisterAllServices();
-  EXPECT_EQ(groups1.size(), 2);
+  // Before unregister - all interfaces accessible
+  EXPECT_NE(provider.TryGetService(typeid(IService)), nullptr);
+  EXPECT_NE(provider.TryGetService(typeid(ITestInterface1)), nullptr);
+  EXPECT_NE(provider.TryGetService(typeid(ITestInterface2)), nullptr);
 
-  // Second unregister should return empty
-  auto groups2 = provider.UnregisterAllServices();
-  EXPECT_TRUE(groups2.empty());
-}
+  // Unregister
+  auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
+  EXPECT_EQ(services.size(), 1);
 
-// Tests: Priority group can contain a single service (edge case for minimum group size)
-// Verifies: Single-service group is properly stored and retrieved
-TEST(ManagedThreadServiceProviderTest, SingleServiceInPriorityGroup)
-{
-  ManagedThreadServiceProvider provider;
-
-  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {42});
-
-  auto groups = provider.UnregisterAllServices();
-
-  ASSERT_EQ(groups.size(), 1);
-  EXPECT_EQ(groups[0].Priority.GetValue(), 1000);
-  EXPECT_EQ(ExtractServiceIds(groups[0].Services), std::vector<int>({42}));
-}
-
-// Tests: Priority group can handle large number of services (1000) without issues
-// Verifies: All 1000 services are stored and returned in correct order (stress test)
-TEST(ManagedThreadServiceProviderTest, LargeNumberOfServicesInGroup)
-{
-  ManagedThreadServiceProvider provider;
-
-  std::vector<int> ids(1000);
-  for (int i = 0; i < 1000; ++i)
-  {
-    ids[i] = i;
-  }
-
-  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), ids);
-
-  auto groups = provider.UnregisterAllServices();
-
-  ASSERT_EQ(groups.size(), 1);
-  EXPECT_EQ(ExtractServiceIds(groups[0].Services), ids);
-}
-
-// Tests: Provider can handle large number of priority groups (100 groups) without issues
-// Verifies: All groups are maintained in correct priority order during unregister (stress test)
-TEST(ManagedThreadServiceProviderTest, LargeNumberOfPriorityGroups)
-{
-  ManagedThreadServiceProvider provider;
-
-  const int numGroups = 100;
-  for (int i = numGroups; i > 0; --i)
-  {
-    RegisterWithDefaults(provider, ServiceLaunchPriority(i * 10), {i});
-  }
-
-  auto groups = provider.UnregisterAllServices();
-
-  ASSERT_EQ(groups.size(), numGroups);
-
-  // Verify reverse order
-  for (int i = 0; i < numGroups; ++i)
-  {
-    EXPECT_EQ(groups[i].Priority.GetValue(), (i + 1) * 10);
-  }
-}
-
-// ========================================
-// Edge Cases - Empty States
-// ========================================
-
-// Tests: Calling UnregisterAllServices on empty provider is safe and returns empty vector
-// Verifies: No exceptions thrown, empty vector returned
-TEST(ManagedThreadServiceProviderTest, UnregisterWithoutAnyRegistrations)
-{
-  ManagedThreadServiceProvider provider;
-
-  auto groups = provider.UnregisterAllServices();
-
-  EXPECT_TRUE(groups.empty());
-}
-
-// Tests: Multiple consecutive unregister calls on empty provider are safe (idempotent operation)
-// Verifies: No exceptions thrown, all calls return empty vectors
-TEST(ManagedThreadServiceProviderTest, MultipleUnregistersWhenEmpty)
-{
-  ManagedThreadServiceProvider provider;
-
-  auto groups1 = provider.UnregisterAllServices();
-  auto groups2 = provider.UnregisterAllServices();
-  auto groups3 = provider.UnregisterAllServices();
-
-  EXPECT_TRUE(groups1.empty());
-  EXPECT_TRUE(groups2.empty());
-  EXPECT_TRUE(groups3.empty());
+  // After unregister - all interfaces removed
+  EXPECT_EQ(provider.TryGetService(typeid(IService)), nullptr);
+  EXPECT_EQ(provider.TryGetService(typeid(ITestInterface1)), nullptr);
+  EXPECT_EQ(provider.TryGetService(typeid(ITestInterface2)), nullptr);
 }
 
 // ========================================
@@ -468,33 +433,28 @@ TEST(ManagedThreadServiceProviderTest, RegisterIncrementingPrioritiesThrows)
 // ========================================
 
 // Tests: Zero is a valid priority value (minimum boundary)
-// Verifies: Priority 0 can be registered and retrieved
+// Verifies: Priority 0 can be registered and retrieved via GetServiceCount
 TEST(ManagedThreadServiceProviderTest, ZeroPriorityIsValid)
 {
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(0), {1});
 
-  auto groups = provider.UnregisterAllServices();
-  ASSERT_EQ(groups.size(), 1);
-  EXPECT_EQ(groups[0].Priority.GetValue(), 0);
+  EXPECT_EQ(provider.GetServiceCount(), 1);
 }
 
 // Tests: UINT32_MAX is a valid priority value (maximum boundary)
-// Verifies: Maximum possible priority can be registered and retrieved
+// Verifies: Maximum possible priority can be registered
 TEST(ManagedThreadServiceProviderTest, MaxPriorityIsValid)
 {
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(UINT32_MAX), {1});
 
-  auto groups = provider.UnregisterAllServices();
-  ASSERT_EQ(groups.size(), 1);
-  EXPECT_EQ(groups[0].Priority.GetValue(), UINT32_MAX);
+  EXPECT_EQ(provider.GetServiceCount(), 1);
 }
 
 // Tests: Full range of priorities from UINT32_MAX down to 0 works correctly
-// Verifies: Extreme boundary values and unregister returns them in ascending order
 TEST(ManagedThreadServiceProviderTest, DescendingFromMaxToZero)
 {
   ManagedThreadServiceProvider provider;
@@ -504,13 +464,7 @@ TEST(ManagedThreadServiceProviderTest, DescendingFromMaxToZero)
   RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3});
   RegisterWithDefaults(provider, ServiceLaunchPriority(0), {4});
 
-  auto groups = provider.UnregisterAllServices();
-
-  ASSERT_EQ(groups.size(), 4);
-  EXPECT_EQ(groups[0].Priority.GetValue(), 0);
-  EXPECT_EQ(groups[1].Priority.GetValue(), 500);
-  EXPECT_EQ(groups[2].Priority.GetValue(), 1000);
-  EXPECT_EQ(groups[3].Priority.GetValue(), UINT32_MAX);
+  EXPECT_EQ(provider.GetServiceCount(), 4);
 }
 
 // Tests: Consecutive priority values (100, 99, 98) are handled correctly
@@ -523,12 +477,7 @@ TEST(ManagedThreadServiceProviderTest, ConsecutivePriorities)
   provider.RegisterPriorityGroup(ServiceLaunchPriority(99), CreateServices({2}));
   provider.RegisterPriorityGroup(ServiceLaunchPriority(98), CreateServices({3}));
 
-  auto groups = provider.UnregisterAllServices();
-
-  ASSERT_EQ(groups.size(), 3);
-  EXPECT_EQ(groups[0].Priority.GetValue(), 98);
-  EXPECT_EQ(groups[1].Priority.GetValue(), 99);
-  EXPECT_EQ(groups[2].Priority.GetValue(), 100);
+  EXPECT_EQ(provider.GetServiceCount(), 3);
 }
 
 // ========================================
@@ -541,22 +490,23 @@ TEST(ManagedThreadServiceProviderTest, FirstRegistrationCanBeAnyPriority)
 {
   ManagedThreadServiceProvider provider1;
   provider1.RegisterPriorityGroup(ServiceLaunchPriority(0), CreateServices({1}));
+  EXPECT_EQ(provider1.GetServiceCount(), 1);
 
   ManagedThreadServiceProvider provider2;
   provider2.RegisterPriorityGroup(ServiceLaunchPriority(UINT32_MAX), CreateServices({1}));
+  EXPECT_EQ(provider2.GetServiceCount(), 1);
 
   ManagedThreadServiceProvider provider3;
   provider3.RegisterPriorityGroup(ServiceLaunchPriority(500), CreateServices({1}));
-
-  // All should succeed
+  EXPECT_EQ(provider3.GetServiceCount(), 1);
 }
 
 // ========================================
 // Edge Cases - Complex Scenarios
 // ========================================
 
-// Tests: Provider can be reused after UnregisterAllServices clears its state
-// Verifies: Register → Unregister → Register cycle works, new registration can use different priorities
+// Tests: Provider can be reused after unregistering all priorities
+// Verifies: Register → Unregister all → Register cycle works
 TEST(ManagedThreadServiceProviderTest, RegisterUnregisterRegisterAgain)
 {
   ManagedThreadServiceProvider provider;
@@ -564,18 +514,17 @@ TEST(ManagedThreadServiceProviderTest, RegisterUnregisterRegisterAgain)
   // First cycle
   provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), CreateServices({1, 2}));
   provider.RegisterPriorityGroup(ServiceLaunchPriority(500), CreateServices({3, 4}));
+  EXPECT_EQ(provider.GetServiceCount(), 4);
 
-  auto groups1 = provider.UnregisterAllServices();
-  EXPECT_EQ(groups1.size(), 2);
+  // Unregister both
+  (void)provider.UnregisterPriorityGroup(ServiceLaunchPriority(500));
+  (void)provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
+  EXPECT_EQ(provider.GetServiceCount(), 0);
 
   // Second cycle - should work fine after unregister
   provider.RegisterPriorityGroup(ServiceLaunchPriority(2000), CreateServices({5, 6}));
   provider.RegisterPriorityGroup(ServiceLaunchPriority(1500), CreateServices({7, 8}));
-
-  auto groups2 = provider.UnregisterAllServices();
-  ASSERT_EQ(groups2.size(), 2);
-  EXPECT_EQ(groups2[0].Priority.GetValue(), 1500);
-  EXPECT_EQ(groups2[1].Priority.GetValue(), 2000);
+  EXPECT_EQ(provider.GetServiceCount(), 4);
 }
 
 // Tests: Different priority groups can have different numbers of services
@@ -589,13 +538,7 @@ TEST(ManagedThreadServiceProviderTest, MixedServiceCountsPerGroup)
   provider.RegisterPriorityGroup(ServiceLaunchPriority(800), CreateServices({4, 5, 6}));
   provider.RegisterPriorityGroup(ServiceLaunchPriority(700), CreateServices({7, 8, 9, 10}));
 
-  auto groups = provider.UnregisterAllServices();
-
-  ASSERT_EQ(groups.size(), 4);
-  EXPECT_EQ(groups[0].Services.size(), 4);    // Priority 700
-  EXPECT_EQ(groups[1].Services.size(), 3);    // Priority 800
-  EXPECT_EQ(groups[2].Services.size(), 2);    // Priority 900
-  EXPECT_EQ(groups[3].Services.size(), 1);    // Priority 1000
+  EXPECT_EQ(provider.GetServiceCount(), 10);
 }
 
 // ========================================
@@ -603,7 +546,35 @@ TEST(ManagedThreadServiceProviderTest, MixedServiceCountsPerGroup)
 // ========================================
 
 // Tests: Services remain alive after registration even if original shared_ptr is released
-// Verifies: Provider maintains ownership, services persist through unregister and are returned in groups
+// Verifies: Provider maintains ownership, services persist and are accessible
+TEST(ManagedThreadServiceProviderTest, ServicePointersPersistAfterRegistration)
+{
+  ManagedThreadServiceProvider provider;
+
+  auto service1 = std::make_shared<MockServiceControl>(42);
+  std::weak_ptr<MockServiceControl> weakService = service1;
+
+  std::vector<Test2::ServiceInstanceInfo> serviceInfos;
+  Test2::ServiceInstanceInfo info;
+  info.Service = service1;
+  info.SupportedInterfaces = {std::type_index(typeid(IService)), std::type_index(typeid(ITestInterface1))};
+  serviceInfos.push_back(std::move(info));
+  service1.reset();    // Release our reference
+
+  provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), std::move(serviceInfos));
+
+  EXPECT_FALSE(weakService.expired()) << "Service should still be alive in provider";
+
+  // Can retrieve it
+  auto retrieved = provider.TryGetService(typeid(ITestInterface1));
+  ASSERT_NE(retrieved, nullptr);
+
+  auto mockService = std::dynamic_pointer_cast<MockServiceControl>(retrieved);
+  ASSERT_NE(mockService, nullptr);
+  EXPECT_EQ(mockService->GetId(), 42);
+}
+
+// Tests: Services remain alive after unregister because returned vector holds ownership
 TEST(ManagedThreadServiceProviderTest, ServicePointersPersistAfterUnregister)
 {
   ManagedThreadServiceProvider provider;
@@ -622,11 +593,11 @@ TEST(ManagedThreadServiceProviderTest, ServicePointersPersistAfterUnregister)
 
   EXPECT_FALSE(weakService.expired()) << "Service should still be alive in provider";
 
-  auto groups = provider.UnregisterAllServices();
+  auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
 
-  EXPECT_FALSE(weakService.expired()) << "Service should still be alive in returned groups";
+  EXPECT_FALSE(weakService.expired()) << "Service should still be alive in returned vector";
 
-  auto mockService = std::dynamic_pointer_cast<MockServiceControl>(groups[0].Services[0].Service);
+  auto mockService = std::dynamic_pointer_cast<MockServiceControl>(services[0].Service);
   ASSERT_NE(mockService, nullptr);
   EXPECT_EQ(mockService->GetId(), 42);
 }
@@ -650,14 +621,13 @@ TEST(ManagedThreadServiceProviderTest, MultipleReferencesToSameService)
 
   provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), std::move(serviceInfos));
 
-  auto groups = provider.UnregisterAllServices();
+  auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
 
-  ASSERT_EQ(groups.size(), 1);
-  ASSERT_EQ(groups[0].Services.size(), 3);
+  ASSERT_EQ(services.size(), 3);
 
   // All three should point to the same service
-  EXPECT_EQ(groups[0].Services[0].Service.get(), groups[0].Services[1].Service.get());
-  EXPECT_EQ(groups[0].Services[1].Service.get(), groups[0].Services[2].Service.get());
+  EXPECT_EQ(services[0].Service.get(), services[1].Service.get());
+  EXPECT_EQ(services[1].Service.get(), services[2].Service.get());
 }
 
 // ========================================
@@ -1050,7 +1020,9 @@ TEST(ManagedThreadServiceProviderTest, ServiceWithMultipleInterfacesAccessibleBy
   ManagedThreadServiceProvider provider;
 
   auto service = std::make_shared<MockServiceControl>(42);
-  provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(IService)), std::type_index(typeid(ITestInterface1)), std::type_index(typeid(ITestInterface2))}}});
+  provider.RegisterPriorityGroup(
+    ServiceLaunchPriority(1000),
+    {{service, {std::type_index(typeid(IService)), std::type_index(typeid(ITestInterface1)), std::type_index(typeid(ITestInterface2))}}});
 
   auto byIService = provider.GetService(typeid(IService));
   auto byInterface1 = provider.GetService(typeid(ITestInterface1));
@@ -1127,10 +1099,10 @@ TEST(ManagedThreadServiceProviderTest, MultipleServicesWithOverlappingInterfaces
 }
 
 // ========================================
-// IServiceProvider Tests - Unregister Effects
+// IServiceProvider Tests - Unregister Effects on Type Index
 // ========================================
 
-// Tests: GetService throws UnknownServiceException after UnregisterAllServices clears type index
+// Tests: GetService throws UnknownServiceException after UnregisterPriorityGroup clears type index
 // Verifies: Service accessible before unregister, throws after unregister (type index properly cleared)
 TEST(ManagedThreadServiceProviderTest, GetServiceThrowsAfterUnregister)
 {
@@ -1142,14 +1114,14 @@ TEST(ManagedThreadServiceProviderTest, GetServiceThrowsAfterUnregister)
   // Should work before unregister
   EXPECT_NO_THROW(provider.GetService(typeid(ITestInterface1)));
 
-  // Unregister all
-  [[maybe_unused]] auto groups = provider.UnregisterAllServices();
+  // Unregister
+  [[maybe_unused]] auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
 
   // Should throw after unregister
   EXPECT_THROW(provider.GetService(typeid(ITestInterface1)), UnknownServiceException);
 }
 
-// Tests: TryGetService returns nullptr after UnregisterAllServices clears type index
+// Tests: TryGetService returns nullptr after UnregisterPriorityGroup clears type index
 // Verifies: Service accessible before unregister, returns nullptr after (no-throw variant)
 TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullAfterUnregister)
 {
@@ -1161,14 +1133,14 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullAfterUnregister)
   // Should work before unregister
   ASSERT_NE(provider.TryGetService(typeid(ITestInterface1)), nullptr);
 
-  // Unregister all
-  [[maybe_unused]] auto groups = provider.UnregisterAllServices();
+  // Unregister
+  [[maybe_unused]] auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
 
   // Should return null after unregister
   EXPECT_EQ(provider.TryGetService(typeid(ITestInterface1)), nullptr);
 }
 
-// Tests: TryGetServices returns false after UnregisterAllServices clears type index
+// Tests: TryGetServices returns false after UnregisterPriorityGroup clears type index
 // Verifies: Returns true with 1 service before unregister, returns false with empty vector after
 TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseAfterUnregister)
 {
@@ -1181,8 +1153,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseAfterUnregister
   EXPECT_TRUE(provider.TryGetServices(typeid(ITestInterface1), services));
   EXPECT_EQ(services.size(), 1);
 
-  // Unregister all
-  [[maybe_unused]] auto groups = provider.UnregisterAllServices();
+  // Unregister
+  [[maybe_unused]] auto unregistered = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
 
   // Should return false after unregister
   services.clear();
@@ -1190,7 +1162,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseAfterUnregister
   EXPECT_EQ(services.size(), 0);
 }
 
-// Tests: Provider can register new services after UnregisterAllServices and type index is rebuilt
+// Tests: Provider can register new services after UnregisterPriorityGroup and type index is rebuilt
 // Verifies: Service1 accessible before unregister, then after re-registering Service2, Service2 is accessible
 TEST(ManagedThreadServiceProviderTest, CanReregisterAfterUnregister)
 {
@@ -1204,7 +1176,7 @@ TEST(ManagedThreadServiceProviderTest, CanReregisterAfterUnregister)
   EXPECT_EQ(mock1->GetId(), 1);
 
   // Unregister
-  [[maybe_unused]] auto groups = provider.UnregisterAllServices();
+  [[maybe_unused]] auto services = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
 
   // Register different service
   auto service2 = std::make_shared<MockServiceControl>(2);
@@ -1286,8 +1258,9 @@ TEST(ManagedThreadServiceProviderTest, ServiceLookupPreservesServiceLifetime)
   ASSERT_NE(retrieved, nullptr);
 
   // After unregister and clearing retrieved pointer, should be destroyed
-  (void)provider.UnregisterAllServices();
+  auto unregistered = provider.UnregisterPriorityGroup(ServiceLaunchPriority(1000));
   retrieved.reset();
+  unregistered.clear();
 
   EXPECT_TRUE(weakService.expired());
 }

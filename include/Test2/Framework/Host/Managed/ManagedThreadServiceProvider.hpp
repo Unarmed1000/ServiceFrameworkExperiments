@@ -123,25 +123,45 @@ namespace Test2
       m_priorityGroups.emplace_back(PriorityGroup{priority, std::move(services)});
     }
 
-    /// @brief Unregisters all services in reverse priority order.
+    /// @brief Unregisters services at a specific priority level.
     ///
-    /// Returns all priority groups in shutdown order (lowest to highest priority).
-    /// The internal priority group list is cleared after this operation.
+    /// Removes the priority group from the provider and returns the services.
+    /// Services are removed from the type index as well.
     ///
-    /// @return A vector of priority groups in shutdown order (reverse of registration order).
-    [[nodiscard]] std::vector<PriorityGroup> UnregisterAllServices()
+    /// @param priority The priority level to unregister.
+    /// @return The services that were at that priority level, or empty if not found.
+    [[nodiscard]] std::vector<ServiceInstanceInfo> UnregisterPriorityGroup(ServiceLaunchPriority priority)
     {
-      std::vector<PriorityGroup> result;
-      result.reserve(m_priorityGroups.size());
+      // Find the priority group
+      auto it =
+        std::find_if(m_priorityGroups.begin(), m_priorityGroups.end(), [priority](const PriorityGroup& group) { return group.Priority == priority; });
 
-      // Iterate in reverse to get low-to-high priority order for shutdown
-      for (auto it = m_priorityGroups.rbegin(); it != m_priorityGroups.rend(); ++it)
+      if (it == m_priorityGroups.end())
       {
-        result.emplace_back(PriorityGroup{it->Priority, std::move(it->Services)});
+        return {};
       }
 
-      m_priorityGroups.clear();
-      m_servicesByType.clear();
+      // Remove services from type index
+      for (const auto& info : it->Services)
+      {
+        for (const auto& typeIndex : info.SupportedInterfaces)
+        {
+          // Find and erase the specific service for this type
+          auto range = m_servicesByType.equal_range(typeIndex);
+          for (auto typeIt = range.first; typeIt != range.second; ++typeIt)
+          {
+            if (typeIt->second == info.Service)
+            {
+              m_servicesByType.erase(typeIt);
+              break;
+            }
+          }
+        }
+      }
+
+      // Move services out and remove the priority group
+      std::vector<ServiceInstanceInfo> result = std::move(it->Services);
+      m_priorityGroups.erase(it);
       return result;
     }
 

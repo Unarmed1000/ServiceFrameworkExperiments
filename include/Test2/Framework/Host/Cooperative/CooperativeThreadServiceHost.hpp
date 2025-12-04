@@ -154,6 +154,17 @@ namespace Test2
       co_return;
     }
 
+    /// @brief Shutdown services at a specific priority level.
+    ///
+    /// @param priority The priority level to shut down.
+    /// @return Awaitable containing any exceptions that occurred during shutdown.
+    boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(ServiceLaunchPriority priority)
+    {
+      co_return co_await boost::asio::co_spawn(
+        *m_ioContext, [this, priority]() -> boost::asio::awaitable<std::vector<std::exception_ptr>>
+        { co_return co_await DoTryShutdownServicesAsync(priority); }, boost::asio::use_awaitable);
+    }
+
     /// @brief Post work to the io_context and trigger the wake callback.
     ///
     /// Use this method instead of directly posting to the io_context when you want

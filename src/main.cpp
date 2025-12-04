@@ -26,8 +26,5 @@ int main()
   std::cout << "Boost.Asio is available and working!" << std::endl;
   std::cout << "ServiceFramework2025 initialized successfully." << std::endl;
 
-  std::cout << "\nPress Enter to exit..." << std::endl;
-  std::cin.get();
-
   return 0;
 }

@@ -11,6 +11,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Common/AggregateException.hpp>
 #include <Test2/Framework/Config/ThreadGroupConfig.hpp>
 #include <Test2/Framework/Lifecycle/LifecycleManager.hpp>
 #include <Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp>
@@ -229,11 +230,20 @@ namespace Test2
   void RunAsyncWithPolling(LifecycleManager& manager, std::function<boost::asio::awaitable<void>()> asyncOp)
   {
     bool done = false;
+    std::exception_ptr exceptionPtr;
+
     boost::asio::co_spawn(
       manager.GetMainHost().GetIoContext(),
-      [&asyncOp, &done]() -> boost::asio::awaitable<void>
+      [&asyncOp, &done, &exceptionPtr]() -> boost::asio::awaitable<void>
       {
-        co_await asyncOp();
+        try
+        {
+          co_await asyncOp();
+        }
+        catch (...)
+        {
+          exceptionPtr = std::current_exception();
+        }
         done = true;
       },
       boost::asio::detached);
@@ -241,6 +251,11 @@ namespace Test2
     while (!done)
     {
       manager.Poll();
+    }
+
+    if (exceptionPtr)
+    {
+      std::rethrow_exception(exceptionPtr);
     }
   }
 
@@ -641,6 +656,611 @@ namespace Test2
     EXPECT_TRUE(std::find(highPriorityNames.begin(), highPriorityNames.end(), "HighWorker") != highPriorityNames.end());
     EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "LowMain") != lowPriorityNames.end());
     EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "LowWorker") != lowPriorityNames.end());
+  }
+
+  // ============================================================================
+  // Phase 5: Error Handling & Rollback Tests
+  // ============================================================================
+
+  // Failing mock service that throws during initialization
+  class FailingMockService : public IServiceControl
+  {
+  private:
+    std::string m_name;
+    std::string m_errorMessage;
+    InitializationOrderTracker* m_tracker{nullptr};
+    std::atomic<bool> m_initialized{false};
+    std::atomic<bool> m_shutdown{false};
+
+  public:
+    FailingMockService(const std::string& name, const std::string& errorMessage, InitializationOrderTracker* tracker = nullptr)
+      : m_name(name)
+      , m_errorMessage(errorMessage)
+      , m_tracker(tracker)
+    {
+    }
+
+    boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*createInfo*/) override
+    {
+      if (m_tracker)
+      {
+        m_tracker->RecordInit(m_name);
+      }
+      throw std::runtime_error(m_errorMessage);
+    }
+
+    boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() override
+    {
+      m_shutdown = true;
+      co_return ServiceShutdownResult::Success;
+    }
+
+    ProcessResult Process() override
+    {
+      return ProcessResult::NoSleepLimit();
+    }
+
+    bool IsShutdown() const noexcept
+    {
+      return m_shutdown.load();
+    }
+  };
+
+  // Mock factory for failing service
+  class FailingMockServiceFactory : public IServiceFactory
+  {
+  private:
+    std::shared_ptr<FailingMockService> m_service;
+
+  public:
+    explicit FailingMockServiceFactory(std::shared_ptr<FailingMockService> service)
+      : m_service(std::move(service))
+    {
+    }
+
+    std::span<const std::type_index> GetSupportedInterfaces() const override
+    {
+      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
+      return std::span<const std::type_index>(interfaces);
+    }
+
+    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    {
+      return m_service;
+    }
+  };
+
+  // Shutdown-tracking mock service
+  class ShutdownTrackingMockService : public IServiceControl
+  {
+  private:
+    std::string m_name;
+    InitializationOrderTracker* m_initTracker{nullptr};
+    InitializationOrderTracker* m_shutdownTracker{nullptr};
+    std::atomic<bool> m_initialized{false};
+    std::atomic<bool> m_shutdown{false};
+
+  public:
+    ShutdownTrackingMockService(const std::string& name, InitializationOrderTracker* initTracker, InitializationOrderTracker* shutdownTracker)
+      : m_name(name)
+      , m_initTracker(initTracker)
+      , m_shutdownTracker(shutdownTracker)
+    {
+    }
+
+    boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*createInfo*/) override
+    {
+      m_initialized = true;
+      if (m_initTracker)
+      {
+        m_initTracker->RecordInit(m_name);
+      }
+      co_return ServiceInitResult::Success;
+    }
+
+    boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() override
+    {
+      m_shutdown = true;
+      if (m_shutdownTracker)
+      {
+        m_shutdownTracker->RecordInit(m_name);    // RecordInit is just RecordOrder
+      }
+      co_return ServiceShutdownResult::Success;
+    }
+
+    ProcessResult Process() override
+    {
+      return ProcessResult::NoSleepLimit();
+    }
+
+    bool IsInitialized() const noexcept
+    {
+      return m_initialized.load();
+    }
+
+    bool IsShutdown() const noexcept
+    {
+      return m_shutdown.load();
+    }
+  };
+
+  // Mock factory for shutdown-tracking service
+  class ShutdownTrackingMockServiceFactory : public IServiceFactory
+  {
+  private:
+    std::shared_ptr<ShutdownTrackingMockService> m_service;
+
+  public:
+    explicit ShutdownTrackingMockServiceFactory(std::shared_ptr<ShutdownTrackingMockService> service)
+      : m_service(std::move(service))
+    {
+    }
+
+    std::span<const std::type_index> GetSupportedInterfaces() const override
+    {
+      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
+      return std::span<const std::type_index>(interfaces);
+    }
+
+    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    {
+      return m_service;
+    }
+  };
+
+  TEST(LifecycleManager, StartServicesAsync_ServiceInitFails_ThrowsAggregateException)
+  {
+    auto failingService = std::make_shared<FailingMockService>("FailingService", "Init failed");
+    auto factory = std::make_unique<FailingMockServiceFactory>(failingService);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    bool exceptionThrown = false;
+    try
+    {
+      RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+    }
+    catch (const Common::AggregateException& ex)
+    {
+      exceptionThrown = true;
+      EXPECT_GE(ex.GetInnerExceptions().size(), 1u);
+    }
+
+    EXPECT_TRUE(exceptionThrown);
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_LowerPriorityFails_HigherPriorityRolledBack)
+  {
+    InitializationOrderTracker initTracker;
+    InitializationOrderTracker shutdownTracker;
+
+    auto highService = std::make_shared<ShutdownTrackingMockService>("HighPriority", &initTracker, &shutdownTracker);
+    auto lowFailingService = std::make_shared<FailingMockService>("LowPriority", "Low priority init failed", &initTracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<FailingMockServiceFactory>(lowFailingService), ServiceLaunchPriority(100),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    bool exceptionThrown = false;
+    try
+    {
+      RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+    }
+    catch (const Common::AggregateException&)
+    {
+      exceptionThrown = true;
+    }
+
+    EXPECT_TRUE(exceptionThrown);
+    // High priority service should have been initialized
+    EXPECT_TRUE(highService->IsInitialized());
+    // High priority service should have been shut down during rollback
+    EXPECT_TRUE(highService->IsShutdown());
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MultiplePrioritiesBeforeFailure_AllRolledBack)
+  {
+    InitializationOrderTracker initTracker;
+    InitializationOrderTracker shutdownTracker;
+
+    auto highService = std::make_shared<ShutdownTrackingMockService>("High", &initTracker, &shutdownTracker);
+    auto medService = std::make_shared<ShutdownTrackingMockService>("Medium", &initTracker, &shutdownTracker);
+    auto lowFailingService = std::make_shared<FailingMockService>("Low", "Low priority init failed", &initTracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(medService), ServiceLaunchPriority(500),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<FailingMockServiceFactory>(lowFailingService), ServiceLaunchPriority(100),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    bool exceptionThrown = false;
+    try
+    {
+      RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+    }
+    catch (const Common::AggregateException&)
+    {
+      exceptionThrown = true;
+    }
+
+    EXPECT_TRUE(exceptionThrown);
+    // Both high and medium priority services should have been initialized
+    EXPECT_TRUE(highService->IsInitialized());
+    EXPECT_TRUE(medService->IsInitialized());
+    // Both should have been shut down during rollback
+    EXPECT_TRUE(highService->IsShutdown());
+    EXPECT_TRUE(medService->IsShutdown());
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_RollbackOccursInReversePriorityOrder)
+  {
+    InitializationOrderTracker initTracker;
+    InitializationOrderTracker shutdownTracker;
+
+    auto highService = std::make_shared<ShutdownTrackingMockService>("High", &initTracker, &shutdownTracker);
+    auto medService = std::make_shared<ShutdownTrackingMockService>("Medium", &initTracker, &shutdownTracker);
+    auto lowFailingService = std::make_shared<FailingMockService>("Low", "Low priority init failed", &initTracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(medService), ServiceLaunchPriority(500),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<FailingMockServiceFactory>(lowFailingService), ServiceLaunchPriority(100),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    try
+    {
+      RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+    }
+    catch (const Common::AggregateException&)
+    {
+      // Expected
+    }
+
+    // Init order should be: High -> Medium -> Low (fails)
+    ASSERT_EQ(initTracker.Order.size(), 3u);
+    EXPECT_EQ(initTracker.Order[0], "High");
+    EXPECT_EQ(initTracker.Order[1], "Medium");
+    EXPECT_EQ(initTracker.Order[2], "Low");
+
+    // Shutdown (rollback) order should be reverse priority: Medium -> High
+    // (Low failed so it's not in the rollback list)
+    ASSERT_EQ(shutdownTracker.Order.size(), 2u);
+    EXPECT_EQ(shutdownTracker.Order[0], "Medium");
+    EXPECT_EQ(shutdownTracker.Order[1], "High");
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_HighestPriorityFails_NoRollbackNeeded)
+  {
+    InitializationOrderTracker initTracker;
+    InitializationOrderTracker shutdownTracker;
+
+    auto failingService = std::make_shared<FailingMockService>("High", "High priority init failed", &initTracker);
+    auto lowService = std::make_shared<ShutdownTrackingMockService>("Low", &initTracker, &shutdownTracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::make_unique<FailingMockServiceFactory>(failingService), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(lowService), ServiceLaunchPriority(100),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    bool exceptionThrown = false;
+    try
+    {
+      RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+    }
+    catch (const Common::AggregateException&)
+    {
+      exceptionThrown = true;
+    }
+
+    EXPECT_TRUE(exceptionThrown);
+    // Low priority service should NOT have been initialized (high priority failed first)
+    EXPECT_FALSE(lowService->IsInitialized());
+    // No rollback should have happened
+    EXPECT_EQ(shutdownTracker.Order.size(), 0u);
+  }
+
+  // ============================================================================
+  // Phase 6: Explicit Shutdown Tests
+  // ============================================================================
+
+  TEST(LifecycleManager, ShutdownServicesAsync_AfterSuccessfulStart_ShutsDownAllServices)
+  {
+    InitializationOrderTracker initTracker;
+    InitializationOrderTracker shutdownTracker;
+
+    auto highService = std::make_shared<ShutdownTrackingMockService>("High", &initTracker, &shutdownTracker);
+    auto medService = std::make_shared<ShutdownTrackingMockService>("Medium", &initTracker, &shutdownTracker);
+    auto lowService = std::make_shared<ShutdownTrackingMockService>("Low", &initTracker, &shutdownTracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(medService), ServiceLaunchPriority(500),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(lowService), ServiceLaunchPriority(100),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    // Start all services
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // Verify all services were initialized
+    EXPECT_TRUE(highService->IsInitialized());
+    EXPECT_TRUE(medService->IsInitialized());
+    EXPECT_TRUE(lowService->IsInitialized());
+
+    // Explicit shutdown
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
+
+    // Verify all services were shut down
+    EXPECT_TRUE(highService->IsShutdown());
+    EXPECT_TRUE(medService->IsShutdown());
+    EXPECT_TRUE(lowService->IsShutdown());
+  }
+
+  TEST(LifecycleManager, ShutdownServicesAsync_ShutsDownInReversePriorityOrder)
+  {
+    InitializationOrderTracker initTracker;
+    InitializationOrderTracker shutdownTracker;
+
+    auto highService = std::make_shared<ShutdownTrackingMockService>("High", &initTracker, &shutdownTracker);
+    auto medService = std::make_shared<ShutdownTrackingMockService>("Medium", &initTracker, &shutdownTracker);
+    auto lowService = std::make_shared<ShutdownTrackingMockService>("Low", &initTracker, &shutdownTracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(medService), ServiceLaunchPriority(500),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(lowService), ServiceLaunchPriority(100),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    // Start all services
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // Verify init order: High -> Medium -> Low
+    ASSERT_EQ(initTracker.Order.size(), 3u);
+    EXPECT_EQ(initTracker.Order[0], "High");
+    EXPECT_EQ(initTracker.Order[1], "Medium");
+    EXPECT_EQ(initTracker.Order[2], "Low");
+
+    // Explicit shutdown
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
+
+    // Verify shutdown order: Low -> Medium -> High (reverse of startup)
+    ASSERT_EQ(shutdownTracker.Order.size(), 3u);
+    EXPECT_EQ(shutdownTracker.Order[0], "Low");
+    EXPECT_EQ(shutdownTracker.Order[1], "Medium");
+    EXPECT_EQ(shutdownTracker.Order[2], "High");
+  }
+
+  TEST(LifecycleManager, ShutdownServicesAsync_CalledTwice_SecondCallIsNoOp)
+  {
+    InitializationOrderTracker initTracker;
+    InitializationOrderTracker shutdownTracker;
+
+    auto service = std::make_shared<ShutdownTrackingMockService>("Service", &initTracker, &shutdownTracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(service), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    // Start services
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // First shutdown
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
+
+    EXPECT_EQ(shutdownTracker.Order.size(), 1u);
+
+    // Second shutdown should be a no-op (state cleared after first shutdown)
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
+
+    // Should still be 1, not 2 (the service is already unregistered from provider)
+    EXPECT_EQ(shutdownTracker.Order.size(), 1u);
+  }
+
+  TEST(LifecycleManager, ShutdownServicesAsync_WithNoStartedServices_IsNoOp)
+  {
+    LifecycleManagerConfig config;
+    std::vector<ServiceRegistrationRecord> registrations;
+
+    LifecycleManager manager(config, std::move(registrations));
+
+    // Shutdown without starting - should not throw
+    std::vector<std::exception_ptr> errors;
+    RunAsyncWithPolling(manager, [&manager, &errors]() -> boost::asio::awaitable<void> { errors = co_await manager.ShutdownServicesAsync(); });
+
+    EXPECT_TRUE(errors.empty());
+  }
+
+  TEST(LifecycleManager, ShutdownServicesAsync_ReturnsEmptyVectorOnSuccess)
+  {
+    auto service = std::make_shared<MockLifecycleService>();
+    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    // Start services
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // Shutdown and check return value
+    std::vector<std::exception_ptr> errors;
+    RunAsyncWithPolling(manager, [&manager, &errors]() -> boost::asio::awaitable<void> { errors = co_await manager.ShutdownServicesAsync(); });
+
+    EXPECT_TRUE(errors.empty());
+    EXPECT_TRUE(service->IsShutdown());
+  }
+
+  // Failing shutdown mock service
+  class FailingShutdownMockService : public IServiceControl
+  {
+  private:
+    std::string m_name;
+    std::string m_errorMessage;
+    InitializationOrderTracker* m_initTracker{nullptr};
+    InitializationOrderTracker* m_shutdownTracker{nullptr};
+    std::atomic<bool> m_initialized{false};
+
+  public:
+    FailingShutdownMockService(const std::string& name, const std::string& errorMessage, InitializationOrderTracker* initTracker = nullptr,
+                               InitializationOrderTracker* shutdownTracker = nullptr)
+      : m_name(name)
+      , m_errorMessage(errorMessage)
+      , m_initTracker(initTracker)
+      , m_shutdownTracker(shutdownTracker)
+    {
+    }
+
+    boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*createInfo*/) override
+    {
+      m_initialized = true;
+      if (m_initTracker)
+      {
+        m_initTracker->RecordInit(m_name);
+      }
+      co_return ServiceInitResult::Success;
+    }
+
+    boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() override
+    {
+      if (m_shutdownTracker)
+      {
+        m_shutdownTracker->RecordInit(m_name);
+      }
+      throw std::runtime_error(m_errorMessage);
+    }
+
+    ProcessResult Process() override
+    {
+      return ProcessResult::NoSleepLimit();
+    }
+
+    bool IsInitialized() const noexcept
+    {
+      return m_initialized.load();
+    }
+  };
+
+  class FailingShutdownMockServiceFactory : public IServiceFactory
+  {
+  private:
+    std::shared_ptr<FailingShutdownMockService> m_service;
+
+  public:
+    explicit FailingShutdownMockServiceFactory(std::shared_ptr<FailingShutdownMockService> service)
+      : m_service(std::move(service))
+    {
+    }
+
+    std::span<const std::type_index> GetSupportedInterfaces() const override
+    {
+      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
+      return std::span<const std::type_index>(interfaces);
+    }
+
+    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    {
+      return m_service;
+    }
+  };
+
+  TEST(LifecycleManager, ShutdownServicesAsync_ServiceShutdownFails_ReturnsErrors)
+  {
+    InitializationOrderTracker initTracker;
+
+    auto failingService = std::make_shared<FailingShutdownMockService>("FailingService", "Shutdown failed", &initTracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::make_unique<FailingShutdownMockServiceFactory>(failingService), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    // Start services
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    EXPECT_TRUE(failingService->IsInitialized());
+
+    // Shutdown - should return errors, not throw
+    std::vector<std::exception_ptr> errors;
+    RunAsyncWithPolling(manager, [&manager, &errors]() -> boost::asio::awaitable<void> { errors = co_await manager.ShutdownServicesAsync(); });
+
+    EXPECT_FALSE(errors.empty());
+  }
+
+  TEST(LifecycleManager, ShutdownServicesAsync_ContinuesAfterServiceShutdownFails)
+  {
+    InitializationOrderTracker initTracker;
+    InitializationOrderTracker shutdownTracker;
+
+    auto highService = std::make_shared<ShutdownTrackingMockService>("High", &initTracker, &shutdownTracker);
+    auto failingService = std::make_shared<FailingShutdownMockService>("Failing", "Shutdown failed", &initTracker, &shutdownTracker);
+    auto lowService = std::make_shared<ShutdownTrackingMockService>("Low", &initTracker, &shutdownTracker);
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<FailingShutdownMockServiceFactory>(failingService), ServiceLaunchPriority(500),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(lowService), ServiceLaunchPriority(100),
+                               ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    // Start services
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // Shutdown - should continue even after failure
+    std::vector<std::exception_ptr> errors;
+    RunAsyncWithPolling(manager, [&manager, &errors]() -> boost::asio::awaitable<void> { errors = co_await manager.ShutdownServicesAsync(); });
+
+    // All three should have attempted shutdown (Low, Failing, High in order)
+    // Low and High succeed, Failing throws
+    ASSERT_EQ(shutdownTracker.Order.size(), 3u);
+    EXPECT_EQ(shutdownTracker.Order[0], "Low");
+    EXPECT_EQ(shutdownTracker.Order[1], "Failing");
+    EXPECT_EQ(shutdownTracker.Order[2], "High");
+
+    // Should have 1 error from the failing service
+    EXPECT_EQ(errors.size(), 1u);
   }
 
 }
