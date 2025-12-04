@@ -27,6 +27,7 @@
 #include <memory>
 #include <mutex>
 #include <span>
+#include <thread>
 #include <typeindex>
 #include <vector>
 
@@ -68,6 +69,7 @@ namespace Test2
     std::atomic<bool> m_shutdown{false};
     std::string m_name;
     InitializationOrderTracker* m_tracker{nullptr};
+    std::thread::id m_initThreadId;
 
   public:
     explicit MockLifecycleService(ProcessResult processResult = ProcessResult::NoSleepLimit())
@@ -84,6 +86,7 @@ namespace Test2
 
     boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*createInfo*/) override
     {
+      m_initThreadId = std::this_thread::get_id();
       m_initialized = true;
       if (m_tracker)
       {
@@ -122,6 +125,11 @@ namespace Test2
     void SetProcessResult(ProcessResult result)
     {
       m_processResult = result;
+    }
+
+    std::thread::id GetInitThreadId() const noexcept
+    {
+      return m_initThreadId;
     }
   };
 
@@ -401,6 +409,238 @@ namespace Test2
     EXPECT_TRUE(std::find(highPriorityNames.begin(), highPriorityNames.end(), "High2") != highPriorityNames.end());
     EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "Low1") != lowPriorityNames.end());
     EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "Low2") != lowPriorityNames.end());
+  }
+
+  // ============================================================================
+  // Phase 4: Multiple Thread Groups Tests
+  // ============================================================================
+
+  TEST(LifecycleManager, StartServicesAsync_SingleService_NonMainThreadGroup_ServiceInitialized)
+  {
+    auto service = std::make_shared<MockLifecycleService>();
+    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+
+    ServiceThreadGroupId workerThreadGroup{1};    // Non-main thread group
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), workerThreadGroup);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    EXPECT_FALSE(service->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    EXPECT_TRUE(service->IsInitialized());
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_SingleService_NonMainThreadGroup_RunsOnDifferentThread)
+  {
+    auto service = std::make_shared<MockLifecycleService>();
+    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+
+    ServiceThreadGroupId workerThreadGroup{1};
+    std::thread::id mainThreadId = std::this_thread::get_id();
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), workerThreadGroup);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    ASSERT_TRUE(service->IsInitialized());
+    // Non-main thread group services should NOT run on the main thread
+    EXPECT_NE(service->GetInitThreadId(), mainThreadId);
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MainThreadGroup_RunsOnMainThread)
+  {
+    auto service = std::make_shared<MockLifecycleService>();
+    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+
+    std::thread::id mainThreadId = std::this_thread::get_id();
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    ASSERT_TRUE(service->IsInitialized());
+    // Main thread group services SHOULD run on the main thread
+    EXPECT_EQ(service->GetInitThreadId(), mainThreadId);
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MultipleServices_SameNonMainThreadGroup_AllInitialized)
+  {
+    auto service1 = std::make_shared<MockLifecycleService>();
+    auto service2 = std::make_shared<MockLifecycleService>();
+    auto factory1 = std::make_unique<MockLifecycleServiceFactory>(service1);
+    auto factory2 = std::make_unique<MockLifecycleServiceFactory>(service2);
+
+    ServiceThreadGroupId workerThreadGroup{1};
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory1), ServiceLaunchPriority(1000), workerThreadGroup);
+    registrations.emplace_back(std::move(factory2), ServiceLaunchPriority(1000), workerThreadGroup);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    EXPECT_FALSE(service1->IsInitialized());
+    EXPECT_FALSE(service2->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    EXPECT_TRUE(service1->IsInitialized());
+    EXPECT_TRUE(service2->IsInitialized());
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MultipleServices_SameNonMainThreadGroup_ShareSameThread)
+  {
+    auto service1 = std::make_shared<MockLifecycleService>();
+    auto service2 = std::make_shared<MockLifecycleService>();
+    auto factory1 = std::make_unique<MockLifecycleServiceFactory>(service1);
+    auto factory2 = std::make_unique<MockLifecycleServiceFactory>(service2);
+
+    ServiceThreadGroupId workerThreadGroup{1};
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(factory1), ServiceLaunchPriority(1000), workerThreadGroup);
+    registrations.emplace_back(std::move(factory2), ServiceLaunchPriority(1000), workerThreadGroup);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    ASSERT_TRUE(service1->IsInitialized());
+    ASSERT_TRUE(service2->IsInitialized());
+    // Services in the same thread group should share the same thread
+    EXPECT_EQ(service1->GetInitThreadId(), service2->GetInitThreadId());
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MixedThreadGroups_MainAndWorker_AllInitialized)
+  {
+    auto mainService = std::make_shared<MockLifecycleService>();
+    auto workerService = std::make_shared<MockLifecycleService>();
+    auto mainFactory = std::make_unique<MockLifecycleServiceFactory>(mainService);
+    auto workerFactory = std::make_unique<MockLifecycleServiceFactory>(workerService);
+
+    ServiceThreadGroupId workerThreadGroup{1};
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(mainFactory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::move(workerFactory), ServiceLaunchPriority(1000), workerThreadGroup);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    EXPECT_FALSE(mainService->IsInitialized());
+    EXPECT_FALSE(workerService->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    EXPECT_TRUE(mainService->IsInitialized());
+    EXPECT_TRUE(workerService->IsInitialized());
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MixedThreadGroups_MainAndWorker_RunOnDifferentThreads)
+  {
+    auto mainService = std::make_shared<MockLifecycleService>();
+    auto workerService = std::make_shared<MockLifecycleService>();
+    auto mainFactory = std::make_unique<MockLifecycleServiceFactory>(mainService);
+    auto workerFactory = std::make_unique<MockLifecycleServiceFactory>(workerService);
+
+    ServiceThreadGroupId workerThreadGroup{1};
+    std::thread::id mainThreadId = std::this_thread::get_id();
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(mainFactory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::move(workerFactory), ServiceLaunchPriority(1000), workerThreadGroup);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    ASSERT_TRUE(mainService->IsInitialized());
+    ASSERT_TRUE(workerService->IsInitialized());
+    // Main service should run on main thread
+    EXPECT_EQ(mainService->GetInitThreadId(), mainThreadId);
+    // Worker service should run on a different thread
+    EXPECT_NE(workerService->GetInitThreadId(), mainThreadId);
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MultipleNonMainThreadGroups_EachGetsOwnThread)
+  {
+    auto worker1Service = std::make_shared<MockLifecycleService>();
+    auto worker2Service = std::make_shared<MockLifecycleService>();
+    auto worker1Factory = std::make_unique<MockLifecycleServiceFactory>(worker1Service);
+    auto worker2Factory = std::make_unique<MockLifecycleServiceFactory>(worker2Service);
+
+    ServiceThreadGroupId workerGroup1{1};
+    ServiceThreadGroupId workerGroup2{2};
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    registrations.emplace_back(std::move(worker1Factory), ServiceLaunchPriority(1000), workerGroup1);
+    registrations.emplace_back(std::move(worker2Factory), ServiceLaunchPriority(1000), workerGroup2);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    EXPECT_FALSE(worker1Service->IsInitialized());
+    EXPECT_FALSE(worker2Service->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    EXPECT_TRUE(worker1Service->IsInitialized());
+    EXPECT_TRUE(worker2Service->IsInitialized());
+    // Different thread groups should run on different threads
+    EXPECT_NE(worker1Service->GetInitThreadId(), worker2Service->GetInitThreadId());
+  }
+
+  TEST(LifecycleManager, StartServicesAsync_MixedThreadGroups_PriorityRespected)
+  {
+    InitializationOrderTracker tracker;
+
+    auto highMain = std::make_shared<MockLifecycleService>("HighMain", &tracker);
+    auto highWorker = std::make_shared<MockLifecycleService>("HighWorker", &tracker);
+    auto lowMain = std::make_shared<MockLifecycleService>("LowMain", &tracker);
+    auto lowWorker = std::make_shared<MockLifecycleService>("LowWorker", &tracker);
+
+    ServiceThreadGroupId workerThreadGroup{1};
+
+    std::vector<ServiceRegistrationRecord> registrations;
+    // Scramble the order
+    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(lowWorker), ServiceLaunchPriority(100), workerThreadGroup);
+    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(highMain), ServiceLaunchPriority(1000),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(lowMain), ServiceLaunchPriority(100),
+                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(highWorker), ServiceLaunchPriority(1000), workerThreadGroup);
+
+    LifecycleManagerConfig config;
+    LifecycleManager manager(config, std::move(registrations));
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
+
+    // All high priority services (main + worker) should be initialized before low priority services
+    ASSERT_EQ(tracker.Order.size(), 4u);
+
+    // First two should be high priority (HighMain, HighWorker in some order)
+    std::vector<std::string> highPriorityNames(tracker.Order.begin(), tracker.Order.begin() + 2);
+    std::vector<std::string> lowPriorityNames(tracker.Order.begin() + 2, tracker.Order.end());
+
+    EXPECT_TRUE(std::find(highPriorityNames.begin(), highPriorityNames.end(), "HighMain") != highPriorityNames.end());
+    EXPECT_TRUE(std::find(highPriorityNames.begin(), highPriorityNames.end(), "HighWorker") != highPriorityNames.end());
+    EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "LowMain") != lowPriorityNames.end());
+    EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "LowWorker") != lowPriorityNames.end());
   }
 
 }

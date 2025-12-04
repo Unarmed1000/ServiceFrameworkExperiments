@@ -13,6 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Config/ThreadGroupConfig.hpp>
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadHost.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
@@ -82,31 +83,57 @@ namespace Test2
         co_return;
       }
 
-      // Group registrations by priority
-      std::map<ServiceLaunchPriority, std::vector<ServiceRegistrationRecord*>, std::greater<ServiceLaunchPriority>> priorityGroups;
+      // Group registrations by priority, then by thread group
+      // Outer map: priority (highest first via std::greater)
+      // Inner map: thread group ID -> services for that thread group at this priority
+      std::map<ServiceLaunchPriority, std::map<ServiceThreadGroupId, std::vector<ServiceRegistrationRecord*>>, std::greater<ServiceLaunchPriority>>
+        priorityGroups;
 
       for (auto& reg : m_registrations)
       {
-        priorityGroups[reg.Priority].push_back(&reg);
+        priorityGroups[reg.Priority][reg.ThreadGroupId].push_back(&reg);
       }
 
       // Start services in priority order (highest first due to std::greater comparator)
-      for (auto& [priority, regsInGroup] : priorityGroups)
+      for (auto& [priority, threadGroups] : priorityGroups)
       {
-        std::vector<StartServiceRecord> servicesForPriority;
-
-        for (auto* reg : regsInGroup)
+        // For each thread group at this priority level
+        for (auto& [threadGroupId, regsInGroup] : threadGroups)
         {
-          // Get service name from first supported interface
-          auto interfaces = reg->Factory->GetSupportedInterfaces();
-          std::string serviceName = interfaces.empty() ? "UnknownService" : interfaces[0].name();
+          std::vector<StartServiceRecord> servicesForGroup;
 
-          servicesForPriority.emplace_back(std::move(serviceName), std::move(reg->Factory));
-        }
+          for (auto* reg : regsInGroup)
+          {
+            // Get service name from first supported interface
+            auto interfaces = reg->Factory->GetSupportedInterfaces();
+            std::string serviceName = interfaces.empty() ? "UnknownService" : interfaces[0].name();
 
-        if (!servicesForPriority.empty())
-        {
-          co_await m_mainHost.TryStartServicesAsync(std::move(servicesForPriority), priority);
+            servicesForGroup.emplace_back(std::move(serviceName), std::move(reg->Factory));
+          }
+
+          if (!servicesForGroup.empty())
+          {
+            if (threadGroupId == ThreadGroupConfig::MainThreadGroupId)
+            {
+              // Main thread group - use cooperative host
+              co_await m_mainHost.TryStartServicesAsync(std::move(servicesForGroup), priority);
+            }
+            else
+            {
+              // Non-main thread group - ensure ManagedThreadHost exists and start it
+              auto it = m_threadHosts.find(threadGroupId);
+              if (it == m_threadHosts.end())
+              {
+                auto host = std::make_unique<ManagedThreadHost>();
+                // Start the thread (it will run io_context.run())
+                co_await host->StartAsync();
+                it = m_threadHosts.emplace(threadGroupId, std::move(host)).first;
+              }
+
+              // Start services on the managed thread host
+              co_await it->second->GetServiceHost().TryStartServicesAsync(std::move(servicesForGroup), priority);
+            }
+          }
         }
       }
 
