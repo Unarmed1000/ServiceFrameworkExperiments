@@ -22,9 +22,9 @@
 #include <Test2/Framework/Provider/IServiceProvider.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Service/IService.hpp>
+#include <fmt/std.h>
 #include <spdlog/spdlog.h>
 #include <memory>
-#include <sstream>
 #include <thread>
 #include <typeindex>
 #include <unordered_map>
@@ -57,9 +57,7 @@ namespace Test2
       const auto currentThreadId = std::this_thread::get_id();
       if (currentThreadId != m_ownerThreadId)
       {
-        std::ostringstream oss;
-        oss << "ServiceProvider accessed from wrong thread. Owner: " << m_ownerThreadId << ", Caller: " << currentThreadId;
-        spdlog::error(oss.str());
+        spdlog::error("ServiceProvider accessed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
         throw ServiceProviderException("ServiceProvider accessed from wrong thread");
       }
     }
@@ -234,8 +232,7 @@ namespace Test2
       const auto currentThreadId = std::this_thread::get_id();
       if (currentThreadId != m_ownerThreadId)
       {
-        spdlog::warn("GetServiceCount called from wrong thread. Owner: {}, Caller: {}", std::hash<std::thread::id>{}(m_ownerThreadId),
-                     std::hash<std::thread::id>{}(currentThreadId));
+        spdlog::warn("GetServiceCount called from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
         return 0;
       }
 

@@ -13,6 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Exception/WrongThreadException.hpp>
 #include <Test2/Framework/Host/ServiceHostBase.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
@@ -22,10 +23,13 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <fmt/std.h>
 #include <spdlog/spdlog.h>
+#include <cassert>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace Test2
@@ -54,18 +58,44 @@ namespace Test2
   /// 4. Update() returns ProcessResult with sleep hints for the main loop
   class CooperativeThreadServiceHost : public ServiceHostBase
   {
+    std::thread::id m_ownerThreadId;
     WakeCallback m_wakeCallback;
     mutable std::mutex m_wakeMutex;
 
+    /// @brief Validates that the current thread is the owner thread.
+    /// @throws WrongThreadException if called from a different thread.
+    void ValidateThreadAccess() const
+    {
+      const auto currentThreadId = std::this_thread::get_id();
+      if (currentThreadId != m_ownerThreadId)
+      {
+        spdlog::error("CooperativeThreadServiceHost accessed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
+        throw WrongThreadException("CooperativeThreadServiceHost accessed from wrong thread");
+      }
+    }
+
   public:
+    /// @brief Construct a CooperativeThreadServiceHost for the current thread.
+    ///
+    /// The host is bound to the thread that creates it. All thread-sensitive operations
+    /// (Poll, Update, SetWakeCallback) must be called from this thread.
     CooperativeThreadServiceHost()
       : ServiceHostBase()
+      , m_ownerThreadId(std::this_thread::get_id())
     {
       spdlog::info("CooperativeThreadServiceHost created at {}", static_cast<void*>(this));
     }
 
     ~CooperativeThreadServiceHost() override
     {
+      // Assert that destructor is called from the owner thread (debug builds)
+      // Also log error in release builds for diagnostics
+      if (std::this_thread::get_id() != m_ownerThreadId)
+      {
+        spdlog::error("CooperativeThreadServiceHost destroyed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, std::this_thread::get_id());
+      }
+      assert(std::this_thread::get_id() == m_ownerThreadId && "CooperativeThreadServiceHost must be destroyed on its owner thread");
+
       // Verify shutdown assumptions - log warnings for any violations
       {
         const auto serviceCount = m_provider->GetServiceCount();
@@ -95,8 +125,10 @@ namespace Test2
     ///
     /// @param callback The callback to invoke. MUST be thread-safe as it may be called from any thread.
     ///                 Pass nullptr to clear the callback.
+    /// @throws WrongThreadException if called from a thread other than the owner thread.
     void SetWakeCallback(WakeCallback callback)
     {
+      ValidateThreadAccess();
       std::lock_guard<std::mutex> lock(m_wakeMutex);
       m_wakeCallback = std::move(callback);
     }
@@ -107,8 +139,10 @@ namespace Test2
     /// then returns immediately without waiting for new work.
     ///
     /// @return The number of handlers that were executed.
+    /// @throws WrongThreadException if called from a thread other than the owner thread.
     std::size_t Poll()
     {
+      ValidateThreadAccess();
       return m_ioContext->poll();
     }
 
@@ -120,8 +154,10 @@ namespace Test2
     /// 3. Returns the aggregated ProcessResult with sleep hints
     ///
     /// @return Aggregated ProcessResult from all services.
+    /// @throws WrongThreadException if called from a thread other than the owner thread.
     ProcessResult Update()
     {
+      ValidateThreadAccess();
       Poll();
       return ProcessServices();
     }
