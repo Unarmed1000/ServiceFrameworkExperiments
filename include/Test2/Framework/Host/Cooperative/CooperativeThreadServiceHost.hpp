@@ -54,14 +54,12 @@ namespace Test2
   /// 4. Update() returns ProcessResult with sleep hints for the main loop
   class CooperativeThreadServiceHost : public ServiceHostBase
   {
-    std::unique_ptr<boost::asio::io_context> m_ioContext;
     WakeCallback m_wakeCallback;
     mutable std::mutex m_wakeMutex;
 
   public:
     CooperativeThreadServiceHost()
       : ServiceHostBase()
-      , m_ioContext(std::make_unique<boost::asio::io_context>())
     {
       spdlog::info("CooperativeThreadServiceHost created at {}", static_cast<void*>(this));
     }
@@ -103,16 +101,6 @@ namespace Test2
       m_wakeCallback = std::move(callback);
     }
 
-    boost::asio::io_context& GetIoContext() override
-    {
-      return *m_ioContext;
-    }
-
-    const boost::asio::io_context& GetIoContext() const override
-    {
-      return *m_ioContext;
-    }
-
     /// @brief Process all ready handlers without blocking.
     ///
     /// Runs the io_context's poll() to process all handlers that are ready to run,
@@ -136,33 +124,6 @@ namespace Test2
     {
       Poll();
       return ProcessServices();
-    }
-
-    /// @brief Try to start services at a given priority level.
-    ///
-    /// Services are created, initialized, and registered with the provider.
-    /// On failure, successfully initialized services are rolled back.
-    ///
-    /// @param services Services to start.
-    /// @param currentPriority Priority level for this group.
-    /// @return Awaitable that completes when services are started.
-    boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority currentPriority)
-    {
-      co_await boost::asio::co_spawn(
-        *m_ioContext, [this, services = std::move(services), currentPriority]() mutable -> boost::asio::awaitable<void>
-        { co_await DoTryStartServicesAsync(std::move(services), currentPriority); }, boost::asio::use_awaitable);
-      co_return;
-    }
-
-    /// @brief Shutdown services at a specific priority level.
-    ///
-    /// @param priority The priority level to shut down.
-    /// @return Awaitable containing any exceptions that occurred during shutdown.
-    boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(ServiceLaunchPriority priority)
-    {
-      co_return co_await boost::asio::co_spawn(
-        *m_ioContext, [this, priority]() -> boost::asio::awaitable<std::vector<std::exception_ptr>>
-        { co_return co_await DoTryShutdownServicesAsync(priority); }, boost::asio::use_awaitable);
     }
 
     /// @brief Post work to the io_context and trigger the wake callback.

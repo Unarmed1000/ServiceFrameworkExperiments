@@ -41,11 +41,10 @@ namespace Test2
   /// - Service registration with the provider
   /// - Rollback on initialization failure
   /// - Processing services and aggregating results
-  ///
-  /// Derived classes must implement GetIoContext() to provide the execution context.
   class ServiceHostBase
   {
   protected:
+    std::unique_ptr<boost::asio::io_context> m_ioContext;
     std::shared_ptr<ManagedThreadServiceProvider> m_provider;
 
     /// @brief Record tracking service initialization state.
@@ -68,11 +67,44 @@ namespace Test2
 
     /// @brief Get the io_context for this host.
     /// @return Reference to the io_context.
-    virtual boost::asio::io_context& GetIoContext() = 0;
+    boost::asio::io_context& GetIoContext()
+    {
+      return *m_ioContext;
+    }
 
     /// @brief Get the io_context for this host (const version).
     /// @return Const reference to the io_context.
-    virtual const boost::asio::io_context& GetIoContext() const = 0;
+    const boost::asio::io_context& GetIoContext() const
+    {
+      return *m_ioContext;
+    }
+
+    /// @brief Try to start services at a given priority level.
+    ///
+    /// Services are created, initialized, and registered with the provider.
+    /// On failure, successfully initialized services are rolled back.
+    ///
+    /// @param services Services to start.
+    /// @param currentPriority Priority level for this group.
+    /// @return Awaitable that completes when services are started.
+    boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority currentPriority)
+    {
+      co_await boost::asio::co_spawn(
+        *m_ioContext, [this, services = std::move(services), currentPriority]() mutable -> boost::asio::awaitable<void>
+        { co_await DoTryStartServicesAsync(std::move(services), currentPriority); }, boost::asio::use_awaitable);
+      co_return;
+    }
+
+    /// @brief Shutdown services at a specific priority level.
+    ///
+    /// @param priority The priority level to shut down.
+    /// @return Awaitable containing any exceptions that occurred during shutdown.
+    boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(ServiceLaunchPriority priority)
+    {
+      co_return co_await boost::asio::co_spawn(
+        *m_ioContext, [this, priority]() -> boost::asio::awaitable<std::vector<std::exception_ptr>>
+        { co_return co_await DoTryShutdownServicesAsync(priority); }, boost::asio::use_awaitable);
+    }
 
     /// @brief Process all registered services and aggregate their results.
     ///
@@ -95,7 +127,8 @@ namespace Test2
 
   protected:
     ServiceHostBase()
-      : m_provider(std::make_shared<ManagedThreadServiceProvider>())
+      : m_ioContext(std::make_unique<boost::asio::io_context>())
+      , m_provider(std::make_shared<ManagedThreadServiceProvider>())
     {
     }
 

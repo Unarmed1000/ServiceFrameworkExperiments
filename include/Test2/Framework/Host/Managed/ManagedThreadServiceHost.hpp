@@ -33,13 +33,11 @@ namespace Test2
   /// explicitly stopped. Use RunAsync() to start the event loop on the managed thread.
   class ManagedThreadServiceHost : public ServiceHostBase
   {
-    std::unique_ptr<boost::asio::io_context> m_ioContext;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work;
 
   public:
     ManagedThreadServiceHost()
       : ServiceHostBase()
-      , m_ioContext(std::make_unique<boost::asio::io_context>())
       , m_work(boost::asio::make_work_guard(*m_ioContext))
     {
       spdlog::info("ManagedThreadServiceHost created at {}", static_cast<void*>(this));
@@ -69,39 +67,6 @@ namespace Test2
 
       m_ioContext->run();
       co_return;
-    }
-
-    boost::asio::io_context& GetIoContext() override
-    {
-      return *m_ioContext;
-    }
-
-    const boost::asio::io_context& GetIoContext() const override
-    {
-      return *m_ioContext;
-    }
-
-    /// @brief Try to start services at a given priority level.
-    /// @param services Services to start.
-    /// @param currentPriority Priority level for this group.
-    /// @return Awaitable that completes when services are started.
-    boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority currentPriority)
-    {
-      co_await boost::asio::co_spawn(
-        *m_ioContext, [this, services = std::move(services), currentPriority]() mutable -> boost::asio::awaitable<void>
-        { co_await DoTryStartServicesAsync(std::move(services), currentPriority); }, boost::asio::use_awaitable);
-      co_return;
-    }
-
-    /// @brief Shutdown services at a specific priority level.
-    ///
-    /// @param priority The priority level to shut down.
-    /// @return Awaitable containing any exceptions that occurred during shutdown.
-    boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(ServiceLaunchPriority priority)
-    {
-      co_return co_await boost::asio::co_spawn(
-        *m_ioContext, [this, priority]() -> boost::asio::awaitable<std::vector<std::exception_ptr>>
-        { co_return co_await DoTryShutdownServicesAsync(priority); }, boost::asio::use_awaitable);
     }
   };
 }
