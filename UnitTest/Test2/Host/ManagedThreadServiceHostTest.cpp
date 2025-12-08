@@ -13,6 +13,7 @@
 
 #include <Common/AggregateException.hpp>
 #include <Test2/Framework/Exception/EmptyPriorityGroupException.hpp>
+#include <Test2/Framework/Host/Managed/ManagedThreadHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
@@ -22,6 +23,7 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/use_future.hpp>
 #include <gtest/gtest.h>
 #include <memory>
 #include <stdexcept>
@@ -140,6 +142,98 @@ namespace Test2
     std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
     {
       return std::make_shared<MockService>(m_serviceName, m_tracker, m_initShouldFail, m_shutdownShouldFail);
+    }
+  };
+
+  // ========================================
+  // Test Fixtures
+  // ========================================
+
+  /// @brief Base fixture for ManagedThreadHost tests with manual lifecycle control.
+  ///
+  /// Provides helper methods and test infrastructure without automatic startup.
+  /// Use this when you need explicit control over host lifecycle (e.g., startup failure tests).
+  class ManagedThreadHostTestFixtureBase : public ::testing::Test
+  {
+  protected:
+    boost::asio::io_context m_testIoContext;
+    ManagedThreadHost m_host;
+    std::thread::id m_testThreadId;
+
+    ManagedThreadHostTestFixtureBase()
+      : m_testThreadId(std::this_thread::get_id())
+    {
+    }
+
+    /// @brief Run a coroutine synchronously on the test io_context.
+    template <typename Func>
+    auto RunTest(Func&& func)
+    {
+      return boost::asio::co_spawn(m_testIoContext, std::forward<Func>(func), boost::asio::use_future).get();
+    }
+
+    /// @brief Start the managed thread.
+    void StartHost()
+    {
+      RunTest([this]() -> boost::asio::awaitable<void> { co_await m_host.StartAsync(); });
+    }
+
+    /// @brief Stop the managed thread.
+    void StopHost()
+    {
+      m_host.Stop();
+    }
+
+    /// @brief Create a mock service factory.
+    std::unique_ptr<MockServiceFactory> CreateMockFactory(const std::string& name, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr,
+                                                          bool initFails = false, bool shutdownFails = false)
+    {
+      return std::make_unique<MockServiceFactory>(name, tracker, initFails, shutdownFails);
+    }
+
+    /// @brief Create tracked service records for multiple services.
+    ///
+    /// @param specs Vector of tuples: {name, initFails, shutdownFails}
+    /// @return Pair of service records and trackers
+    auto CreateTrackedServiceRecords(const std::vector<std::tuple<std::string, bool, bool>>& specs)
+      -> std::pair<std::vector<StartServiceRecord>, std::vector<std::shared_ptr<ServiceLifecycleTracker>>>
+    {
+      std::vector<StartServiceRecord> records;
+      std::vector<std::shared_ptr<ServiceLifecycleTracker>> trackers;
+
+      for (const auto& [name, initFails, shutdownFails] : specs)
+      {
+        auto tracker = std::make_shared<ServiceLifecycleTracker>();
+        trackers.push_back(tracker);
+        records.emplace_back(name, CreateMockFactory(name, tracker, initFails, shutdownFails));
+      }
+
+      return {std::move(records), std::move(trackers)};
+    }
+
+    /// @brief Verify that the test thread is different from the service thread.
+    void VerifyCrossThreadMarshalling()
+    {
+      auto serviceThreadId = std::this_thread::get_id();
+      EXPECT_NE(m_testThreadId, serviceThreadId) << "Test should execute on different thread from service thread";
+    }
+  };
+
+  /// @brief Auto-started fixture for ManagedThreadHost tests.
+  ///
+  /// Automatically starts the host in SetUp() and stops it in TearDown().
+  /// Use this for most tests that just need a running host.
+  class ManagedThreadHostTestFixture : public ManagedThreadHostTestFixtureBase
+  {
+  protected:
+    void SetUp() override
+    {
+      StartHost();
+    }
+
+    void TearDown() override
+    {
+      StopHost();
     }
   };
 
