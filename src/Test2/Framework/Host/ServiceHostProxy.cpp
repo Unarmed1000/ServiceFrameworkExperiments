@@ -47,9 +47,9 @@ namespace Test2
 
   }
 
-  ServiceHostProxy::ServiceHostProxy(std::weak_ptr<ServiceHostBase> service, boost::asio::any_io_executor executor)
-    : m_service(std::move(service))
-    , m_executor(std::move(executor))
+  ServiceHostProxy::ServiceHostProxy(std::shared_ptr<ServiceHostBase> service)
+    : m_service(service)
+    , m_executor(service->GetIoContext().get_executor())
   {
   }
 

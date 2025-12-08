@@ -25,7 +25,7 @@ namespace Test2
   {
     // Create the service host on the current thread
     m_serviceHost = std::make_shared<CooperativeThreadServiceHost>();
-    m_serviceHostProxy = std::make_shared<ServiceHostProxy>(m_serviceHost, m_serviceHost->GetIoContext().get_executor());
+    m_serviceHostProxy = std::make_shared<ServiceHostProxy>(m_serviceHost);
 
     // Register internal cancellation signal to stop the io_context
     m_cancellationSignal.slot().assign([serviceHost = m_serviceHost](boost::asio::cancellation_type) { serviceHost->GetIoContext().stop(); });

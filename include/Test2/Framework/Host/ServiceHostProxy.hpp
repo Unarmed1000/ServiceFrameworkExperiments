@@ -44,7 +44,7 @@ namespace Test2
     /// @brief Constructs a proxy that marshals operations to the given executor.
     /// @param service Weak pointer to the service host.
     /// @param executor The executor of the target service host's io_context.
-    explicit ServiceHostProxy(std::weak_ptr<ServiceHostBase> service, boost::asio::any_io_executor executor);
+    explicit ServiceHostProxy(std::shared_ptr<ServiceHostBase> service);
     ~ServiceHostProxy();
 
     //! @see IThreadSafeServiceHost

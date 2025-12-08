@@ -59,7 +59,7 @@ namespace Test2
         {
           // Construct the service host ON THIS THREAD with parent cancellation slot
           auto serviceHost = std::make_shared<ManagedThreadServiceHost>(parentCancellationSignal->slot());
-          m_serviceHostProxy = std::make_shared<ServiceHostProxy>(serviceHost, serviceHost->GetIoContext().get_executor());
+          m_serviceHostProxy = std::make_shared<ServiceHostProxy>(serviceHost);
 
           // Signal that thread has started
           startedPromise->set_value();
