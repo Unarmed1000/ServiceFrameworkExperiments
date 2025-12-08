@@ -15,6 +15,7 @@
 
 #include <Common/AggregateException.hpp>
 #include <Test2/Framework/Exception/InvalidServiceFactoryException.hpp>
+#include <Test2/Framework/Exception/WrongThreadException.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
@@ -41,8 +42,13 @@ namespace Test2
   /// - Service registration with the provider
   /// - Rollback on initialization failure
   /// - Processing services and aggregating results
+  ///
+  /// Thread Safety:
+  /// - TryStartServicesAsync() and TryShutdownServicesAsync() can be called from any thread
+  /// - All other methods must be called from the service thread (m_ioContext's thread)
   class ServiceHostBase
   {
+    std::thread::id m_ownerThreadId;
     boost::asio::io_context m_ioContext;
 
   protected:
@@ -60,28 +66,26 @@ namespace Test2
     };
 
   public:
-    virtual ~ServiceHostBase() = default;
+    virtual ~ServiceHostBase()
+    {
+      // Assert that destructor is called from the owner thread (debug builds)
+      // Also log error in release builds for diagnostics
+      if (std::this_thread::get_id() != m_ownerThreadId)
+      {
+        spdlog::error("ServiceHostBase destroyed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, std::this_thread::get_id());
+      }
+      assert(std::this_thread::get_id() == m_ownerThreadId && "ServiceHostBase must be destroyed on its owner thread");
+    }
 
     ServiceHostBase(const ServiceHostBase&) = delete;
     ServiceHostBase& operator=(const ServiceHostBase&) = delete;
     ServiceHostBase(ServiceHostBase&&) = delete;
     ServiceHostBase& operator=(ServiceHostBase&&) = delete;
 
-    /// @brief Get the io_context for this host.
-    /// @return Reference to the io_context.
-    boost::asio::io_context& GetIoContext()
-    {
-      return m_ioContext;
-    }
-
-    /// @brief Get the io_context for this host (const version).
-    /// @return Const reference to the io_context.
-    const boost::asio::io_context& GetIoContext() const
-    {
-      return m_ioContext;
-    }
-
     /// @brief Try to start services at a given priority level.
+    ///
+    /// This method can be called from any thread. The work is marshalled onto the
+    /// service thread via co_spawn, ensuring thread-safe access to internal state.
     ///
     /// Services are created, initialized, and registered with the provider.
     /// On failure, successfully initialized services are rolled back.
@@ -99,6 +103,9 @@ namespace Test2
 
     /// @brief Shutdown services at a specific priority level.
     ///
+    /// This method can be called from any thread. The work is marshalled onto the
+    /// service thread via co_spawn, ensuring thread-safe access to internal state.
+    ///
     /// @param priority The priority level to shut down.
     /// @return Awaitable containing any exceptions that occurred during shutdown.
     boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(ServiceLaunchPriority priority)
@@ -108,14 +115,49 @@ namespace Test2
         { co_return co_await DoTryShutdownServicesAsync(priority); }, boost::asio::use_awaitable);
     }
 
+    /// @brief Get the io_context for this host.
+    /// @return Reference to the io_context.
+    boost::asio::io_context& GetIoContext()
+    {
+      return m_ioContext;
+    }
+
+    /// @brief Get the io_context for this host (const version).
+    /// @return Const reference to the io_context.
+    const boost::asio::io_context& GetIoContext() const
+    {
+      return m_ioContext;
+    }
+
+
+  protected:
+    ServiceHostBase()
+      : m_ownerThreadId(std::this_thread::get_id())
+      , m_provider(std::make_shared<ManagedThreadServiceProvider>())
+    {
+    }
+
+    /// @brief Validates that the current thread is the owner thread.
+    /// @throws WrongThreadException if called from a different thread.
+    void ValidateThreadAccess() const
+    {
+      const auto currentThreadId = std::this_thread::get_id();
+      if (currentThreadId != m_ownerThreadId)
+      {
+        spdlog::error("CooperativeThreadServiceHost accessed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
+        throw WrongThreadException("CooperativeThreadServiceHost accessed from wrong thread");
+      }
+    }
+
     /// @brief Process all registered services and aggregate their results.
     ///
     /// Iterates through all services registered with the provider and calls Process()
     /// on each one, merging the results according to ProcessResult priority rules.
     ///
     /// @return Aggregated ProcessResult from all services.
-    ProcessResult ProcessServices()
+    ProcessResult DoProcessServices()
     {
+      ValidateThreadAccess();
       ProcessResult result = ProcessResult::NoSleepLimit();
 
       auto allServices = m_provider->GetAllServiceControls();
@@ -127,18 +169,15 @@ namespace Test2
       return result;
     }
 
-  protected:
-    ServiceHostBase()
-      : m_provider(std::make_shared<ManagedThreadServiceProvider>())
-    {
-    }
-
+  private:
     /// @brief Implementation of service startup logic.
     /// @param services Services to start.
     /// @param currentPriority Priority level for this group.
     /// @return Awaitable that completes when services are started.
     boost::asio::awaitable<void> DoTryStartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority currentPriority)
     {
+      ValidateThreadAccess();
+
       // Handle empty service list
       if (services.empty())
       {
@@ -183,6 +222,8 @@ namespace Test2
     /// @throws InvalidServiceFactoryException if any factory is null.
     void ValidateServiceFactories(const std::vector<StartServiceRecord>& services)
     {
+      ValidateThreadAccess();
+
       for (const auto& serviceRecord : services)
       {
         if (!serviceRecord.Factory)
@@ -200,6 +241,8 @@ namespace Test2
     void CreateServiceInstances(std::vector<StartServiceRecord>& services, const ServiceCreateInfo& createInfo,
                                 std::vector<ServiceInitRecord>& initRecords)
     {
+      ValidateThreadAccess();
+
       initRecords.reserve(services.size());
 
       for (auto& serviceRecord : services)
@@ -241,6 +284,8 @@ namespace Test2
     /// @return Awaitable that completes when all services have been initialized.
     boost::asio::awaitable<void> InitializeServices(std::vector<ServiceInitRecord>& initRecords, const ServiceCreateInfo& createInfo)
     {
+      ValidateThreadAccess();
+
       for (auto& record : initRecords)
       {
         try
@@ -276,6 +321,8 @@ namespace Test2
     boost::asio::awaitable<void> ProcessInitializationResults(std::vector<ServiceInitRecord>& initRecords, ServiceLaunchPriority currentPriority,
                                                               std::shared_ptr<ServiceProviderProxy> providerProxy)
     {
+      ValidateThreadAccess();
+
       // Collect failures and successful services
       std::vector<std::exception_ptr> initFailures;
       std::vector<std::shared_ptr<IServiceControl>> successfulServices;
@@ -317,6 +364,7 @@ namespace Test2
     /// @return Awaitable containing any exceptions that occurred during shutdown.
     boost::asio::awaitable<std::vector<std::exception_ptr>> RollbackServices(const std::vector<std::shared_ptr<IServiceControl>>& successfulServices)
     {
+      ValidateThreadAccess();
       spdlog::warn("Performing rollback of {} successful services", successfulServices.size());
 
       std::vector<std::exception_ptr> shutdownFailures;
@@ -347,6 +395,8 @@ namespace Test2
     /// @param currentPriority Priority level for registration.
     void RegisterServicesWithProvider(std::vector<ServiceInitRecord>& initRecords, ServiceLaunchPriority currentPriority)
     {
+      ValidateThreadAccess();
+
       std::vector<ServiceInstanceInfo> serviceInfos;
       serviceInfos.reserve(initRecords.size());
 
@@ -370,6 +420,8 @@ namespace Test2
     /// @return Awaitable containing any exceptions that occurred during shutdown.
     boost::asio::awaitable<std::vector<std::exception_ptr>> DoTryShutdownServicesAsync(ServiceLaunchPriority priority)
     {
+      ValidateThreadAccess();
+
       std::vector<std::exception_ptr> shutdownFailures;
 
       // Unregister services at this priority level

@@ -13,7 +13,6 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Exception/WrongThreadException.hpp>
 #include <Test2/Framework/Host/ServiceHostBase.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
@@ -58,21 +57,9 @@ namespace Test2
   /// 4. Update() returns ProcessResult with sleep hints for the main loop
   class CooperativeThreadServiceHost : public ServiceHostBase
   {
-    std::thread::id m_ownerThreadId;
     WakeCallback m_wakeCallback;
     mutable std::mutex m_wakeMutex;
 
-    /// @brief Validates that the current thread is the owner thread.
-    /// @throws WrongThreadException if called from a different thread.
-    void ValidateThreadAccess() const
-    {
-      const auto currentThreadId = std::this_thread::get_id();
-      if (currentThreadId != m_ownerThreadId)
-      {
-        spdlog::error("CooperativeThreadServiceHost accessed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
-        throw WrongThreadException("CooperativeThreadServiceHost accessed from wrong thread");
-      }
-    }
 
   public:
     /// @brief Construct a CooperativeThreadServiceHost for the current thread.
@@ -81,21 +68,12 @@ namespace Test2
     /// (Poll, Update, SetWakeCallback) must be called from this thread.
     CooperativeThreadServiceHost()
       : ServiceHostBase()
-      , m_ownerThreadId(std::this_thread::get_id())
     {
       spdlog::info("CooperativeThreadServiceHost created at {}", static_cast<void*>(this));
     }
 
     ~CooperativeThreadServiceHost() override
     {
-      // Assert that destructor is called from the owner thread (debug builds)
-      // Also log error in release builds for diagnostics
-      if (std::this_thread::get_id() != m_ownerThreadId)
-      {
-        spdlog::error("CooperativeThreadServiceHost destroyed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, std::this_thread::get_id());
-      }
-      assert(std::this_thread::get_id() == m_ownerThreadId && "CooperativeThreadServiceHost must be destroyed on its owner thread");
-
       // Verify shutdown assumptions - log warnings for any violations
       {
         const auto serviceCount = m_provider->GetServiceCount();
@@ -174,6 +152,12 @@ namespace Test2
     {
       boost::asio::post(GetIoContext(), std::forward<Handler>(handler));
       TriggerWake();
+    }
+
+    ProcessResult ProcessServices()
+    {
+      ValidateThreadAccess();
+      return DoProcessServices();
     }
 
   private:
