@@ -16,6 +16,7 @@
 #include <Common/AggregateException.hpp>
 #include <Test2/Framework/Exception/InvalidServiceFactoryException.hpp>
 #include <Test2/Framework/Exception/WrongThreadException.hpp>
+#include <Test2/Framework/Host/IThreadSafeServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
@@ -46,7 +47,7 @@ namespace Test2
   /// Thread Safety:
   /// - TryStartServicesAsync() and TryShutdownServicesAsync() can be called from any thread
   /// - All other methods must be called from the service thread (m_ioContext's thread)
-  class ServiceHostBase
+  class ServiceHostBase : public IThreadSafeServiceHost
   {
     std::thread::id m_ownerThreadId;
     boost::asio::io_context m_ioContext;
@@ -82,34 +83,31 @@ namespace Test2
     ServiceHostBase(ServiceHostBase&&) = delete;
     ServiceHostBase& operator=(ServiceHostBase&&) = delete;
 
-    /// @brief Try to start services at a given priority level.
-    ///
-    /// This method can be called from any thread. The work is marshalled onto the
-    /// service thread via co_spawn, ensuring thread-safe access to internal state.
-    ///
-    /// Services are created, initialized, and registered with the provider.
-    /// On failure, successfully initialized services are rolled back.
-    ///
-    /// @param services Services to start.
-    /// @param currentPriority Priority level for this group.
-    /// @return Awaitable that completes when services are started.
-    boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority currentPriority)
+    std::thread::id GetOwnerThreadId() const noexcept
     {
+      return m_ownerThreadId;
+    }
+
+    //! @see IThreadSafeServiceHost
+    boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, const ServiceLaunchPriority currentPriority) override
+    {
+      if (m_ioContext.stopped())
+      {
+        throw std::runtime_error("Cannot start services: io_context is not running");
+      }
       co_await boost::asio::co_spawn(
         m_ioContext, [this, services = std::move(services), currentPriority]() mutable -> boost::asio::awaitable<void>
         { co_await DoTryStartServicesAsync(std::move(services), currentPriority); }, boost::asio::use_awaitable);
       co_return;
     }
 
-    /// @brief Shutdown services at a specific priority level.
-    ///
-    /// This method can be called from any thread. The work is marshalled onto the
-    /// service thread via co_spawn, ensuring thread-safe access to internal state.
-    ///
-    /// @param priority The priority level to shut down.
-    /// @return Awaitable containing any exceptions that occurred during shutdown.
-    boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(ServiceLaunchPriority priority)
+    //! @see IThreadSafeServiceHost
+    boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(const ServiceLaunchPriority priority) override
     {
+      if (m_ioContext.stopped())
+      {
+        throw std::runtime_error("Cannot shutdown services: io_context is not running");
+      }
       co_return co_await boost::asio::co_spawn(
         m_ioContext, [this, priority]() -> boost::asio::awaitable<std::vector<std::exception_ptr>>
         { co_return co_await DoTryShutdownServicesAsync(priority); }, boost::asio::use_awaitable);
@@ -135,6 +133,7 @@ namespace Test2
       : m_ownerThreadId(std::this_thread::get_id())
       , m_provider(std::make_shared<ManagedThreadServiceProvider>())
     {
+      spdlog::trace("ServiceHostBase Created at {}", m_ownerThreadId);
     }
 
     /// @brief Validates that the current thread is the owner thread.
@@ -144,8 +143,8 @@ namespace Test2
       const auto currentThreadId = std::this_thread::get_id();
       if (currentThreadId != m_ownerThreadId)
       {
-        spdlog::error("CooperativeThreadServiceHost accessed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
-        throw WrongThreadException("CooperativeThreadServiceHost accessed from wrong thread");
+        spdlog::error("ServiceHostBase accessed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
+        throw WrongThreadException("ServiceHostBase accessed from wrong thread");
       }
     }
 

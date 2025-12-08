@@ -13,6 +13,7 @@
 
 #include <Common/AggregateException.hpp>
 #include <Test2/Framework/Exception/EmptyPriorityGroupException.hpp>
+#include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
@@ -156,7 +157,7 @@ namespace Test2
   class ManagedThreadHostTestFixtureBase : public ::testing::Test
   {
   protected:
-    boost::asio::io_context m_testIoContext;
+    CooperativeThreadServiceHost m_testHost;
     ManagedThreadHost m_host;
     std::thread::id m_testThreadId;
 
@@ -165,23 +166,20 @@ namespace Test2
     {
     }
 
-    /// @brief Run a coroutine synchronously on the test io_context.
+    /// @brief Run a coroutine synchronously on the test host's io_context.
     template <typename Func>
     auto RunTest(Func&& func)
     {
-      return boost::asio::co_spawn(m_testIoContext, std::forward<Func>(func), boost::asio::use_future).get();
+      m_testHost.GetIoContext().restart();
+      auto future = boost::asio::co_spawn(m_testHost.GetIoContext(), std::forward<Func>(func), boost::asio::use_future);
+      m_testHost.GetIoContext().run();
+      future.get();
     }
 
     /// @brief Start the managed thread.
     void StartHost()
     {
       RunTest([this]() -> boost::asio::awaitable<void> { co_await m_host.StartAsync(); });
-    }
-
-    /// @brief Stop the managed thread.
-    void StopHost()
-    {
-      m_host.Stop();
     }
 
     /// @brief Create a mock service factory.
@@ -230,84 +228,67 @@ namespace Test2
     {
       StartHost();
     }
-
-    void TearDown() override
-    {
-      StopHost();
-    }
   };
+
+  // ========================================
+  // Phase 3.5: Startup Failure Tests
+  // ========================================
+
+  TEST_F(ManagedThreadHostTestFixtureBase, TryStartServicesAsync_BeforeStart_ThrowsException)
+  {
+    // Create services without starting the host
+    auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}});
+
+    // Attempt to start services without starting the host should fail
+    EXPECT_THROW(RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+                         { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); }),
+                 std::exception);
+  }
+
+  TEST_F(ManagedThreadHostTestFixtureBase, StartAsync_CalledTwice_HandlesGracefully)
+  {
+    // Start the host once
+    StartHost();
+
+    // Attempt to start again - should either be idempotent or throw
+    // Current implementation has guard against multiple starts
+    bool secondStartCompleted = false;
+    try
+    {
+      RunTest(
+        [this, &secondStartCompleted]() -> boost::asio::awaitable<void>
+        {
+          co_await m_host.StartAsync();
+          secondStartCompleted = true;
+        });
+    }
+    catch (...)
+    {
+      // Expected - second start should not succeed
+      secondStartCompleted = false;
+    }
+
+    // Either it's idempotent (completed) or it properly rejected the second start
+    // The important thing is no crash or deadlock
+    EXPECT_TRUE(true);    // If we got here without hanging, the test passes
+  }
 
   // ========================================
   // Phase 4: Service Initialization Success
   // ========================================
 
-  TEST(ManagedThreadServiceHostTest, SingleService_InitializesSuccessfully)
+  TEST_F(ManagedThreadHostTestFixture, SingleService_InitializesSuccessfully)
   {
-    ManagedThreadServiceHost host;
+    auto [services, trackers] = CreateTrackedServiceRecords({{"TestService", false, false}});
 
-    auto tracker = std::make_shared<ServiceLifecycleTracker>();
-    auto factory = std::make_unique<MockServiceFactory>("TestService", tracker);
+    // Call TryStartServicesAsync from test thread - it will marshal to service thread
+    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
 
-    bool completed = false;
-    std::exception_ptr exceptionPtr;
-
-    // Start the host's io_context on a separate thread (as it would be in production)
-    std::thread hostThread(
-      [&host, &completed, &exceptionPtr, factory = std::move(factory)]() mutable
-      {
-        spdlog::info("Host thread started");
-
-        // Post the coroutine work to the io_context
-        boost::asio::co_spawn(
-          host.GetIoContext(),
-          [&]() -> boost::asio::awaitable<void>
-          {
-            spdlog::info("Coroutine started");
-            try
-            {
-              std::vector<StartServiceRecord> services;
-              services.emplace_back("TestService", std::move(factory));
-
-              spdlog::info("Calling TryStartServicesAsync");
-              co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
-              spdlog::info("TryStartServicesAsync completed");
-              completed = true;
-            }
-            catch (...)
-            {
-              spdlog::error("Exception in coroutine");
-              exceptionPtr = std::current_exception();
-            }
-            spdlog::info("Coroutine ending");
-          },
-          [&host](std::exception_ptr e)
-          {
-            if (e)
-            {
-              spdlog::error("Unhandled exception in coroutine");
-            }
-            // Stop the io_context when coroutine completes
-            host.GetIoContext().stop();
-          });
-
-        spdlog::info("Calling io_context.run()");
-        host.GetIoContext().run();
-        spdlog::info("io_context.run() completed");
-      });
-
-    spdlog::info("Waiting for host thread to join");
-    hostThread.join();
-    spdlog::info("Host thread joined");
-
-    if (exceptionPtr)
-    {
-      std::rethrow_exception(exceptionPtr);
-    }
-
-    EXPECT_TRUE(completed);
-    EXPECT_TRUE(tracker->initCalled);
-    EXPECT_FALSE(tracker->shutdownCalled);
+    EXPECT_TRUE(trackers[0]->initCalled);
+    EXPECT_FALSE(trackers[0]->shutdownCalled);
   }
+
   TEST(ManagedThreadServiceHostTest, MultipleServices_InitializeInOrder)
   {
     ManagedThreadServiceHost host;

@@ -13,6 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/post.hpp>
@@ -28,18 +29,24 @@ namespace Test2
   /// @brief Manages a thread that runs a ManagedThreadServiceHost.
   class ManagedThreadHost
   {
-    std::unique_ptr<ManagedThreadServiceHost> m_serviceHost;
+    std::weak_ptr<ManagedThreadServiceHost> m_threadSafeServiceHost;
     std::thread m_thread;
+    boost::asio::cancellation_signal m_cancellationSignal;
 
   public:
     ManagedThreadHost()
-      : m_serviceHost(std::make_unique<ManagedThreadServiceHost>())
     {
     }
 
     ~ManagedThreadHost()
     {
-      Stop();
+      // Signal cancellation to stop the io_context
+      m_cancellationSignal.emit(boost::asio::cancellation_type::terminal);
+
+      if (m_thread.joinable())
+      {
+        m_thread.join();
+      }
     }
 
     ManagedThreadHost(const ManagedThreadHost&) = delete;
@@ -52,43 +59,55 @@ namespace Test2
     /// @return An awaitable that completes when the thread has started, containing a ManagedThreadRecord with the lifetime awaitable.
     boost::asio::awaitable<ManagedThreadRecord> StartAsync(boost::asio::cancellation_slot cancel_slot = {})
     {
+      // Guard against multiple starts
+      if (m_thread.joinable())
+      {
+        throw std::runtime_error("ManagedThreadHost has already been started");
+      }
+
       auto lifetimePromise = std::make_shared<std::promise<void>>();
       auto lifetimeFuture = lifetimePromise->get_future();
       auto startedPromise = std::make_shared<std::promise<void>>();
       auto startedFuture = startedPromise->get_future();
 
-      if (!m_thread.joinable())
-      {
-        m_thread = std::thread(
-          [this, lifetimePromise, startedPromise, cancel_slot]()
-          {
-            try
-            {
-              // Signal that thread has started
-              startedPromise->set_value();
+      // Create parent cancellation signal that will be shared across thread boundary
+      auto parentCancellationSignal = std::make_shared<boost::asio::cancellation_signal>();
 
-              // Run the io_context with cancellation support
-              // Note: We can't directly use co_await here since we're in a std::thread
-              m_serviceHost->GetIoContext().run();
-
-              // Signal lifetime completion
-              lifetimePromise->set_value();
-            }
-            catch (...)
-            {
-              lifetimePromise->set_exception(std::current_exception());
-            }
-          });
-
-        // If cancellation is requested, post a stop to the io_context
-        if (cancel_slot.is_connected())
+      m_thread = std::thread(
+        [this, lifetimePromise, startedPromise, parentCancellationSignal]()
         {
-          cancel_slot.assign([this](boost::asio::cancellation_type) { m_serviceHost->GetIoContext().stop(); });
-        }
-      }
+          try
+          {
+            // Construct the service host ON THIS THREAD with parent cancellation slot
+            auto serviceHost = std::make_shared<ManagedThreadServiceHost>(parentCancellationSignal->slot());
+            m_threadSafeServiceHost = serviceHost;
 
-      // Wait for thread to start
+            // Signal that thread has started
+            startedPromise->set_value();
+
+            // Run the io_context - it will be stopped via the cancellation slot
+            serviceHost->GetIoContext().run();
+
+            // Signal lifetime completion
+            lifetimePromise->set_value();
+          }
+          catch (...)
+          {
+            lifetimePromise->set_exception(std::current_exception());
+          }
+        });
+
+      // Wait for thread to start and serviceHost to be assigned
       startedFuture.wait();
+
+      // Register internal cancellation signal to emit parent signal
+      m_cancellationSignal.slot().assign([parentCancellationSignal](boost::asio::cancellation_type type) { parentCancellationSignal->emit(type); });
+
+      // Register external cancellation slot to emit parent signal if provided
+      if (cancel_slot.is_connected())
+      {
+        cancel_slot.assign([parentCancellationSignal](boost::asio::cancellation_type type) { parentCancellationSignal->emit(type); });
+      }
 
       // Create the lifetime awaitable from the future
       auto executor = co_await boost::asio::this_coro::executor;
@@ -100,37 +119,13 @@ namespace Test2
                                     }(std::move(lifetimeFuture).share(), executor)};
     }
 
-    void Stop()
+    std::shared_ptr<IThreadSafeServiceHost> GetServiceHost()
     {
-      if (m_serviceHost)
+      if (auto serviceHost = m_threadSafeServiceHost.lock())
       {
-        // Post the stop call to the managed thread - stop the io_context
-        boost::asio::post(m_serviceHost->GetIoContext(), [this]() { m_serviceHost->GetIoContext().stop(); });
+        return serviceHost;
       }
-      if (m_thread.joinable())
-      {
-        m_thread.join();
-      }
-    }
-
-    boost::asio::io_context& GetIoContext()
-    {
-      return m_serviceHost->GetIoContext();
-    }
-
-    const boost::asio::io_context& GetIoContext() const
-    {
-      return m_serviceHost->GetIoContext();
-    }
-
-    ManagedThreadServiceHost& GetServiceHost()
-    {
-      return *m_serviceHost;
-    }
-
-    const ManagedThreadServiceHost& GetServiceHost() const
-    {
-      return *m_serviceHost;
+      throw std::runtime_error("Service host is no longer available");
     }
   };
 }

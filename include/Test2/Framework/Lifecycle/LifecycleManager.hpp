@@ -147,7 +147,7 @@ namespace Test2
                 }
 
                 // Start services on the managed thread host
-                co_await it->second->GetServiceHost().TryStartServicesAsync(std::move(servicesForGroup), priority);
+                co_await it->second->GetServiceHost()->TryStartServicesAsync(std::move(servicesForGroup), priority);
               }
 
               // Track successfully started priority level
@@ -202,7 +202,7 @@ namespace Test2
           auto hostIt = m_threadHosts.find(it->ThreadGroupId);
           if (hostIt != m_threadHosts.end())
           {
-            errors = co_await hostIt->second->GetServiceHost().TryShutdownServicesAsync(it->Priority);
+            errors = co_await hostIt->second->GetServiceHost()->TryShutdownServicesAsync(it->Priority);
           }
         }
 

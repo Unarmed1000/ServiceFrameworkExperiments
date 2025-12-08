@@ -36,11 +36,19 @@ namespace Test2
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work;
 
   public:
-    ManagedThreadServiceHost()
+    /// @brief Constructs a ManagedThreadServiceHost.
+    /// @param cancel_slot Optional cancellation slot to stop the io_context.
+    explicit ManagedThreadServiceHost(boost::asio::cancellation_slot cancel_slot = {})
       : ServiceHostBase()
       , m_work(boost::asio::make_work_guard(GetIoContext()))
     {
       spdlog::info("ManagedThreadServiceHost created at {}", static_cast<void*>(this));
+
+      // Register cancellation handler to stop the io_context
+      if (cancel_slot.is_connected())
+      {
+        cancel_slot.assign([this](boost::asio::cancellation_type) { GetIoContext().stop(); });
+      }
     }
 
     ~ManagedThreadServiceHost() override
@@ -49,25 +57,6 @@ namespace Test2
       // Called on the managed thread during shutdown
       m_work.reset();
     }
-
-    /// @brief Starts and runs the io_context event loop. Called on the managed thread.
-    /// @param cancel_slot Cancellation slot to stop the io_context run loop.
-    /// @return An awaitable that completes when the io_context run loop exits.
-    // boost::asio::awaitable<void> RunAsync(boost::asio::cancellation_slot cancel_slot = {})
-    // {
-    //   if (cancel_slot.is_connected())
-    //   {
-    //     cancel_slot.assign(
-    //       [this](boost::asio::cancellation_type)
-    //       {
-    //         m_work.reset();
-    //         m_ioContext->stop();
-    //       });
-    //   }
-
-    //   m_ioContext->run();
-    //   co_return;
-    // }
   };
 }
 
