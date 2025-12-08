@@ -366,4 +366,73 @@ namespace Test2
       EXPECT_GE(ex.GetInnerExceptions().size(), 2);    // Init failure + shutdown failure
     }
   }
+
+  // ========================================
+  // Phase 6: Explicit Shutdown Tests
+  // ========================================
+
+  TEST_F(ManagedThreadHostTestFixture, ShutdownServices_Success)
+  {
+    auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}, {"Service2", false, false}});
+
+    // Start services
+    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+
+    EXPECT_TRUE(trackers[0]->initCalled);
+    EXPECT_TRUE(trackers[1]->initCalled);
+
+    // Shutdown services
+    RunTest(
+      [this]() -> boost::asio::awaitable<void>
+      {
+        auto exceptions = co_await m_host.GetServiceHost()->TryShutdownServicesAsync(ServiceLaunchPriority(1000));
+        EXPECT_TRUE(exceptions.empty());
+      });
+
+    EXPECT_TRUE(trackers[0]->shutdownCalled);
+    EXPECT_TRUE(trackers[1]->shutdownCalled);
+  }
+
+  TEST_F(ManagedThreadHostTestFixture, ShutdownServices_WithFailures_ReturnsExceptions)
+  {
+    auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, true}, {"Service2", false, false}});
+
+    // Start services
+    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+
+    EXPECT_TRUE(trackers[0]->initCalled);
+    EXPECT_TRUE(trackers[1]->initCalled);
+
+    // Shutdown services - one will fail
+    RunTest(
+      [this]() -> boost::asio::awaitable<void>
+      {
+        auto exceptions = co_await m_host.GetServiceHost()->TryShutdownServicesAsync(ServiceLaunchPriority(1000));
+        EXPECT_EQ(exceptions.size(), 1);    // One shutdown failure
+      });
+
+    EXPECT_TRUE(trackers[0]->shutdownCalled);    // Called even though it failed
+    EXPECT_TRUE(trackers[1]->shutdownCalled);
+  }
+
+  TEST_F(ManagedThreadHostTestFixture, ShutdownNonExistentPriority_ReturnsEmpty)
+  {
+    auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}});
+
+    // Start services at priority 1000
+    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+
+    // Try to shutdown priority 2000 (doesn't exist)
+    RunTest(
+      [this]() -> boost::asio::awaitable<void>
+      {
+        auto exceptions = co_await m_host.GetServiceHost()->TryShutdownServicesAsync(ServiceLaunchPriority(2000));
+        EXPECT_TRUE(exceptions.empty());
+      });
+
+    EXPECT_FALSE(trackers[0]->shutdownCalled);    // Should not be called
+  }
 }
