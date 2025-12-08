@@ -528,7 +528,7 @@ target_include_directories(test_service_provider PRIVATE ${CMAKE_CURRENT_SOURCE_
 target_link_libraries(test_service_provider PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Provider/ServiceProviderTest.cpp)
 
-# Executable 10: ServiceHostBase test (shared logic, uses CooperativeThreadServiceHost for simplicity)
+# Executable 10: ServiceHostBase test (shared logic, uses CooperativeThreadServiceHost internal implementation for simplicity)
 add_executable(test_service_host_base
     UnitTest/Test2/Host/ServiceHostBaseTest.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
