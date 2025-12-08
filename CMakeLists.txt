@@ -351,7 +351,7 @@ source_group("Source Files\\UnitTest\\Test1" FILES UnitTest/Test1/ServiceFramewo
 # Executable 3: Test program 2
 add_executable(test2
     src/test2.cpp
-    src/Test2/Service/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProvider.cpp
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Service/IServiceControl.hpp
     include/Test2/Framework/Service/IServiceFactory.hpp
@@ -447,8 +447,8 @@ source_group("Header Files\\Test2\\Services\\Calculator" FILES
     include/Test2/Services/Calculator/CalculatorServiceFactory.hpp
     include/Test2/Services/Calculator/CalculatorServiceRegistration.hpp
 )
-source_group("Source Files\\Test2\\Service\\Provider" FILES
-    src/Test2/Service/Provider/ServiceProvider.cpp
+source_group("Source Files\\Test2\\Framework\\Provider" FILES
+    src/Test2/Framework/Provider/ServiceProvider.cpp
 )
 
 # Executable 4: Test program 3
@@ -490,7 +490,7 @@ source_group("Source Files\\UnitTest\\Common" FILES UnitTest/Common/AggregateExc
 add_executable(test_managed_thread_service_provider
     UnitTest/Test2/Host/ManagedThreadServiceProviderTest.cpp
     include/Test2/Framework/Service/IService.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
+    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
     include/Test2/Framework/Exception/InvalidPriorityOrderException.hpp
     include/Test2/Framework/Exception/EmptyPriorityGroupException.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
@@ -516,7 +516,7 @@ source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Prov
 # Executable 9: ServiceProvider template methods test
 add_executable(test_service_provider
     UnitTest/Test2/Provider/ServiceProviderTest.cpp
-    src/Test2/Service/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProvider.cpp
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Provider/IServiceProvider.hpp
     include/Test2/Framework/Provider/ServiceProvider.hpp
@@ -531,34 +531,42 @@ source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Prov
 # Executable 10: ServiceHostBase test (shared logic, uses CooperativeThreadServiceHost for simplicity)
 add_executable(test_service_host_base
     UnitTest/Test2/Host/ServiceHostBaseTest.cpp
-    src/Test2/Service/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProvider.cpp
     include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
     include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
-    include/Test2/Framework/Host/ServiceHostBase.hpp
+    src/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
+    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
+    src/Test2/Framework/Host/ServiceHostBase.hpp
     include/Test2/Framework/Host/StartServiceRecord.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
 )
 configure_target(test_service_host_base)
-target_include_directories(test_service_host_base PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(test_service_host_base PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 target_link_libraries(test_service_host_base PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ServiceHostBaseTest.cpp)
 
 # Executable 11: ManagedThreadServiceHost test (thread-specific behavior)
 add_executable(test_managed_thread_service_host
     UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp
-    src/Test2/Service/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
+    src/Test2/Framework/Host/ServiceHostProxy.cpp
     include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
     include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
-    include/Test2/Framework/Host/ServiceHostBase.hpp
+    src/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
+    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
+    src/Test2/Framework/Host/ServiceHostBase.hpp
     include/Test2/Framework/Host/StartServiceRecord.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
 )
 configure_target(test_managed_thread_service_host)
-target_include_directories(test_managed_thread_service_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(test_managed_thread_service_host PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 target_link_libraries(test_managed_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp)
 
@@ -576,29 +584,37 @@ source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Servi
 # Executable 13: CooperativeThreadServiceHost test
 add_executable(test_cooperative_thread_service_host
     UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp
-    src/Test2/Service/Provider/ServiceProvider.cpp
-    include/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
-    include/Test2/Framework/Host/ServiceHostBase.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
+    src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
+    src/Test2/Framework/Host/ServiceHostBase.hpp
+    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
     include/Test2/Framework/Host/StartServiceRecord.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
 )
 configure_target(test_cooperative_thread_service_host)
-target_include_directories(test_cooperative_thread_service_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(test_cooperative_thread_service_host PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 target_link_libraries(test_cooperative_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp)
 
 # Executable 14: LifecycleManager test
 add_executable(test_lifecycle_manager
     UnitTest/Test2/Lifecycle/LifecycleManagerTest.cpp
-    src/Test2/Service/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProvider.cpp
     include/Test2/Framework/Lifecycle/LifecycleManager.hpp
     include/Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp
-    include/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
+    include/Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp
+    src/Test2/Framework/Host/Cooperative/CooperativeThreadHost.cpp
+    src/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
+    include/Test2/Framework/Host/ServiceHostProxy.hpp
+    src/Test2/Framework/Host/ServiceHostProxy.cpp
+    src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
     include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
-    include/Test2/Framework/Host/ServiceHostBase.hpp
+    src/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
+    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
+    src/Test2/Framework/Host/ServiceHostBase.hpp
     include/Test2/Framework/Host/StartServiceRecord.hpp
     include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
     include/Test2/Framework/Registry/ServiceThreadGroupId.hpp

@@ -24,6 +24,8 @@
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/use_future.hpp>
 #include <gtest/gtest.h>
 #include <memory>
 #include <mutex>
@@ -232,24 +234,28 @@ namespace Test2
     bool done = false;
     std::exception_ptr exceptionPtr;
 
-    boost::asio::co_spawn(
-      manager.GetMainHost().GetIoContext(),
-      [&asyncOp, &done, &exceptionPtr]() -> boost::asio::awaitable<void>
+    // Spawn the coroutine - the awaitable methods internally handle their own marshalling
+    auto spawnOp = [&]() -> boost::asio::awaitable<void>
+    {
+      try
       {
-        try
-        {
-          co_await asyncOp();
-        }
-        catch (...)
-        {
-          exceptionPtr = std::current_exception();
-        }
-        done = true;
-      },
-      boost::asio::detached);
+        co_await asyncOp();
+      }
+      catch (...)
+      {
+        exceptionPtr = std::current_exception();
+      }
+      done = true;
+    };
+
+    // We need an executor to spawn on - just use a local io_context for the test
+    boost::asio::io_context testContext;
+    boost::asio::co_spawn(testContext, spawnOp(), boost::asio::detached);
 
     while (!done)
     {
+      // Poll both the test context and the manager
+      testContext.poll();
       manager.Poll();
     }
 

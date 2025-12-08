@@ -11,11 +11,11 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include "../../../src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp"
 #include <Test2/Framework/Exception/EmptyPriorityGroupException.hpp>
 #include <Test2/Framework/Exception/InvalidPriorityOrderException.hpp>
 #include <Test2/Framework/Exception/ServiceProviderException.hpp>
 #include <Test2/Framework/Exception/UnknownServiceException.hpp>
-#include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Service/IService.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>

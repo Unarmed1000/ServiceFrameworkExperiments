@@ -158,7 +158,7 @@ namespace Test2
     ///
     /// @param priority The priority level to shut down.
     /// @return Awaitable containing any exceptions that occurred during shutdown.
-    boost::asio::awaitable<std::vector<std::exception_ptr>> DoTryShutdownServicesAsync(ServiceLaunchPriority priority)
+    boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(ServiceLaunchPriority priority)
     {
       ValidateThreadAccess();
 

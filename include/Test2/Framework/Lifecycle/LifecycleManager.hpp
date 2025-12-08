@@ -15,7 +15,7 @@
 
 #include <Common/AggregateException.hpp>
 #include <Test2/Framework/Config/ThreadGroupConfig.hpp>
-#include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
+#include <Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadHost.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp>
@@ -33,7 +33,7 @@ namespace Test2
   /// @brief Manages the lifecycle of services across multiple thread groups.
   ///
   /// LifecycleManager orchestrates service startup and shutdown across thread groups.
-  /// It holds a CooperativeThreadServiceHost for the main thread group (ID 0) and spawns
+  /// It holds a CooperativeThreadHost for the main thread group (ID 0) and spawns
   /// ManagedThreadHost instances for other thread groups.
   ///
   /// Services are started in priority order (highest first) and shut down in reverse order.
@@ -48,7 +48,7 @@ namespace Test2
   class LifecycleManager
   {
     LifecycleManagerConfig m_config;
-    CooperativeThreadServiceHost m_mainHost;
+    CooperativeThreadHost m_mainHost;
     std::vector<ServiceRegistrationRecord> m_registrations;
     std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>> m_threadHosts;
 
@@ -132,7 +132,7 @@ namespace Test2
               if (threadGroupId == ThreadGroupConfig::MainThreadGroupId)
               {
                 // Main thread group - use cooperative host
-                co_await m_mainHost.TryStartServicesAsync(std::move(servicesForGroup), priority);
+                co_await m_mainHost.GetServiceHost()->TryStartServicesAsync(std::move(servicesForGroup), priority);
               }
               else
               {
@@ -195,7 +195,7 @@ namespace Test2
 
         if (it->ThreadGroupId == ThreadGroupConfig::MainThreadGroupId)
         {
-          errors = co_await m_mainHost.TryShutdownServicesAsync(it->Priority);
+          errors = co_await m_mainHost.GetServiceHost()->TryShutdownServicesAsync(it->Priority);
         }
         else
         {
@@ -236,18 +236,18 @@ namespace Test2
       return m_mainHost.Poll();
     }
 
-    /// @brief Gets the main thread's service host.
+    /// @brief Gets the main thread's cooperative host.
     ///
-    /// Use this to set the wake callback for cross-thread notification.
+    /// Use this to access the service host via GetServiceHost().
     ///
-    /// @return Reference to the CooperativeThreadServiceHost for the main thread.
-    CooperativeThreadServiceHost& GetMainHost()
+    /// @return Reference to the CooperativeThreadHost for the main thread.
+    CooperativeThreadHost& GetMainHost()
     {
       return m_mainHost;
     }
 
-    /// @brief Gets the main thread's service host (const version).
-    const CooperativeThreadServiceHost& GetMainHost() const
+    /// @brief Gets the main thread's cooperative host (const version).
+    const CooperativeThreadHost& GetMainHost() const
     {
       return m_mainHost;
     }
