@@ -1233,7 +1233,7 @@ update_ui();  // Now safely on UI thread
 ```cpp
 class QtServiceBridge : public QObject {
     Q_OBJECT
-    CooperativeThreadServiceHost m_host;
+    CooperativeThreadHost m_host;
     QTimer m_pollTimer;
 
 public:
