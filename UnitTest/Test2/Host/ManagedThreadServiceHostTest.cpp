@@ -289,226 +289,81 @@ namespace Test2
     EXPECT_FALSE(trackers[0]->shutdownCalled);
   }
 
-  TEST(ManagedThreadServiceHostTest, MultipleServices_InitializeInOrder)
+  TEST_F(ManagedThreadHostTestFixture, MultipleServices_InitializeInOrder)
   {
-    ManagedThreadServiceHost host;
-    std::vector<StartServiceRecord> services;
+    auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}, {"Service2", false, false}, {"Service3", false, false}});
 
-    auto tracker1 = std::make_shared<ServiceLifecycleTracker>();
-    auto tracker2 = std::make_shared<ServiceLifecycleTracker>();
-    auto tracker3 = std::make_shared<ServiceLifecycleTracker>();
-    auto factory1 = std::make_unique<MockServiceFactory>("Service1", tracker1);
-    auto factory2 = std::make_unique<MockServiceFactory>("Service2", tracker2);
-    auto factory3 = std::make_unique<MockServiceFactory>("Service3", tracker3);
+    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
 
-    services.emplace_back("Service1", std::move(factory1));
-    services.emplace_back("Service2", std::move(factory2));
-    services.emplace_back("Service3", std::move(factory3));
-
-    bool completed = false;
-    boost::asio::co_spawn(
-      host.GetIoContext(),
-      [&]() -> boost::asio::awaitable<void>
-      {
-        co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
-        completed = true;
-      },
-      [&host](std::exception_ptr e)
-      {
-        if (e)
-        {
-          std::rethrow_exception(e);
-        }
-        host.GetIoContext().stop();
-      });
-
-    host.GetIoContext().run();
-
-    EXPECT_TRUE(completed);
-    EXPECT_TRUE(tracker1->initCalled);
-    EXPECT_TRUE(tracker2->initCalled);
-    EXPECT_TRUE(tracker3->initCalled);
+    EXPECT_TRUE(trackers[0]->initCalled);
+    EXPECT_TRUE(trackers[1]->initCalled);
+    EXPECT_TRUE(trackers[2]->initCalled);
   }
 
   // ========================================
   // Phase 5: Init Failure with Rollback
   // ========================================
 
-  TEST(ManagedThreadServiceHostTest, ServiceInitFails_RollsBackSuccessfulServices)
+  TEST_F(ManagedThreadHostTestFixture, ServiceInitFails_RollsBackSuccessfulServices)
   {
-    ManagedThreadServiceHost host;
-    std::vector<StartServiceRecord> services;
+    auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}, {"Service2", true, false}, {"Service3", false, false}});
 
-    auto tracker1 = std::make_shared<ServiceLifecycleTracker>();
-    auto tracker2 = std::make_shared<ServiceLifecycleTracker>();
-    auto tracker3 = std::make_shared<ServiceLifecycleTracker>();
-    auto factory1 = std::make_unique<MockServiceFactory>("Service1", tracker1, false);
-    auto factory2 = std::make_unique<MockServiceFactory>("Service2", tracker2, true);    // This will fail
-    auto factory3 = std::make_unique<MockServiceFactory>("Service3", tracker3, false);
+    EXPECT_THROW(RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+                         { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); }),
+                 Common::AggregateException);
 
-    services.emplace_back("Service1", std::move(factory1));
-    services.emplace_back("Service2", std::move(factory2));
-    services.emplace_back("Service3", std::move(factory3));
-
-    bool exceptionThrown = false;
-    boost::asio::co_spawn(
-      host.GetIoContext(),
-      [&]() -> boost::asio::awaitable<void>
-      {
-        try
-        {
-          co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
-        }
-        catch (const Common::AggregateException&)
-        {
-          exceptionThrown = true;
-        }
-      },
-      [&host](std::exception_ptr e)
-      {
-        if (e)
-        {
-          std::rethrow_exception(e);
-        }
-        host.GetIoContext().stop();
-      });
-
-    host.GetIoContext().run();
-
-    EXPECT_TRUE(exceptionThrown);
-    EXPECT_TRUE(tracker1->initCalled);
-    EXPECT_TRUE(tracker1->shutdownCalled);     // Should be rolled back
-    EXPECT_TRUE(tracker2->initCalled);         // Failed during init
-    EXPECT_FALSE(tracker2->shutdownCalled);    // Never successfully initialized
+    EXPECT_TRUE(trackers[0]->initCalled);
+    EXPECT_TRUE(trackers[0]->shutdownCalled);     // Should be rolled back
+    EXPECT_TRUE(trackers[1]->initCalled);         // Failed during init
+    EXPECT_FALSE(trackers[1]->shutdownCalled);    // Never successfully initialized
   }
 
-  TEST(ManagedThreadServiceHostTest, FirstServiceFails_NoRollbackNeeded)
+  TEST_F(ManagedThreadHostTestFixture, FirstServiceFails_NoRollbackNeeded)
   {
-    ManagedThreadServiceHost host;
-    std::vector<StartServiceRecord> services;
+    auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", true, false}});
 
-    auto tracker = std::make_shared<ServiceLifecycleTracker>();
-    auto factory = std::make_unique<MockServiceFactory>("Service1", tracker, true);
-    services.emplace_back("Service1", std::move(factory));
+    EXPECT_THROW(RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+                         { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); }),
+                 Common::AggregateException);
 
-    bool exceptionThrown = false;
-    boost::asio::co_spawn(
-      host.GetIoContext(),
-      [&]() -> boost::asio::awaitable<void>
-      {
-        try
-        {
-          co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
-        }
-        catch (const Common::AggregateException&)
-        {
-          exceptionThrown = true;
-        }
-      },
-      [&host](std::exception_ptr e)
-      {
-        if (e)
-        {
-          std::rethrow_exception(e);
-        }
-        host.GetIoContext().stop();
-      });
-
-    host.GetIoContext().run();
-
-    EXPECT_TRUE(exceptionThrown);
-    EXPECT_TRUE(tracker->initCalled);
-    EXPECT_FALSE(tracker->shutdownCalled);
+    EXPECT_TRUE(trackers[0]->initCalled);
+    EXPECT_FALSE(trackers[0]->shutdownCalled);
   }
 
   // ========================================
   // Phase 6: Multiple Failures
   // ========================================
 
-  TEST(ManagedThreadServiceHostTest, MultipleServicesFail_AggregatesAllExceptions)
+  TEST_F(ManagedThreadHostTestFixture, MultipleServicesFail_AggregatesAllExceptions)
   {
-    ManagedThreadServiceHost host;
-    std::vector<StartServiceRecord> services;
+    auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", true, false}, {"Service2", false, false}, {"Service3", true, false}});
 
-    auto tracker1 = std::make_shared<ServiceLifecycleTracker>();
-    auto tracker2 = std::make_shared<ServiceLifecycleTracker>();
-    auto tracker3 = std::make_shared<ServiceLifecycleTracker>();
-    auto factory1 = std::make_unique<MockServiceFactory>("Service1", tracker1, true);    // Fails
-    auto factory2 = std::make_unique<MockServiceFactory>("Service2", tracker2, false);
-    auto factory3 = std::make_unique<MockServiceFactory>("Service3", tracker3, true);    // Fails
-
-    services.emplace_back("Service1", std::move(factory1));
-    services.emplace_back("Service2", std::move(factory2));
-    services.emplace_back("Service3", std::move(factory3));
-
-    std::optional<Common::AggregateException> caughtException;
-    boost::asio::co_spawn(
-      host.GetIoContext(),
-      [&]() -> boost::asio::awaitable<void>
-      {
-        try
-        {
-          co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
-        }
-        catch (const Common::AggregateException& ex)
-        {
-          caughtException.emplace(ex);
-        }
-      },
-      [&host](std::exception_ptr e)
-      {
-        if (e)
-        {
-          std::rethrow_exception(e);
-        }
-        host.GetIoContext().stop();
-      });
-
-    host.GetIoContext().run();
-
-    ASSERT_TRUE(caughtException.has_value());
-    EXPECT_GE(caughtException->GetInnerExceptions().size(), 2);    // At least 2 init failures
+    try
+    {
+      RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+              { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+      FAIL() << "Expected AggregateException to be thrown";
+    }
+    catch (const Common::AggregateException& ex)
+    {
+      EXPECT_GE(ex.GetInnerExceptions().size(), 2);    // At least 2 init failures
+    }
   }
 
-  TEST(ManagedThreadServiceHostTest, RollbackFailure_IncludedInAggregateException)
+  TEST_F(ManagedThreadHostTestFixture, RollbackFailure_IncludedInAggregateException)
   {
-    ManagedThreadServiceHost host;
-    std::vector<StartServiceRecord> services;
+    auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, true}, {"Service2", true, false}});
 
-    auto tracker1 = std::make_shared<ServiceLifecycleTracker>();
-    auto tracker2 = std::make_shared<ServiceLifecycleTracker>();
-    auto factory1 = std::make_unique<MockServiceFactory>("Service1", tracker1, false, true);    // Shutdown fails
-    auto factory2 = std::make_unique<MockServiceFactory>("Service2", tracker2, true);           // Init fails
-
-    services.emplace_back("Service1", std::move(factory1));
-    services.emplace_back("Service2", std::move(factory2));
-
-    std::optional<Common::AggregateException> caughtException;
-    boost::asio::co_spawn(
-      host.GetIoContext(),
-      [&]() -> boost::asio::awaitable<void>
-      {
-        try
-        {
-          co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
-        }
-        catch (const Common::AggregateException& ex)
-        {
-          caughtException.emplace(ex);
-        }
-      },
-      [&host](std::exception_ptr e)
-      {
-        if (e)
-        {
-          std::rethrow_exception(e);
-        }
-        host.GetIoContext().stop();
-      });
-
-    host.GetIoContext().run();
-
-    ASSERT_TRUE(caughtException.has_value());
-    EXPECT_GE(caughtException->GetInnerExceptions().size(), 2);    // Init failure + shutdown failure
+    try
+    {
+      RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+              { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+      FAIL() << "Expected AggregateException to be thrown";
+    }
+    catch (const Common::AggregateException& ex)
+    {
+      EXPECT_GE(ex.GetInnerExceptions().size(), 2);    // Init failure + shutdown failure
+    }
   }
 }
