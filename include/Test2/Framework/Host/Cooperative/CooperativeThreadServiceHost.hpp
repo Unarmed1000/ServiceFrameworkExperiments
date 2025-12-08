@@ -104,7 +104,7 @@ namespace Test2
           spdlog::warn("CooperativeThreadServiceHost destroyed with {} services still registered", serviceCount);
         }
       }
-      if (!m_ioContext->stopped())
+      if (!GetIoContext().stopped())
       {
         spdlog::warn("CooperativeThreadServiceHost destroyed while io_context has not been stopped");
       }
@@ -143,7 +143,7 @@ namespace Test2
     std::size_t Poll()
     {
       ValidateThreadAccess();
-      return m_ioContext->poll();
+      return GetIoContext().poll();
     }
 
     /// @brief Convenience method that polls the io_context and processes all services.
@@ -172,7 +172,7 @@ namespace Test2
     template <typename Handler>
     void PostWithWake(Handler&& handler)
     {
-      boost::asio::post(*m_ioContext, std::forward<Handler>(handler));
+      boost::asio::post(GetIoContext(), std::forward<Handler>(handler));
       TriggerWake();
     }
 

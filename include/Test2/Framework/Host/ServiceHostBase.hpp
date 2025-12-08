@@ -43,9 +43,11 @@ namespace Test2
   /// - Processing services and aggregating results
   class ServiceHostBase
   {
+    boost::asio::io_context m_ioContext;
+
   protected:
-    std::unique_ptr<boost::asio::io_context> m_ioContext;
     std::shared_ptr<ManagedThreadServiceProvider> m_provider;
+
 
     /// @brief Record tracking service initialization state.
     struct ServiceInitRecord
@@ -69,14 +71,14 @@ namespace Test2
     /// @return Reference to the io_context.
     boost::asio::io_context& GetIoContext()
     {
-      return *m_ioContext;
+      return m_ioContext;
     }
 
     /// @brief Get the io_context for this host (const version).
     /// @return Const reference to the io_context.
     const boost::asio::io_context& GetIoContext() const
     {
-      return *m_ioContext;
+      return m_ioContext;
     }
 
     /// @brief Try to start services at a given priority level.
@@ -90,7 +92,7 @@ namespace Test2
     boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority currentPriority)
     {
       co_await boost::asio::co_spawn(
-        *m_ioContext, [this, services = std::move(services), currentPriority]() mutable -> boost::asio::awaitable<void>
+        m_ioContext, [this, services = std::move(services), currentPriority]() mutable -> boost::asio::awaitable<void>
         { co_await DoTryStartServicesAsync(std::move(services), currentPriority); }, boost::asio::use_awaitable);
       co_return;
     }
@@ -102,7 +104,7 @@ namespace Test2
     boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(ServiceLaunchPriority priority)
     {
       co_return co_await boost::asio::co_spawn(
-        *m_ioContext, [this, priority]() -> boost::asio::awaitable<std::vector<std::exception_ptr>>
+        m_ioContext, [this, priority]() -> boost::asio::awaitable<std::vector<std::exception_ptr>>
         { co_return co_await DoTryShutdownServicesAsync(priority); }, boost::asio::use_awaitable);
     }
 
@@ -127,8 +129,7 @@ namespace Test2
 
   protected:
     ServiceHostBase()
-      : m_ioContext(std::make_unique<boost::asio::io_context>())
-      , m_provider(std::make_shared<ManagedThreadServiceProvider>())
+      : m_provider(std::make_shared<ManagedThreadServiceProvider>())
     {
     }
 
