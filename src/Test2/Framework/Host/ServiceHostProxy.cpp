@@ -59,8 +59,7 @@ namespace Test2
   boost::asio::awaitable<void> ServiceHostProxy::TryStartServicesAsync(std::vector<StartServiceRecord> services,
                                                                        const ServiceLaunchPriority currentPriority)
   {
-    co_await boost::asio::co_spawn(m_executor, DoTryStartServicesAsync(std::move(m_service), std::move(services), currentPriority),
-                                   boost::asio::use_awaitable);
+    co_await boost::asio::co_spawn(m_executor, DoTryStartServicesAsync(m_service, std::move(services), currentPriority), boost::asio::use_awaitable);
     co_return;
   }
 

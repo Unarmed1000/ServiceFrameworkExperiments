@@ -252,9 +252,9 @@ namespace Test2
     boost::asio::io_context testContext;
     boost::asio::co_spawn(testContext, spawnOp(), boost::asio::detached);
 
+    // Keep polling both contexts until the operation is complete
     while (!done)
     {
-      // Poll both the test context and the manager
       testContext.poll();
       manager.Poll();
     }
