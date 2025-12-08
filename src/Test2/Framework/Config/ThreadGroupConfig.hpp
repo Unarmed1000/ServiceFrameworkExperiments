@@ -21,7 +21,7 @@ namespace Test2
   {
     /// @brief The thread group ID representing the main/UI thread.
     /// Services assigned to this thread group will run cooperatively on the main thread
-    /// using CooperativeThreadServiceHost rather than spawning a dedicated thread.
+    /// using CooperativeThreadHost rather than spawning a dedicated thread.
     constexpr ServiceThreadGroupId MainThreadGroupId{0};
   }
 }
