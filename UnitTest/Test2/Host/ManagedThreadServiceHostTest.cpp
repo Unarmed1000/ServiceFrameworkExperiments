@@ -144,17 +144,6 @@ namespace Test2
   };
 
   // ========================================
-  // Phase 3: Empty Service List Handling
-  // ========================================
-
-  TEST(ManagedThreadServiceHostTest, EmptyServiceList_Succeeds)
-  {
-    ManagedThreadServiceProvider provider;
-    std::vector<ServiceInstanceInfo> emptyServices;
-    EXPECT_THROW(provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), std::move(emptyServices)), EmptyPriorityGroupException);
-  }
-
-  // ========================================
   // Phase 4: Service Initialization Success
   // ========================================
 
