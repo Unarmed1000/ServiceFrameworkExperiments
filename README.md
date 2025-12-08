@@ -37,7 +37,7 @@ A production-grade service framework with proper architecture:
 
 - **Host Management**: Thread group-based service hosting
   - `ServiceHostBase`: Abstract base with shared lifecycle logic
-  - `CooperativeThreadServiceHost`: For UI/main thread with poll-based execution
+  - `CooperativeThreadHost`: For UI/main thread with poll-based execution
   - `ManagedThreadServiceHost`: Owns dedicated thread with `io_context`
   - `ManagedThreadHost`: Manages thread lifecycle
   - `ManagedThreadServiceProvider`: Per-thread service provider with priority groups
@@ -77,7 +77,7 @@ A production-grade service framework with proper architecture:
 - Service registry with priority and thread group support
 - Service provider with dependency injection
 - Async service base class
-- Host implementations (`ServiceHostBase`, `CooperativeThreadServiceHost`, `ManagedThreadServiceHost`)
+- Host implementations (`ServiceHostBase`, `CooperativeThreadHost`, `ManagedThreadHost`)
 - Thread management (`ManagedThreadHost`, `ManagedThreadServiceProvider`)
 - Exception types for registry, provider, and host
 - Unit test coverage for core components

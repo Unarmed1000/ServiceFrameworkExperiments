@@ -79,7 +79,7 @@ classDiagram
         #DoTryStartServicesAsync() awaitable~void~
     }
 
-    class CooperativeThreadServiceHost {
+    class CooperativeThreadHost {
         +SetWakeCallback(WakeCallback)
         +Poll() size_t
         +Update() ProcessResult
@@ -106,6 +106,7 @@ classDiagram
 
     class ManagedThreadRecord
 
+    CooperativeThreadHost o-- CooperativeThreadServiceHost : wraps
     ServiceHostBase <|-- CooperativeThreadServiceHost
     ServiceHostBase <|-- ManagedThreadServiceHost
     ServiceHostBase --> ManagedThreadServiceProvider : owns

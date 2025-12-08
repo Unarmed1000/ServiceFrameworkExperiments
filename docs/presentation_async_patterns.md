@@ -653,10 +653,10 @@ classDiagram
 
 | Host Type | Thread Ownership | Use Case |
 |-----------|------------------|----------|
-| `CooperativeThreadServiceHost` | External (UI/main thread) | Qt, game loops, UI apps |
+| `CooperativeThreadHost` | External (UI/main thread) | Qt, game loops, UI apps |
 | `ManagedThreadServiceHost` | Internal (owns thread) | Background services |
 
-### `CooperativeThreadServiceHost` Key Features
+### `CooperativeThreadHost` Key Features
 
 ```cpp
 // Non-blocking poll — integrates with external event loop
@@ -1040,11 +1040,11 @@ boost::asio::awaitable<void> DoTryStartServicesAsync(
 
 Qt has its own event loop (`QCoreApplication::exec()`) and threading model.
 
-## The Solution: `CooperativeThreadServiceHost`
+## The Solution: `CooperativeThreadHost`
 
 ```cpp
 // In Qt main window
-CooperativeThreadServiceHost m_serviceHost;
+CooperativeThreadHost m_serviceHost;
 
 // Set wake callback to notify Qt event loop
 m_serviceHost.SetWakeCallback([this]() {
@@ -1066,7 +1066,7 @@ void MainWindow::onServiceHostWake() {
 ```mermaid
 sequenceDiagram
     participant QtLoop as Qt Event Loop
-    participant Host as CooperativeThreadServiceHost
+    participant Host as CooperativeThreadHost
     participant IO as io_context
     participant Svc as Background Service
 
@@ -1111,7 +1111,7 @@ sequenceDiagram
 
 6. **Interfaces enable fast builds** — Dependency injection via `ServiceProvider` limits compile-time coupling
 
-7. **Legacy integration is possible** — `CooperativeThreadServiceHost` bridges to Qt, game engines, etc.
+7. **Legacy integration is possible** — `CooperativeThreadHost` bridges to Qt, game engines, etc.
 
 ---
 
@@ -1228,7 +1228,7 @@ update_ui();  // Now safely on UI thread
 
 ---
 
-# Appendix A4: CooperativeThreadServiceHost + Qt Bridge
+# Appendix A4: CooperativeThreadHost + Qt Bridge
 
 ```cpp
 class QtServiceBridge : public QObject {
