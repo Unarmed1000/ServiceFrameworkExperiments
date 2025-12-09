@@ -13,12 +13,12 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
-
 namespace Test2
 {
-  class IService : public ILifeTracker
+  class IService
   {
+  public:
+    virtual ~IService() = default;
   };
 }
 
