@@ -617,7 +617,9 @@ sequenceDiagram
     else Object Disposed
         Helper-->>Caller: throw ServiceDisposedException
     end
-```**Key Points:**
+```
+
+**Key Points:**
 
 1. **Lifetime Safety**: `TryLock()` ensures object still exists before invocation
 2. **Thread Switching**: `co_await dispatch()` moves execution to target thread's `io_context`
