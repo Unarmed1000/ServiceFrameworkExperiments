@@ -14,49 +14,12 @@
 #include <Test2/Framework/Host/ServiceHostProxy.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/use_awaitable.hpp>
-#include <stdexcept>
+#include <Test2/Framework/Util/AsyncProxyHelper.hpp>
 #include "ServiceHostBase.hpp"
 
 namespace Test2
 {
-  namespace
-  {
-    boost::asio::awaitable<void> DoTryStartServicesAsync(std::weak_ptr<ServiceHostBase> service, std::vector<StartServiceRecord> services,
-                                                         const ServiceLaunchPriority currentPriority)
-    {
-      auto servicePtr = service.lock();
-      if (!servicePtr)
-      {
-        throw std::runtime_error("ServiceHostProxy: service host has been destroyed");
-      }
-      co_await servicePtr->TryStartServicesAsync(std::move(services), currentPriority);
-    }
-
-    boost::asio::awaitable<std::vector<std::exception_ptr>> DoTryShutdownServicesAsync(std::weak_ptr<ServiceHostBase> service,
-                                                                                       const ServiceLaunchPriority priority)
-    {
-      auto servicePtr = service.lock();
-      if (!servicePtr)
-      {
-        throw std::runtime_error("ServiceHostProxy: service host has been destroyed");
-      }
-      co_return co_await servicePtr->TryShutdownServicesAsync(priority);
-    }
-
-    boost::asio::awaitable<bool> DoTryRequestShutdownAsync(std::weak_ptr<ServiceHostBase> service)
-    {
-      auto servicePtr = service.lock();
-      if (!servicePtr)
-      {
-        co_return false;
-      }
-      servicePtr->RequestShutdown();
-      co_return true;
-    }
-
-  }
+  inline constexpr const char kProxyName[] = "ServiceHostProxy";
 
   ServiceHostProxy::ServiceHostProxy(std::shared_ptr<ServiceHostBase> service)
     : m_service(service)
@@ -70,38 +33,22 @@ namespace Test2
   boost::asio::awaitable<void> ServiceHostProxy::TryStartServicesAsync(std::vector<StartServiceRecord> services,
                                                                        const ServiceLaunchPriority currentPriority)
   {
-    co_await boost::asio::co_spawn(m_executor, DoTryStartServicesAsync(m_service, std::move(services), currentPriority), boost::asio::use_awaitable);
-    co_return;
+    co_await Util::InvokeAsync<kProxyName>(m_executor, m_service, &ServiceHostBase::TryStartServicesAsync, std::move(services), currentPriority);
   }
 
   boost::asio::awaitable<std::vector<std::exception_ptr>> ServiceHostProxy::TryShutdownServicesAsync(const ServiceLaunchPriority priority)
   {
-    co_return co_await boost::asio::co_spawn(m_executor, DoTryShutdownServicesAsync(m_service, priority), boost::asio::use_awaitable);
+    co_return co_await Util::InvokeAsync<kProxyName>(m_executor, m_service, &ServiceHostBase::TryShutdownServicesAsync, priority);
   }
 
   boost::asio::awaitable<bool> ServiceHostProxy::TryRequestShutdownAsync()
   {
-    co_return co_await boost::asio::co_spawn(m_executor, DoTryRequestShutdownAsync(m_service), boost::asio::use_awaitable);
+    co_return co_await Util::TryInvokeAsync<kProxyName>(m_executor, m_service, &ServiceHostBase::RequestShutdown);
   }
 
   bool ServiceHostProxy::TryRequestShutdown() noexcept
   {
-    try
-    {
-      boost::asio::post(m_executor,
-                        [service = m_service]()
-                        {
-                          if (auto servicePtr = service.lock())
-                          {
-                            servicePtr->RequestShutdown();
-                          }
-                        });
-      return true;
-    }
-    catch (...)
-    {
-      return false;
-    }
+    return Util::TryInvokePost(m_executor, m_service, &ServiceHostBase::RequestShutdown);
   }
 
 }
