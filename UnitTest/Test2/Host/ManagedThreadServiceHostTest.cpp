@@ -245,6 +245,11 @@ namespace Test2
     {
       StartHost();
     }
+
+    void TearDown() override
+    {
+      StopHost();
+    }
   };
 
   // ========================================
