@@ -24,16 +24,19 @@ A simple proof-of-concept demonstrating:
 
 **Note**: Test1's service framework is a minimal implementation where each service manually creates its own thread.
 
-### Test2 - Advanced Service Framework (In Progress)
-A production-grade service framework with proper architecture:
+### Test2 - Advanced Service Framework
+A production-grade service framework with comprehensive architecture:
 
-- **Lifecycle Management**: Orchestrates service startup and shutdown (in development)
+- **Lifecycle Management**: Orchestrates service startup and shutdown
   - `LifecycleManager`: Central orchestrator for the entire service lifecycle
   - Extracts registrations from `ServiceRegistry`
   - Creates and manages `ManagedThreadHost` instances per thread group
   - Priority-based startup: highest priority services start first across all threads, then proceeds to lower priorities
   - Reverse-order shutdown: lowest priority services stop first, then higher priorities
   - Thread teardown after all services are stopped
+  - Rollback support on initialization failure
+  - `ExecutorContext`: Thread-safe lifetime tracking with weak pointer semantics
+  - `DispatchContext`: Combines executor and dispatcher for cross-thread operations
 
 - **Host Management**: Thread group-based service hosting
   - `ServiceHostBase`: Abstract base with shared lifecycle logic
@@ -41,6 +44,7 @@ A production-grade service framework with proper architecture:
   - `ManagedThreadServiceHost`: Owns dedicated thread with `io_context`
   - `ManagedThreadHost`: Manages thread lifecycle
   - `ManagedThreadServiceProvider`: Per-thread service provider with priority groups
+  - `ServiceHostProxy`: Proxy pattern for host operations
 
 - **Service Registry**: Central registration and discovery of services
   - Priority-based service launch ordering
@@ -61,6 +65,11 @@ A production-grade service framework with proper architecture:
   - `ASyncServiceBase`: Base implementation for async services
   - `ProcessResult`: Indicates sleep preferences and quit status
 
+- **Cross-Thread Communication**:
+  - `AsyncProxyHelper`: Utilities for safe cross-thread async method invocation
+  - Support for both executor and dispatch context patterns
+  - Exception handling for disposed objects
+
 - **Common Utilities**:
   - `AggregateException`: Multi-exception aggregation and handling
   - `SpdLogHelper`: Logging utilities
@@ -70,20 +79,26 @@ A production-grade service framework with proper architecture:
   - Aggregate exception handling
   - Managed thread service provider
   - Service host base
+  - Managed thread service host
+  - Cooperative thread service host
   - Process result
+  - Service provider and proxy
+  - Lifecycle manager
+  - Executor context
+  - Dispatch context
+  - Async proxy helper
 
 **Components Implemented:**
+- Complete lifecycle management with `LifecycleManager`
 - Service interfaces and lifecycle enums (Init/Process/Shutdown results)
 - Service registry with priority and thread group support
 - Service provider with dependency injection
 - Async service base class
 - Host implementations (`ServiceHostBase`, `CooperativeThreadHost`, `ManagedThreadHost`)
-- Thread management (`ManagedThreadHost`, `ManagedThreadServiceProvider`)
-- Exception types for registry, provider, and host
-- Unit test coverage for core components
-
-**Components In Development:**
-- `LifecycleManager`: Orchestrated multi-threaded service launching with priority coordination
+- Thread management with context tracking (`ExecutorContext`, `DispatchContext`)
+- Cross-thread communication utilities (`AsyncProxyHelper`)
+- Exception types for registry, provider, host, and lifecycle
+- Comprehensive unit test coverage
 
 ### Test3 - Placeholder
 Simple test program demonstrating Boost.System integration. Reserved for future experiments.
@@ -255,21 +270,40 @@ The project builds multiple executables:
 - **test1**: Test1 framework with unit tests (service framework basics)
 - **test2**: Test2 framework demonstration (Boost.Asio timer example)
 - **test3**: Test3 placeholder (Boost.System example)
-- **test_service_registry**: Unit tests for service registry
-- **test_aggregate_exception**: Unit tests for AggregateException
-- **test_managed_thread_service_provider**: Unit tests for managed thread service provider
+
+**Unit Test Executables:**
+- **test_service_registry**: Service registry functionality
+- **test_aggregate_exception**: AggregateException handling
+- **test_managed_thread_service_provider**: Per-thread service provider
+- **test_service_provider_proxy**: Service provider proxy pattern
+- **test_service_provider**: Service provider template methods
+- **test_service_host_base**: Service host base class logic
+- **test_managed_thread_service_host**: Managed thread host behavior
+- **test_cooperative_thread_service_host**: Cooperative thread host behavior
+- **test_process_result**: Process result enumeration
+- **test_lifecycle_manager**: Lifecycle manager orchestration
+- **test_executor_context**: Executor context lifetime tracking
+- **test_dispatch_context**: Dispatch context functionality
+- **test_async_proxy_helper**: Cross-thread async proxy utilities
 
 Run any executable from the build directory:
 ```powershell
 # Debug builds
 .\build\windows-vs2026\build\Debug\test1.exe
-.\build\windows-vs2026\build\Debug\test_service_registry.exe
+.\build\windows-vs2026\build\Debug\test_lifecycle_manager.exe
 
 # Release builds
 .\build\windows-vs2026\build\Release\test1.exe
 ```
 
 ## Architecture Highlights
+
+### Lifecycle Management
+- **LifecycleManager**: Orchestrates service startup and shutdown across multiple thread groups
+- **Priority-based coordination**: Highest priority services start first, shut down last
+- **Rollback support**: On initialization failure, successfully started services are cleanly rolled back
+- **ExecutorContext**: Thread-safe lifetime tracking for objects across threads using weak pointers
+- **DispatchContext**: Combines executor with dispatcher for cross-thread async operations
 
 ### Service Registry Pattern
 - Services register with priority levels and thread group assignments
@@ -287,9 +321,15 @@ Services implement a three-phase lifecycle:
 2. **Process**: `Process()` - Custom processing
 3. **Shutdown**: `co_await ShutdownAsync()` - Clean shutdown
 
+### Cross-Thread Communication
+- **AsyncProxyHelper**: Safe async method invocation across threads
+- Support for both executor and dispatch context patterns
+- Automatic lifetime checking with exception handling for disposed objects
+
 ### Exception Handling
 - `AggregateException`: Collects and reports multiple exceptions
-- Specific exception types for registry, provider, and host errors
+- Specific exception types for registry, provider, host, and lifecycle errors
+- Rollback exceptions captured and included in aggregate reports
 
 ## Architecture Documentation
 
