@@ -551,6 +551,8 @@ source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/Ser
 # Executable 11: ManagedThreadServiceHost test (thread-specific behavior)
 add_executable(test_managed_thread_service_host
     UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp
+    UnitTest/Test2/Host/TestManagedThreadLifecycle.cpp
+    UnitTest/Test2/Host/TestManagedThreadLifecycle.hpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
     src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
     src/Test2/Framework/Host/ServiceHostProxy.cpp
@@ -568,7 +570,7 @@ target_include_directories(test_managed_thread_service_host PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(test_managed_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
-source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp)
+source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp UnitTest/Test2/Host/TestManagedThreadLifecycle.cpp UnitTest/Test2/Host/TestManagedThreadLifecycle.hpp)
 
 # Executable 12: ProcessResult test
 add_executable(test_process_result

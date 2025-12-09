@@ -27,9 +27,11 @@
 #include <boost/asio/use_future.hpp>
 #include <gtest/gtest.h>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
 #include <typeindex>
+#include "TestManagedThreadLifecycle.hpp"
 
 namespace Test2
 {
@@ -159,10 +161,12 @@ namespace Test2
   protected:
     CooperativeThreadServiceHost m_testHost;
     ManagedThreadHost m_host;
+    TestManagedThreadLifecycle m_lifecycle;
     std::thread::id m_testThreadId;
 
     ManagedThreadHostTestFixtureBase()
-      : m_testThreadId(std::this_thread::get_id())
+      : m_lifecycle(m_host)
+      , m_testThreadId(std::this_thread::get_id())
     {
     }
 
@@ -183,13 +187,52 @@ namespace Test2
     /// @brief Start the managed thread.
     void StartHost()
     {
-      RunTest([this]() -> boost::asio::awaitable<void> { co_await m_host.StartAsync(); });
+      RunTest([this]() -> boost::asio::awaitable<void> { co_await m_lifecycle.StartAsync(); });
     }
 
-    /// @brief Stop the managed thread.
+    /// @brief Start services at the specified priority with automatic tracking for cleanup.
+    void StartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority priority)
+    {
+      RunTest([this, services = std::move(services), priority]() mutable -> boost::asio::awaitable<void>
+              { co_await m_lifecycle.StartServicesAsync(std::move(services), priority); });
+    }
+
+    /// @brief Shutdown services at the specified priority and track the shutdown.
+    std::vector<std::exception_ptr> ShutdownServicesAsync(ServiceLaunchPriority priority)
+    {
+      std::vector<std::exception_ptr> result;
+      RunTest([this, priority, &result]() -> boost::asio::awaitable<void> { result = co_await m_lifecycle.ShutdownServicesAsync(priority); });
+      return result;
+    }
+
+    /// @brief Stop the managed thread and all remaining services.
     void StopHost()
     {
-      RunTest([this]() -> boost::asio::awaitable<void> { co_await m_host.TryShutdownAsync(); });
+      std::vector<std::exception_ptr> errors;
+      RunTest([this, &errors]() -> boost::asio::awaitable<void> { errors = co_await m_lifecycle.TryShutdownAsync(); });
+
+      // Report any unexpected shutdown errors
+      if (!errors.empty())
+      {
+        std::ostringstream oss;
+        oss << "Service shutdown failed with " << errors.size() << " error(s): ";
+        for (size_t i = 0; i < errors.size(); ++i)
+        {
+          try
+          {
+            std::rethrow_exception(errors[i]);
+          }
+          catch (const std::exception& ex)
+          {
+            oss << "\n  [" << (i + 1) << "] " << ex.what();
+          }
+          catch (...)
+          {
+            oss << "\n  [" << (i + 1) << "] Unknown exception";
+          }
+        }
+        ADD_FAILURE() << oss.str();
+      }
     }
 
     /// @brief Create a mock service factory.
@@ -245,12 +288,11 @@ namespace Test2
     {
       StartHost();
     }
-
-    void TearDown() override
-    {
-      StopHost();
-    }
   };
+
+  // ========================================
+  // MANUAL API TESTS - Direct host API calls, bypass automatic lifecycle tracking
+  // ========================================
 
   // ========================================
   // Phase 3.5: Startup Failure Tests
@@ -296,6 +338,10 @@ namespace Test2
   }
 
   // ========================================
+  // AUTOMATIC LIFECYCLE TESTS - Use helper methods with automatic service tracking
+  // ========================================
+
+  // ========================================
   // Phase 4: Service Initialization Success
   // ========================================
 
@@ -303,9 +349,8 @@ namespace Test2
   {
     auto [services, trackers] = CreateTrackedServiceRecords({{"TestService", false, false}});
 
-    // Call TryStartServicesAsync from test thread - it will marshal to service thread
-    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+    // Use automatic lifecycle helper - services will be shut down in TearDown
+    StartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
 
     EXPECT_TRUE(trackers[0]->initCalled);
     EXPECT_FALSE(trackers[0]->shutdownCalled);
@@ -315,13 +360,17 @@ namespace Test2
   {
     auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}, {"Service2", false, false}, {"Service3", false, false}});
 
-    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+    // Use automatic lifecycle helper - services will be shut down in TearDown
+    StartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
 
     EXPECT_TRUE(trackers[0]->initCalled);
     EXPECT_TRUE(trackers[1]->initCalled);
     EXPECT_TRUE(trackers[2]->initCalled);
   }
+
+  // ========================================
+  // FAILURE SCENARIO TESTS - Test rollback and error handling, manual service management
+  // ========================================
 
   // ========================================
   // Phase 5: Init Failure with Rollback
@@ -397,20 +446,15 @@ namespace Test2
   {
     auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}, {"Service2", false, false}});
 
-    // Start services
-    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+    // Start services with automatic tracking
+    StartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
 
     EXPECT_TRUE(trackers[0]->initCalled);
     EXPECT_TRUE(trackers[1]->initCalled);
 
-    // Shutdown services
-    RunTest(
-      [this]() -> boost::asio::awaitable<void>
-      {
-        auto exceptions = co_await m_host.GetServiceHost()->TryShutdownServicesAsync(ServiceLaunchPriority(1000));
-        EXPECT_TRUE(exceptions.empty());
-      });
+    // Explicitly shutdown services and track the shutdown
+    auto exceptions = ShutdownServicesAsync(ServiceLaunchPriority(1000));
+    EXPECT_TRUE(exceptions.empty());
 
     EXPECT_TRUE(trackers[0]->shutdownCalled);
     EXPECT_TRUE(trackers[1]->shutdownCalled);
@@ -420,20 +464,15 @@ namespace Test2
   {
     auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, true}, {"Service2", false, false}});
 
-    // Start services
-    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+    // Start services with automatic tracking
+    StartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
 
     EXPECT_TRUE(trackers[0]->initCalled);
     EXPECT_TRUE(trackers[1]->initCalled);
 
-    // Shutdown services - one will fail
-    RunTest(
-      [this]() -> boost::asio::awaitable<void>
-      {
-        auto exceptions = co_await m_host.GetServiceHost()->TryShutdownServicesAsync(ServiceLaunchPriority(1000));
-        EXPECT_EQ(exceptions.size(), 1);    // One shutdown failure
-      });
+    // Shutdown services - one will fail, but we track the shutdown to prevent double cleanup
+    auto exceptions = ShutdownServicesAsync(ServiceLaunchPriority(1000));
+    EXPECT_EQ(exceptions.size(), 1);    // One shutdown failure
 
     EXPECT_TRUE(trackers[0]->shutdownCalled);    // Called even though it failed
     EXPECT_TRUE(trackers[1]->shutdownCalled);
@@ -443,17 +482,12 @@ namespace Test2
   {
     auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}});
 
-    // Start services at priority 1000
-    RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-            { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+    // Start services at priority 1000 with automatic tracking
+    StartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
 
     // Try to shutdown priority 2000 (doesn't exist)
-    RunTest(
-      [this]() -> boost::asio::awaitable<void>
-      {
-        auto exceptions = co_await m_host.GetServiceHost()->TryShutdownServicesAsync(ServiceLaunchPriority(2000));
-        EXPECT_TRUE(exceptions.empty());
-      });
+    auto exceptions = ShutdownServicesAsync(ServiceLaunchPriority(2000));
+    EXPECT_TRUE(exceptions.empty());
 
     EXPECT_FALSE(trackers[0]->shutdownCalled);    // Should not be called
   }
