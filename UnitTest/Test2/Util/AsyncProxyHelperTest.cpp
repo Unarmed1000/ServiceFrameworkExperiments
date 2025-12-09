@@ -178,7 +178,9 @@ namespace Test2
 
     void TearDown() override
     {
-      // Cleanup
+      // Stop any pending work and reset io_context to ensure clean state for next test
+      m_ioContext.stop();
+      m_ioContext.restart();
     }
   };
 
