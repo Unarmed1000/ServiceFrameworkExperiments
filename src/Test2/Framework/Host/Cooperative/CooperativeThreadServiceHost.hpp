@@ -74,18 +74,6 @@ namespace Test2
 
     ~CooperativeThreadServiceHost() override
     {
-      // Verify shutdown assumptions - log warnings for any violations
-      {
-        const auto serviceCount = m_provider->GetServiceCount();
-        if (serviceCount > 0)
-        {
-          spdlog::warn("CooperativeThreadServiceHost destroyed with {} services still registered", serviceCount);
-        }
-      }
-      if (!GetIoContext().stopped())
-      {
-        spdlog::warn("CooperativeThreadServiceHost destroyed while io_context has not been stopped");
-      }
       {
         std::lock_guard<std::mutex> lock(m_wakeMutex);
         if (m_wakeCallback)
@@ -120,8 +108,7 @@ namespace Test2
     /// @throws WrongThreadException if called from a thread other than the owner thread.
     std::size_t Poll()
     {
-      ValidateThreadAccess();
-      return GetIoContext().poll();
+      return DoPoll();
     }
 
     /// @brief Convenience method that polls the io_context and processes all services.
@@ -135,9 +122,12 @@ namespace Test2
     /// @throws WrongThreadException if called from a thread other than the owner thread.
     ProcessResult Update()
     {
-      ValidateThreadAccess();
-      Poll();
-      return ProcessServices();
+      return DoUpdate();
+    }
+
+    ProcessResult ProcessServices()
+    {
+      return DoProcessServices();
     }
 
     /// @brief Post work to the io_context and trigger the wake callback.
@@ -154,21 +144,14 @@ namespace Test2
       TriggerWake();
     }
 
-    ProcessResult ProcessServices()
-    {
-      ValidateThreadAccess();
-      return DoProcessServices();
-    }
-
     /// @brief Expose executor access for external coordination.
     using ServiceHostBase::GetExecutor;
-
     /// @brief Request the io_context to stop.
     ///
     /// This can be called from any thread to stop the io_context.
     void RequestStop()
     {
-      GetIoContext().stop();
+      m_ioContext.stop();
     }
 
   private:

@@ -50,12 +50,14 @@ namespace Test2
   class ServiceHostBase
   {
     std::thread::id m_ownerThreadId;
-    boost::asio::io_context m_ioContext;
 
   protected:
+    boost::asio::io_context m_ioContext;
+
+  public:
     std::shared_ptr<ManagedThreadServiceProvider> m_provider;
 
-
+  protected:
     /// @brief Record tracking service initialization state.
     struct ServiceInitRecord
     {
@@ -76,6 +78,20 @@ namespace Test2
         spdlog::error("ServiceHostBase destroyed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, std::this_thread::get_id());
       }
       assert(std::this_thread::get_id() == m_ownerThreadId && "ServiceHostBase must be destroyed on its owner thread");
+
+      // Verify shutdown assumptions - log warnings for any violations
+      {
+        const auto serviceCount = m_provider->GetServiceCount();
+        if (serviceCount > 0)
+        {
+          spdlog::warn("ServiceHostBase destroyed with {} services still registered", serviceCount);
+        }
+      }
+      if (!m_ioContext.stopped())
+      {
+        spdlog::warn("ServiceHostBase destroyed while io_context has not been stopped");
+        m_ioContext.stop();
+      }
     }
 
     ServiceHostBase(const ServiceHostBase&) = delete;
@@ -196,14 +212,6 @@ namespace Test2
       spdlog::trace("ServiceHostBase Created at {}", m_ownerThreadId);
     }
 
-    /// @brief Get the io_context for internal host operations.
-    /// @note This is protected to restrict direct io_context access. Use GetExecutor() for scheduling work.
-    /// @return Reference to the io_context.
-    boost::asio::io_context& GetIoContext()
-    {
-      return m_ioContext;
-    }
-
     /// @brief Validates that the current thread is the owner thread.
     /// @throws WrongThreadException if called from a different thread.
     void ValidateThreadAccess() const
@@ -234,6 +242,27 @@ namespace Test2
       }
 
       return result;
+    }
+
+    std::size_t DoPoll()
+    {
+      ValidateThreadAccess();
+      return m_ioContext.poll();
+    }
+
+    ProcessResult DoUpdate()
+    {
+      ValidateThreadAccess();
+      DoPoll();
+      return DoProcessServices();
+    }
+
+    void DoRun()
+    {
+      ValidateThreadAccess();
+      spdlog::trace("ServiceHostBase starting io_context run loop at {}", static_cast<void*>(this));
+      m_ioContext.run();
+      spdlog::trace("ServiceHostBase io_context run loop has exited at {}", static_cast<void*>(this));
     }
 
   private:
@@ -435,28 +464,28 @@ namespace Test2
     /// @tparam Func Callable type.
     /// @param func Function to execute.
     /// @return Awaitable with the function result.
-    template <typename Func>
-    auto call(Func&& func) -> boost::asio::awaitable<decltype(std::declval<std::decay_t<Func>>()())>
-    {
-      using ResultType = decltype(std::declval<std::decay_t<Func>>()());
+    // template <typename Func>
+    // auto call(Func&& func) -> boost::asio::awaitable<decltype(std::declval<std::decay_t<Func>>()())>
+    // {
+    //   using ResultType = decltype(std::declval<std::decay_t<Func>>()());
 
-      // Use co_spawn to execute on service thread
-      co_return co_await boost::asio::co_spawn(
-        GetExecutor(),
-        [func = std::forward<Func>(func)]() mutable -> boost::asio::awaitable<ResultType>
-        {
-          if constexpr (std::is_void_v<ResultType>)
-          {
-            func();
-            co_return;
-          }
-          else
-          {
-            co_return func();
-          }
-        },
-        boost::asio::use_awaitable);
-    }
+    //   // Use co_spawn to execute on service thread
+    //   co_return co_await boost::asio::co_spawn(
+    //     GetExecutor(),
+    //     [func = std::forward<Func>(func)]() mutable -> boost::asio::awaitable<ResultType>
+    //     {
+    //       if constexpr (std::is_void_v<ResultType>)
+    //       {
+    //         func();
+    //         co_return;
+    //       }
+    //       else
+    //       {
+    //         co_return func();
+    //       }
+    //     },
+    //     boost::asio::use_awaitable);
+    // }
   };
 }
 

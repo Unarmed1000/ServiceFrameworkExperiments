@@ -40,14 +40,14 @@ namespace Test2
     /// @param cancel_slot Optional cancellation slot to stop the io_context.
     explicit ManagedThreadServiceHost(boost::asio::cancellation_slot cancel_slot = {})
       : ServiceHostBase()
-      , m_work(boost::asio::make_work_guard(GetIoContext()))
+      , m_work(boost::asio::make_work_guard(m_ioContext))
     {
       spdlog::info("ManagedThreadServiceHost created at {}", static_cast<void*>(this));
 
       // Register cancellation handler to stop the io_context
       if (cancel_slot.is_connected())
       {
-        cancel_slot.assign([this](boost::asio::cancellation_type) { GetIoContext().stop(); });
+        cancel_slot.assign([this](boost::asio::cancellation_type) { m_ioContext.stop(); });
       }
     }
 
@@ -60,9 +60,7 @@ namespace Test2
 
     void Run()
     {
-      spdlog::trace("ManagedThreadServiceHost starting io_context run loop at {}", static_cast<void*>(this));
-      GetIoContext().run();
-      spdlog::trace("ManagedThreadServiceHost io_context run loop has exited at {}", static_cast<void*>(this));
+      DoRun();
     }
   };
 }
