@@ -13,9 +13,16 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Exception/ServiceProviderException.hpp>
 #include <Test2/Framework/Provider/IServiceProvider.hpp>
 #include <memory>
+#include <typeinfo>
+#include <vector>
+
+// Forward declarations
+namespace Test2
+{
+  class IService;
+}
 
 namespace Test2
 {
@@ -32,48 +39,18 @@ namespace Test2
   public:
     /// @brief Constructs a proxy wrapping the given service provider.
     /// @param provider The underlying service provider to wrap.
-    explicit ServiceProviderProxy(std::shared_ptr<IServiceProvider> provider)
-      : m_provider(std::move(provider))
-    {
-    }
+    explicit ServiceProviderProxy(std::shared_ptr<IServiceProvider> provider);
 
     /// @brief Clears the internal provider pointer, disconnecting the proxy.
     ///
     /// After calling this method, all service access attempts through this proxy
     /// will fail (throw exceptions or return null/false).
-    void Clear()
-    {
-      m_provider.reset();
-    }
+    void Clear();
 
     // IServiceProvider interface implementations
-
-    std::shared_ptr<IService> GetService(const std::type_info& type) const override
-    {
-      if (!m_provider)
-      {
-        throw ServiceProviderException("ServiceProvider has been cleared");
-      }
-      return m_provider->GetService(type);
-    }
-
-    std::shared_ptr<IService> TryGetService(const std::type_info& type) const override
-    {
-      if (!m_provider)
-      {
-        return nullptr;
-      }
-      return m_provider->TryGetService(type);
-    }
-
-    bool TryGetServices(const std::type_info& type, std::vector<std::shared_ptr<IService>>& rServices) const override
-    {
-      if (!m_provider)
-      {
-        return false;
-      }
-      return m_provider->TryGetServices(type, rServices);
-    }
+    std::shared_ptr<IService> GetService(const std::type_info& type) const override;
+    std::shared_ptr<IService> TryGetService(const std::type_info& type) const override;
+    bool TryGetServices(const std::type_info& type, std::vector<std::shared_ptr<IService>>& rServices) const override;
   };
 }
 

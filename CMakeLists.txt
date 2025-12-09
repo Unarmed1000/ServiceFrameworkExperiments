@@ -352,6 +352,7 @@ source_group("Source Files\\UnitTest\\Test1" FILES UnitTest/Test1/ServiceFramewo
 add_executable(test2
     src/test2.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
     src/Test2/Framework/Registry/ServiceRegistry.cpp
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Service/IServiceControl.hpp
@@ -506,6 +507,7 @@ source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/Man
 # Executable 8: ServiceProviderProxy test
 add_executable(test_service_provider_proxy
     UnitTest/Test2/Provider/ServiceProviderProxyTest.cpp
+    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Provider/IServiceProvider.hpp
     include/Test2/Framework/Provider/ServiceProviderProxy.hpp
