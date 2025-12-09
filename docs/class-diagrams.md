@@ -10,6 +10,7 @@ This document provides Mermaid class diagrams documenting the Test2 service fram
 - [Registry Layer](#registry-layer)
 - [Provider Layer](#provider-layer)
 - [Service Layer](#service-layer)
+- [Util Layer](#util-layer)
 - [Service Implementations](#service-implementations)
 - [Exception Hierarchy](#exception-hierarchy)
 - [Sequence Diagrams](#sequence-diagrams)
@@ -44,22 +45,48 @@ classDiagram
 
 ## Lifecycle Layer
 
-The `LifecycleManager` orchestrates the entire service lifecycle, coordinating startup and shutdown across thread groups with priority ordering.
+The `LifecycleManager` orchestrates the entire service lifecycle, coordinating startup and shutdown across thread groups with priority ordering. `ExecutorContext` and `DispatchContext` provide thread-safe lifetime tracking and cross-thread operation support.
 
 ```mermaid
 classDiagram
-    direction LR
+    direction TB
 
     class LifecycleManager {
-        +StartServices() awaitable~void~
-        +ShutdownServices() awaitable~void~
+        +StartServicesAsync() awaitable~void~
+        +ShutdownServicesAsync() awaitable~void~
+        +Update() ProcessResult
+        +Poll() size_t
     }
 
+    class LifecycleManagerConfig {
+        <<struct>>
+    }
+
+    class ExecutorContext~T~ {
+        +GetExecutor() any_io_executor
+        +GetWeakPtr() weak_ptr~T~
+        +TryLock() shared_ptr~T~
+        +IsAlive() bool
+    }
+
+    class DispatchContext~T~ {
+        +GetExecutor() any_io_executor
+        +GetDispatcher() Dispatcher
+        +GetWeakPtr() weak_ptr~T~
+        +TryLock() shared_ptr~T~
+        +IsAlive() bool
+    }
+
+    class CooperativeThreadHost
     class ServiceRegistry
     class ManagedThreadHost
 
+    LifecycleManager --> LifecycleManagerConfig : configured by
     LifecycleManager --> ServiceRegistry : extracts registrations
-    LifecycleManager --> "1..*" ManagedThreadHost : creates & manages
+    LifecycleManager --> CooperativeThreadHost : owns main thread host
+    LifecycleManager --> "0..*" ManagedThreadHost : creates & manages
+    CooperativeThreadHost --> ExecutorContext : provides
+    ManagedThreadHost --> ExecutorContext : provides
 ```
 
 ---
@@ -95,7 +122,21 @@ classDiagram
         +StartAsync() awaitable~ManagedThreadRecord~
         +Stop()
         +GetIoContext() io_context
-        +GetServiceHost() ManagedThreadServiceHost
+        +GetServiceHost() ServiceHostProxy
+        +GetExecutorContext() ExecutorContext
+    }
+
+    class ServiceHostProxy {
+        +TryStartServicesAsync() awaitable~void~
+        +TryShutdownServicesAsync() vector~exception_ptr~
+        +Update() ProcessResult
+        +Poll() size_t
+    }
+
+    class IThreadSafeServiceHost {
+        <<interface>>
+        +TryStartServicesAsync() awaitable~void~
+        +TryShutdownServicesAsync() vector~exception_ptr~
     }
 
     class ManagedThreadServiceProvider {
@@ -110,9 +151,12 @@ classDiagram
     ServiceHostBase <|-- CooperativeThreadServiceHost
     ServiceHostBase <|-- ManagedThreadServiceHost
     ServiceHostBase --> ManagedThreadServiceProvider : owns
+    IThreadSafeServiceHost <|.. ServiceHostBase
 
     ManagedThreadHost *-- ManagedThreadServiceHost : contains
     ManagedThreadHost ..> ManagedThreadRecord : creates
+    ServiceHostProxy --> IThreadSafeServiceHost : wraps
+    ManagedThreadHost --> ServiceHostProxy : provides
 ```
 
 ---
@@ -275,6 +319,44 @@ classDiagram
 
 ---
 
+## Util Layer
+
+Utilities for cross-thread communication and safe async method invocation.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class AsyncProxyHelper {
+        <<utility>>
+        +InvokeAsync(ExecutorContext, method, args)$ awaitable~Result~
+        +TryInvokeAsync(ExecutorContext, method, args)$ awaitable~optional~Result~~
+        +InvokeAsync(DispatchContext, method, args)$ awaitable~Result~
+        +TryInvokeAsync(DispatchContext, method, args)$ awaitable~optional~Result~~
+        +TryInvokePost(ExecutorContext, method, args)$ bool
+        +DispatchInvokeAsync(DispatchContext, method, args)$ awaitable~Result~
+    }
+
+    class ExecutorContext~T~ {
+        +GetExecutor() any_io_executor
+        +TryLock() shared_ptr~T~
+    }
+
+    class DispatchContext~T~ {
+        +GetExecutor() any_io_executor
+        +GetDispatcher() Dispatcher
+        +TryLock() shared_ptr~T~
+    }
+
+    class ServiceDisposedException
+
+    AsyncProxyHelper ..> ExecutorContext : uses
+    AsyncProxyHelper ..> DispatchContext : uses
+    AsyncProxyHelper ..> ServiceDisposedException : throws when object disposed
+```
+
+---
+
 ## Service Implementations
 
 Concrete service implementations demonstrating the dual inheritance pattern (extends `ASyncServiceBase` and implements service-specific interface).
@@ -376,8 +458,10 @@ classDiagram
 
     class AggregateException
     class MultipleServicesFoundException
+    class ServiceDisposedException
     class ServiceProviderException
     class UnknownServiceException
+    class WrongThreadException
 
     class DuplicateServiceRegistrationException
     class EmptyPriorityGroupException
@@ -393,8 +477,10 @@ classDiagram
 
     std_runtime_error <|-- AggregateException
     std_runtime_error <|-- MultipleServicesFoundException
+    std_runtime_error <|-- ServiceDisposedException
     std_runtime_error <|-- ServiceProviderException
     std_runtime_error <|-- UnknownServiceException
+    std_runtime_error <|-- WrongThreadException
 
     std_logic_error <|-- DuplicateServiceRegistrationException
     std_logic_error <|-- EmptyPriorityGroupException
