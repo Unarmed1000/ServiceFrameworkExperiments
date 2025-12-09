@@ -186,6 +186,12 @@ namespace Test2
       RunTest([this]() -> boost::asio::awaitable<void> { co_await m_host.StartAsync(); });
     }
 
+    /// @brief Stop the managed thread.
+    void StopHost()
+    {
+      RunTest([this]() -> boost::asio::awaitable<void> { co_await m_host.TryShutdownAsync(); });
+    }
+
     /// @brief Create a mock service factory.
     std::unique_ptr<MockServiceFactory> CreateMockFactory(const std::string& name, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr,
                                                           bool initFails = false, bool shutdownFails = false)
@@ -219,11 +225,18 @@ namespace Test2
       auto serviceThreadId = std::this_thread::get_id();
       EXPECT_NE(m_testThreadId, serviceThreadId) << "Test should execute on different thread from service thread";
     }
+
+    void TearDown() override
+    {
+      // Always stop the host in teardown to ensure cleanup
+      StopHost();
+    }
   };
 
   /// @brief Auto-started fixture for ManagedThreadHost tests.
   ///
-  /// Automatically starts the host in SetUp() and stops it in TearDown().
+  /// Automatically starts the host in SetUp().
+  /// Tests should explicitly call StopHost() before completion if needed.
   /// Use this for most tests that just need a running host.
   class ManagedThreadHostTestFixture : public ManagedThreadHostTestFixtureBase
   {

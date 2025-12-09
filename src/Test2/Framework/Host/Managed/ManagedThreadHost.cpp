@@ -107,7 +107,17 @@ namespace Test2
       co_return false;
     }
 
-    co_return co_await m_serviceHostProxy->TryRequestShutdownAsync();
+    bool result = co_await m_serviceHostProxy->TryRequestShutdownAsync();
+
+    // Wait for the thread to complete after requesting shutdown
+    if (m_thread.joinable())
+    {
+      auto executor = co_await boost::asio::this_coro::executor;
+      co_await boost::asio::post(executor, boost::asio::use_awaitable);
+      m_thread.join();
+    }
+
+    co_return result;
   }
 
 
