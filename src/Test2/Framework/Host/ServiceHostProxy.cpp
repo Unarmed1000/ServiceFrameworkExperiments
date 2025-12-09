@@ -84,4 +84,24 @@ namespace Test2
     co_return co_await boost::asio::co_spawn(m_executor, DoTryRequestShutdownAsync(m_service), boost::asio::use_awaitable);
   }
 
+  bool ServiceHostProxy::TryRequestShutdown() noexcept
+  {
+    try
+    {
+      boost::asio::post(m_executor,
+                        [service = m_service]()
+                        {
+                          if (auto servicePtr = service.lock())
+                          {
+                            servicePtr->RequestShutdown();
+                          }
+                        });
+      return true;
+    }
+    catch (...)
+    {
+      return false;
+    }
+  }
+
 }

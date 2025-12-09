@@ -54,6 +54,11 @@ namespace Test2
 
     //! @brief Attempts to request shutdown of the service host.
     boost::asio::awaitable<bool> TryRequestShutdownAsync();
+
+    //! @brief Synchronously posts a shutdown request to the service host's thread.
+    //! @note This is safe to call from any thread, including destructors.
+    //! @return true if the shutdown request was posted successfully, false otherwise.
+    bool TryRequestShutdown() noexcept;
   };
 }
 

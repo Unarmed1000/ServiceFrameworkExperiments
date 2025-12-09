@@ -15,6 +15,7 @@
 #include <Test2/Framework/Host/ServiceHostProxy.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <spdlog/spdlog.h>
 #include <future>
 #include <stdexcept>
 #include "../ServiceHostBase.hpp"
@@ -28,16 +29,21 @@ namespace Test2
 
   ManagedThreadHost::~ManagedThreadHost()
   {
-    // Signal cancellation to stop the io_context
-    m_cancellationSignal.emit(boost::asio::cancellation_type::terminal);
-
     if (m_thread.joinable())
     {
+      spdlog::warn("ManagedThreadHost::~ManagedThreadHost: thread has not been properly shut down, forcing join");
+
+      if (m_serviceHostProxy)
+      {
+        spdlog::warn("ManagedThreadHost::~ManagedThreadHost: requesting shutdown of service host");
+        m_serviceHostProxy->TryRequestShutdown();
+      }
+
       m_thread.join();
     }
   }
 
-  boost::asio::awaitable<ManagedThreadRecord> ManagedThreadHost::StartAsync(boost::asio::cancellation_slot cancel_slot)
+  boost::asio::awaitable<ManagedThreadRecord> ManagedThreadHost::StartAsync()
   {
     // Guard against multiple starts
     if (m_thread.joinable())
@@ -50,16 +56,13 @@ namespace Test2
     auto startedPromise = std::make_shared<std::promise<void>>();
     auto startedFuture = startedPromise->get_future();
 
-    // Create parent cancellation signal that will be shared across thread boundary
-    auto parentCancellationSignal = std::make_shared<boost::asio::cancellation_signal>();
-
     m_thread = std::thread(
-      [this, lifetimePromise, startedPromise, parentCancellationSignal]()
+      [this, lifetimePromise, startedPromise]()
       {
         try
         {
           // Construct the service host ON THIS THREAD with parent cancellation slot
-          auto serviceHost = std::make_shared<ManagedThreadServiceHost>(parentCancellationSignal->slot());
+          auto serviceHost = std::make_shared<ManagedThreadServiceHost>();
           m_serviceHostProxy = std::make_shared<ServiceHostProxy>(serviceHost);
 
           // Signal that thread has started
@@ -80,13 +83,9 @@ namespace Test2
     // Wait for thread to start and serviceHost to be assigned
     startedFuture.wait();
 
-    // Register internal cancellation signal to emit parent signal
-    m_cancellationSignal.slot().assign([parentCancellationSignal](boost::asio::cancellation_type type) { parentCancellationSignal->emit(type); });
-
-    // Register external cancellation slot to emit parent signal if provided
-    if (cancel_slot.is_connected())
+    if (!m_serviceHostProxy)
     {
-      cancel_slot.assign([parentCancellationSignal](boost::asio::cancellation_type type) { parentCancellationSignal->emit(type); });
+      throw std::runtime_error("ManagedThreadHost failed to start service host");
     }
 
     // Create the lifetime awaitable from the future
@@ -103,12 +102,12 @@ namespace Test2
   boost::asio::awaitable<bool> ManagedThreadHost::TryShutdownAsync()
   {
     // Guard against multiple starts
-    if (!m_thread.joinable() || m_serviceHostProxy)
+    if (!m_thread.joinable() || !m_serviceHostProxy)
     {
       co_return false;
     }
 
-    co_return true;
+    co_return co_await m_serviceHostProxy->TryRequestShutdownAsync();
   }
 
 

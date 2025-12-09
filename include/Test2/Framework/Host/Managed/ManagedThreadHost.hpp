@@ -15,18 +15,18 @@
 
 #include <Test2/Framework/Host/IThreadSafeServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadRecord.hpp>
-#include <boost/asio/cancellation_signal.hpp>
 #include <memory>
 #include <thread>
 
 namespace Test2
 {
+  class ServiceHostProxy;
+
   /// @brief Manages a thread that runs a ManagedThreadServiceHost.
   class ManagedThreadHost
   {
-    std::shared_ptr<IThreadSafeServiceHost> m_serviceHostProxy;
+    std::shared_ptr<ServiceHostProxy> m_serviceHostProxy;
     std::thread m_thread;
-    boost::asio::cancellation_signal m_cancellationSignal;
 
   public:
     ManagedThreadHost();
@@ -39,7 +39,7 @@ namespace Test2
     /// @brief Starts the managed thread.
     /// @param cancel_slot Cancellation slot to stop the thread.
     /// @return An awaitable that completes when the thread has started, containing a ManagedThreadRecord with the lifetime awaitable.
-    boost::asio::awaitable<ManagedThreadRecord> StartAsync(boost::asio::cancellation_slot cancel_slot = {});
+    boost::asio::awaitable<ManagedThreadRecord> StartAsync();
     boost::asio::awaitable<bool> TryShutdownAsync();
 
     std::shared_ptr<IThreadSafeServiceHost> GetServiceHost();

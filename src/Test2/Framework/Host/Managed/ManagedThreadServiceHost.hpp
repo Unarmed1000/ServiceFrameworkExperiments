@@ -38,17 +38,11 @@ namespace Test2
   public:
     /// @brief Constructs a ManagedThreadServiceHost.
     /// @param cancel_slot Optional cancellation slot to stop the io_context.
-    explicit ManagedThreadServiceHost(boost::asio::cancellation_slot cancel_slot = {})
+    explicit ManagedThreadServiceHost()
       : ServiceHostBase()
       , m_work(boost::asio::make_work_guard(m_ioContext))
     {
       spdlog::info("ManagedThreadServiceHost created at {}", static_cast<void*>(this));
-
-      // Register cancellation handler to stop the io_context
-      if (cancel_slot.is_connected())
-      {
-        cancel_slot.assign([this](boost::asio::cancellation_type) { m_ioContext.stop(); });
-      }
     }
 
     ~ManagedThreadServiceHost() override
