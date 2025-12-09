@@ -171,6 +171,7 @@ For Debug:
 ```powershell
 .\build\windows-vs2026\build\Debug\main_app.exe
 .\build\windows-vs2026\build\Debug\test1.exe
+.\build\windows-vs2026\build\Debug\test_lifecycle_manager.exe
 .\build\windows-vs2026\build\Debug\test_service_registry.exe
 ```
 
@@ -178,6 +179,7 @@ For Release:
 ```powershell
 .\build\windows-vs2026\build\Release\main_app.exe
 .\build\windows-vs2026\build\Release\test1.exe
+.\build\windows-vs2026\build\Release\test_lifecycle_manager.exe
 ```
 
 ## Quick Start (One-liner)
@@ -227,9 +229,11 @@ ServiceFramework2025/
 │   ├── test2.cpp
 │   ├── test3.cpp
 │   └── Test2/
-│       └── Service/
-│           └── Provider/
-│               └── ServiceProvider.cpp
+│       └── Framework/
+│           ├── Config/      # Thread group configuration
+│           ├── Host/        # Host implementations
+│           ├── Provider/    # Service provider implementations
+│           └── Registry/    # Service registry implementation
 ├── include/             # Header files
 │   ├── Common/          # Shared utilities (AggregateException, SpdLogHelper, etc.)
 │   ├── Test1/           # Test1 service framework headers
@@ -237,17 +241,22 @@ ServiceFramework2025/
 │       ├── Framework/
 │       │   ├── Exception/   # Framework-specific exceptions
 │       │   ├── Host/        # Thread management and hosting
-│       │   ├── Lifecycle/   # LifecycleManager orchestration
+│       │   ├── Lifecycle/   # LifecycleManager orchestration and context tracking
 │       │   ├── Provider/    # Dependency injection
 │       │   ├── Registry/    # Service registration system
-│       │   └── Service/     # Service interfaces and lifecycle
+│       │   ├── Service/     # Service interfaces and lifecycle
+│       │   └── Util/        # Cross-thread utilities (AsyncProxyHelper)
 │       └── Services/        # Concrete service implementations
 ├── UnitTest/            # Unit tests
 │   ├── Common/          # Common utility tests
 │   ├── Test1/           # Test1 framework tests
 │   └── Test2/
+│       ├── Host/        # Host tests
+│       ├── Lifecycle/   # Lifecycle and context tests
+│       ├── Provider/    # Provider tests
 │       ├── Registry/    # Registry tests
-│       └── Host/        # Host tests
+│       ├── Service/     # Service tests
+│       └── Util/        # Utility tests
 └── build/               # Build outputs (not in git)
     └── windows-vs2026/  # Default build directory
         └── build/       # CMake build output
