@@ -20,6 +20,7 @@
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
+#include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
 #include <Test2/Framework/Provider/ServiceProvider.hpp>
 #include <Test2/Framework/Provider/ServiceProviderProxy.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
@@ -47,7 +48,7 @@ namespace Test2
   /// Thread Safety:
   /// - TryStartServicesAsync() and TryShutdownServicesAsync() can be called from any thread
   /// - All other methods must be called from the service thread (m_ioContext's thread)
-  class ServiceHostBase
+  class ServiceHostBase : ILifeTracker
   {
     std::thread::id m_ownerThreadId;
     bool m_shutdownRequested{false};
