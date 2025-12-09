@@ -15,6 +15,7 @@
 
 #include <Test2/Framework/Host/IThreadSafeServiceHost.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
+#include <Test2/Framework/Lifecycle/ExecutorContext.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/awaitable.hpp>
@@ -36,15 +37,13 @@ namespace Test2
   /// to the target executor using co_spawn.
   class ServiceHostProxy final : public IThreadSafeServiceHost
   {
-    ///! Weak pointer to the lifetime of the service host.
-    std::weak_ptr<ServiceHostBase> m_service;
-    boost::asio::any_io_executor m_executor;
+    ///! Executor context for the service host (contains weak_ptr and executor).
+    Lifecycle::ExecutorContext<ServiceHostBase> m_context;
 
   public:
-    /// @brief Constructs a proxy that marshals operations to the given executor.
-    /// @param service Weak pointer to the service host.
-    /// @param executor The executor of the target service host's io_context.
-    explicit ServiceHostProxy(std::shared_ptr<ServiceHostBase> service);
+    /// @brief Constructs a proxy that marshals operations to the given service host.
+    /// @param context Executor context containing the service host and its executor.
+    explicit ServiceHostProxy(Lifecycle::ExecutorContext<ServiceHostBase> context);
     ~ServiceHostProxy();
 
     //! @see IThreadSafeServiceHost

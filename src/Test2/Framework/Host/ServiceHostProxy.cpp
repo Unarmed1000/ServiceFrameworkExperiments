@@ -21,9 +21,8 @@ namespace Test2
 {
   inline constexpr const char kProxyName[] = "ServiceHostProxy";
 
-  ServiceHostProxy::ServiceHostProxy(std::shared_ptr<ServiceHostBase> service)
-    : m_service(service)
-    , m_executor(service->GetExecutor())
+  ServiceHostProxy::ServiceHostProxy(Lifecycle::ExecutorContext<ServiceHostBase> context)
+    : m_context(std::move(context))
   {
   }
 
@@ -33,22 +32,22 @@ namespace Test2
   boost::asio::awaitable<void> ServiceHostProxy::TryStartServicesAsync(std::vector<StartServiceRecord> services,
                                                                        const ServiceLaunchPriority currentPriority)
   {
-    co_await Util::InvokeAsync<kProxyName>(m_executor, m_service, &ServiceHostBase::TryStartServicesAsync, std::move(services), currentPriority);
+    co_await Util::InvokeAsync<kProxyName>(m_context, &ServiceHostBase::TryStartServicesAsync, std::move(services), currentPriority);
   }
 
   boost::asio::awaitable<std::vector<std::exception_ptr>> ServiceHostProxy::TryShutdownServicesAsync(const ServiceLaunchPriority priority)
   {
-    co_return co_await Util::InvokeAsync<kProxyName>(m_executor, m_service, &ServiceHostBase::TryShutdownServicesAsync, priority);
+    co_return co_await Util::InvokeAsync<kProxyName>(m_context, &ServiceHostBase::TryShutdownServicesAsync, priority);
   }
 
   boost::asio::awaitable<bool> ServiceHostProxy::TryRequestShutdownAsync()
   {
-    co_return co_await Util::TryInvokeAsync<kProxyName>(m_executor, m_service, &ServiceHostBase::RequestShutdown);
+    co_return co_await Util::TryInvokeAsync<kProxyName>(m_context, &ServiceHostBase::RequestShutdown);
   }
 
   bool ServiceHostProxy::TryRequestShutdown() noexcept
   {
-    return Util::TryInvokePost(m_executor, m_service, &ServiceHostBase::RequestShutdown);
+    return Util::TryInvokePost(m_context, &ServiceHostBase::RequestShutdown);
   }
 
 }
