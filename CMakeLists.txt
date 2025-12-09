@@ -479,6 +479,7 @@ source_group("Source Files\\UnitTest\\Test2\\Registry" FILES UnitTest/Test2/Regi
 # Executable 6: AggregateException test
 add_executable(test_aggregate_exception
     UnitTest/Common/AggregateExceptionTest.cpp
+    src/Common/AggregateException.cpp
     include/Common/AggregateException.hpp
 )
 configure_target(test_aggregate_exception)
@@ -531,6 +532,7 @@ source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Prov
 # Executable 10: ServiceHostBase test (shared logic, uses CooperativeThreadServiceHost internal implementation for simplicity)
 add_executable(test_service_host_base
     UnitTest/Test2/Host/ServiceHostBaseTest.cpp
+    src/Common/AggregateException.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
     include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
     include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
@@ -553,6 +555,7 @@ add_executable(test_managed_thread_service_host
     UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp
     UnitTest/Test2/Host/TestManagedThreadLifecycle.cpp
     UnitTest/Test2/Host/TestManagedThreadLifecycle.hpp
+    src/Common/AggregateException.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
     src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
     src/Test2/Framework/Host/ServiceHostProxy.cpp
@@ -586,6 +589,7 @@ source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Servi
 # Executable 13: CooperativeThreadServiceHost test (tests internal implementation)
 add_executable(test_cooperative_thread_service_host
     UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp
+    src/Common/AggregateException.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
     src/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
     src/Test2/Framework/Host/ServiceHostBase.hpp
@@ -604,6 +608,7 @@ source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/Coo
 # Executable 14: LifecycleManager test
 add_executable(test_lifecycle_manager
     UnitTest/Test2/Lifecycle/LifecycleManagerTest.cpp
+    src/Common/AggregateException.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
     include/Test2/Framework/Lifecycle/LifecycleManager.hpp
     include/Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp

@@ -14,11 +14,9 @@
 //****************************************************************************************************************************************************
 
 #include <exception>
-#include <memory>
-#include <sstream>
+#include <initializer_list>
 #include <stdexcept>
 #include <string>
-#include <typeinfo>
 #include <vector>
 
 namespace Common
@@ -37,75 +35,43 @@ namespace Common
     /// @param message Custom message or empty for default.
     /// @param exceptions The inner exceptions.
     /// @return The formatted message string.
-    static std::string GenerateMessage(const std::string& message, const std::vector<std::exception_ptr>& /*exceptions*/)
-    {
-      if (!message.empty())
-      {
-        return message;
-      }
-      return "One or more errors occurred.";
-    }
+    static std::string GenerateMessage(const std::string& message, const std::vector<std::exception_ptr>& exceptions);
 
     /// @brief Validates that the exception vector is not empty.
     /// @param exceptions The exceptions to validate.
     /// @throws std::invalid_argument if the vector is empty.
-    static void ValidateNonEmpty(const std::vector<std::exception_ptr>& exceptions)
-    {
-      if (exceptions.empty())
-      {
-        throw std::invalid_argument("The innerExceptions argument must contain at least one exception.");
-      }
-    }
+    static void ValidateNonEmpty(const std::vector<std::exception_ptr>& exceptions);
+
+    /// @brief Helper function to recursively flatten nested AggregateExceptions.
+    /// @param exceptions The exceptions to flatten.
+    /// @param result The output vector for flattened exceptions.
+    static void FlattenHelper(const std::vector<std::exception_ptr>& exceptions, std::vector<std::exception_ptr>& result);
 
   public:
     /// @brief Default constructor that creates an AggregateException with no inner exceptions.
-    AggregateException()
-      : std::runtime_error("One or more errors occurred.")
-      , m_innerExceptions()
-    {
-    }
+    AggregateException();
 
     /// @brief Initializes a new instance of the AggregateException class with a collection of exception pointers.
     /// @param innerExceptions The exceptions that are the cause of the current exception.
     /// @throws std::invalid_argument if innerExceptions is empty.
-    explicit AggregateException(std::vector<std::exception_ptr> innerExceptions)
-      : std::runtime_error(GenerateMessage("", innerExceptions))
-      , m_innerExceptions(std::move(innerExceptions))
-    {
-      ValidateNonEmpty(m_innerExceptions);
-    }
+    explicit AggregateException(std::vector<std::exception_ptr> innerExceptions);
 
     /// @brief Initializes a new instance of the AggregateException class with a custom message and a collection of exception pointers.
     /// @param message The error message that explains the reason for the exception.
     /// @param innerExceptions The exceptions that are the cause of the current exception.
     /// @throws std::invalid_argument if innerExceptions is empty.
-    AggregateException(const std::string& message, std::vector<std::exception_ptr> innerExceptions)
-      : std::runtime_error(GenerateMessage(message, innerExceptions))
-      , m_innerExceptions(std::move(innerExceptions))
-    {
-      ValidateNonEmpty(m_innerExceptions);
-    }
+    AggregateException(const std::string& message, std::vector<std::exception_ptr> innerExceptions);
 
     /// @brief Initializes a new instance of the AggregateException class with an initializer list of exception pointers.
     /// @param innerExceptions The exceptions that are the cause of the current exception.
     /// @throws std::invalid_argument if innerExceptions is empty.
-    AggregateException(std::initializer_list<std::exception_ptr> innerExceptions)
-      : std::runtime_error(GenerateMessage("", std::vector<std::exception_ptr>(innerExceptions)))
-      , m_innerExceptions(innerExceptions)
-    {
-      ValidateNonEmpty(m_innerExceptions);
-    }
+    AggregateException(std::initializer_list<std::exception_ptr> innerExceptions);
 
     /// @brief Initializes a new instance of the AggregateException class with a custom message and an initializer list of exception pointers.
     /// @param message The error message that explains the reason for the exception.
     /// @param innerExceptions The exceptions that are the cause of the current exception.
     /// @throws std::invalid_argument if innerExceptions is empty.
-    AggregateException(const std::string& message, std::initializer_list<std::exception_ptr> innerExceptions)
-      : std::runtime_error(GenerateMessage(message, std::vector<std::exception_ptr>(innerExceptions)))
-      , m_innerExceptions(innerExceptions)
-    {
-      ValidateNonEmpty(m_innerExceptions);
-    }
+    AggregateException(const std::string& message, std::initializer_list<std::exception_ptr> innerExceptions);
 
     /// @brief Template constructor that accepts a container of any exception types.
     /// @tparam TContainer A container type (e.g., std::vector, std::list) of exception objects.
@@ -143,121 +109,36 @@ namespace Common
 
     /// @brief Gets a read-only collection of the inner exceptions.
     /// @return A const reference to the vector of exception pointers.
-    const std::vector<std::exception_ptr>& GetInnerExceptions() const noexcept
-    {
-      return m_innerExceptions;
-    }
+    const std::vector<std::exception_ptr>& GetInnerExceptions() const noexcept;
 
     /// @brief Gets the number of inner exceptions.
     /// @return The count of inner exceptions.
-    size_t InnerExceptionCount() const noexcept
-    {
-      return m_innerExceptions.size();
-    }
+    size_t InnerExceptionCount() const noexcept;
 
     /// @brief Gets the first inner exception from the innermost AggregateException.
     /// @return An exception_ptr to the base exception.
-    std::exception_ptr GetBaseException() const noexcept
-    {
-      if (m_innerExceptions.empty())
-      {
-        return nullptr;
-      }
-      return m_innerExceptions.front();
-    }
+    std::exception_ptr GetBaseException() const noexcept;
 
     /// @brief Flattens the AggregateException hierarchy into a single AggregateException.
     ///
     /// This method recursively unwraps all nested AggregateException instances and returns
     /// a new AggregateException containing all the leaf exceptions.
     /// @return A new AggregateException with all nested exceptions flattened.
-    AggregateException Flatten() const
-    {
-      std::vector<std::exception_ptr> flattened;
-      FlattenHelper(m_innerExceptions, flattened);
-      return AggregateException(std::move(flattened));
-    }
+    AggregateException Flatten() const;
 
     /// @brief Returns a detailed string representation of the exception and all inner exceptions.
     /// @return A formatted string with exception details.
-    std::string ToString() const
-    {
-      std::ostringstream oss;
-      oss << what() << "\n";
-
-      for (size_t i = 0; i < m_innerExceptions.size(); ++i)
-      {
-        oss << "  [" << i << "] ";
-        try
-        {
-          if (m_innerExceptions[i])
-          {
-            std::rethrow_exception(m_innerExceptions[i]);
-          }
-          else
-          {
-            oss << "(null exception)";
-          }
-        }
-        catch (const std::exception& ex)
-        {
-          oss << typeid(ex).name() << ": " << ex.what();
-        }
-        catch (...)
-        {
-          oss << "(unknown exception type)";
-        }
-        if (i < m_innerExceptions.size() - 1)
-        {
-          oss << "\n";
-        }
-      }
-
-      return oss.str();
-    }
+    std::string ToString() const;
 
     /// @brief Returns an iterator to the beginning of the inner exceptions collection.
     /// @return A const iterator to the first element.
-    std::vector<std::exception_ptr>::const_iterator begin() const noexcept
-    {
-      return m_innerExceptions.begin();
-    }
+    std::vector<std::exception_ptr>::const_iterator begin() const noexcept;
 
     /// @brief Returns an iterator to the end of the inner exceptions collection.
     /// @return A const iterator to the element following the last element.
-    std::vector<std::exception_ptr>::const_iterator end() const noexcept
-    {
-      return m_innerExceptions.end();
-    }
+    std::vector<std::exception_ptr>::const_iterator end() const noexcept;
 
   private:
-    /// @brief Helper function to recursively flatten nested AggregateExceptions.
-    /// @param exceptions The exceptions to flatten.
-    /// @param result The output vector for flattened exceptions.
-    static void FlattenHelper(const std::vector<std::exception_ptr>& exceptions, std::vector<std::exception_ptr>& result)
-    {
-      for (const auto& exPtr : exceptions)
-      {
-        try
-        {
-          if (exPtr)
-          {
-            std::rethrow_exception(exPtr);
-          }
-        }
-        catch (const AggregateException& aggEx)
-        {
-          // Recursively flatten nested AggregateExceptions
-          FlattenHelper(aggEx.GetInnerExceptions(), result);
-        }
-        catch (...)
-        {
-          // Not an AggregateException, add to result
-          result.push_back(exPtr);
-        }
-      }
-    }
-
     /// @brief Converts a container of exception objects to a vector of exception_ptr.
     /// @tparam TContainer A container type of exception objects.
     /// @param exceptions The container of exceptions to convert.
