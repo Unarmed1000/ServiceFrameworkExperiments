@@ -645,3 +645,30 @@ target_include_directories(test_lifecycle_manager PRIVATE
 )
 target_link_libraries(test_lifecycle_manager PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Lifecycle" FILES UnitTest/Test2/Lifecycle/LifecycleManagerTest.cpp)
+
+# Executable 15: ExecutorContext test
+add_executable(test_executor_context
+    UnitTest/Test2/Lifecycle/ExecutorContextTest.cpp
+    include/Test2/Framework/Lifecycle/ExecutorContext.hpp
+)
+configure_target(test_executor_context)
+target_include_directories(test_executor_context PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(test_executor_context PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Lifecycle" FILES UnitTest/Test2/Lifecycle/ExecutorContextTest.cpp)
+
+# Executable 16: DispatchContext test
+add_executable(test_dispatch_context
+    UnitTest/Test2/Lifecycle/DispatchContextTest.cpp
+    include/Test2/Framework/Lifecycle/DispatchContext.hpp
+    include/Test2/Framework/Lifecycle/ExecutorContext.hpp
+)
+configure_target(test_dispatch_context)
+target_include_directories(test_dispatch_context PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(test_dispatch_context PRIVATE GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Lifecycle" FILES UnitTest/Test2/Lifecycle/DispatchContextTest.cpp)
