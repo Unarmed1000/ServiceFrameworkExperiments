@@ -170,9 +170,13 @@ namespace Test2
     template <typename Func>
     auto RunTest(Func&& func)
     {
-      m_testHost.GetIoContext().restart();
-      auto future = boost::asio::co_spawn(m_testHost.GetIoContext(), std::forward<Func>(func), boost::asio::use_future);
-      m_testHost.GetIoContext().run();
+      boost::asio::post(m_testHost.GetExecutor(), []() {});
+      m_testHost.Poll();
+      auto future = boost::asio::co_spawn(m_testHost.GetExecutor(), std::forward<Func>(func), boost::asio::use_future);
+      while (future.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+      {
+        m_testHost.Poll();
+      }
       future.get();
     }
 

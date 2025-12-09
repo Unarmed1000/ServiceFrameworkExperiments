@@ -161,7 +161,7 @@ namespace Test2
       std::exception_ptr exceptionPtr;
 
       boost::asio::co_spawn(
-        host.GetIoContext(),
+        host.GetExecutor(),
         [&]() -> boost::asio::awaitable<void>
         {
           try
@@ -201,7 +201,7 @@ namespace Test2
       std::optional<Common::AggregateException> caughtException;
 
       boost::asio::co_spawn(
-        host.GetIoContext(),
+        host.GetExecutor(),
         [this, services = std::move(services), priority, &caughtException, &done]() mutable -> boost::asio::awaitable<void>
         {
           try

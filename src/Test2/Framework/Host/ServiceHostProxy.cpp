@@ -49,7 +49,7 @@ namespace Test2
 
   ServiceHostProxy::ServiceHostProxy(std::shared_ptr<ServiceHostBase> service)
     : m_service(service)
-    , m_executor(service->GetIoContext().get_executor())
+    , m_executor(service->GetExecutor())
   {
   }
 

@@ -17,6 +17,7 @@
 #include <Test2/Framework/Host/ServiceHostProxy.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
 #include <stdexcept>
+#include "../ServiceHostBase.hpp"
 
 namespace Test2
 {
@@ -28,12 +29,12 @@ namespace Test2
     m_serviceHostProxy = std::make_shared<ServiceHostProxy>(m_serviceHost);
 
     // Register internal cancellation signal to stop the io_context
-    m_cancellationSignal.slot().assign([serviceHost = m_serviceHost](boost::asio::cancellation_type) { serviceHost->GetIoContext().stop(); });
+    m_cancellationSignal.slot().assign([serviceHost = m_serviceHost](boost::asio::cancellation_type) { serviceHost->RequestStop(); });
 
     // Register external cancellation slot to stop the io_context if provided
     if (cancel_slot.is_connected())
     {
-      cancel_slot.assign([serviceHost = m_serviceHost](boost::asio::cancellation_type) { serviceHost->GetIoContext().stop(); });
+      cancel_slot.assign([serviceHost = m_serviceHost](boost::asio::cancellation_type) { serviceHost->RequestStop(); });
     }
   }
 

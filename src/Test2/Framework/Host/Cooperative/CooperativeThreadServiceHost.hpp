@@ -150,7 +150,7 @@ namespace Test2
     template <typename Handler>
     void PostWithWake(Handler&& handler)
     {
-      boost::asio::post(GetIoContext(), std::forward<Handler>(handler));
+      boost::asio::post(GetExecutor(), std::forward<Handler>(handler));
       TriggerWake();
     }
 
@@ -158,6 +158,17 @@ namespace Test2
     {
       ValidateThreadAccess();
       return DoProcessServices();
+    }
+
+    /// @brief Expose executor access for external coordination.
+    using ServiceHostBase::GetExecutor;
+
+    /// @brief Request the io_context to stop.
+    ///
+    /// This can be called from any thread to stop the io_context.
+    void RequestStop()
+    {
+      GetIoContext().stop();
     }
 
   private:

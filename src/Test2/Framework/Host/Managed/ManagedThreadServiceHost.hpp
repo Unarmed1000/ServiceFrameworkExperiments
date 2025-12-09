@@ -57,6 +57,13 @@ namespace Test2
       // Called on the managed thread during shutdown
       m_work.reset();
     }
+
+    void Run()
+    {
+      spdlog::trace("ManagedThreadServiceHost starting io_context run loop at {}", static_cast<void*>(this));
+      GetIoContext().run();
+      spdlog::trace("ManagedThreadServiceHost io_context run loop has exited at {}", static_cast<void*>(this));
+    }
   };
 }
 

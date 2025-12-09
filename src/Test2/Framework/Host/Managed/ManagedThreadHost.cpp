@@ -17,6 +17,7 @@
 #include <boost/asio/use_awaitable.hpp>
 #include <future>
 #include <stdexcept>
+#include "../ServiceHostBase.hpp"
 #include "ManagedThreadServiceHost.hpp"
 
 namespace Test2
@@ -65,7 +66,7 @@ namespace Test2
           startedPromise->set_value();
 
           // Run the io_context - it will be stopped via the cancellation slot
-          serviceHost->GetIoContext().run();
+          serviceHost->Run();
 
           // Signal lifetime completion
           lifetimePromise->set_value();

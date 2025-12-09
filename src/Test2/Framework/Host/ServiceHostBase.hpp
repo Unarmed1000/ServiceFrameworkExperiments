@@ -88,18 +88,11 @@ namespace Test2
       return m_ownerThreadId;
     }
 
-    /// @brief Get the io_context for this host.
-    /// @return Reference to the io_context.
-    boost::asio::io_context& GetIoContext()
+    /// @brief Get the executor for this host.
+    /// @return Executor for scheduling work on this host's context.
+    auto GetExecutor()
     {
-      return m_ioContext;
-    }
-
-    /// @brief Get the io_context for this host (const version).
-    /// @return Const reference to the io_context.
-    const boost::asio::io_context& GetIoContext() const
-    {
-      return m_ioContext;
+      return m_ioContext.get_executor();
     }
 
     /// @brief Implementation of service startup logic.
@@ -201,6 +194,14 @@ namespace Test2
       , m_provider(std::make_shared<ManagedThreadServiceProvider>())
     {
       spdlog::trace("ServiceHostBase Created at {}", m_ownerThreadId);
+    }
+
+    /// @brief Get the io_context for internal host operations.
+    /// @note This is protected to restrict direct io_context access. Use GetExecutor() for scheduling work.
+    /// @return Reference to the io_context.
+    boost::asio::io_context& GetIoContext()
+    {
+      return m_ioContext;
     }
 
     /// @brief Validates that the current thread is the owner thread.
@@ -441,7 +442,7 @@ namespace Test2
 
       // Use co_spawn to execute on service thread
       co_return co_await boost::asio::co_spawn(
-        GetIoContext(),
+        GetExecutor(),
         [func = std::forward<Func>(func)]() mutable -> boost::asio::awaitable<ResultType>
         {
           if constexpr (std::is_void_v<ResultType>)

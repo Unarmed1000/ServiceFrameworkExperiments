@@ -139,7 +139,7 @@ namespace Test2
     CooperativeThreadServiceHost host;
     bool handlerExecuted = false;
 
-    boost::asio::post(host.GetIoContext(), [&handlerExecuted]() { handlerExecuted = true; });
+    boost::asio::post(host.GetExecutor(), [&handlerExecuted]() { handlerExecuted = true; });
 
     auto count = host.Poll();
     EXPECT_EQ(count, 1u);
@@ -151,9 +151,9 @@ namespace Test2
     CooperativeThreadServiceHost host;
     int counter = 0;
 
-    boost::asio::post(host.GetIoContext(), [&counter]() { ++counter; });
-    boost::asio::post(host.GetIoContext(), [&counter]() { ++counter; });
-    boost::asio::post(host.GetIoContext(), [&counter]() { ++counter; });
+    boost::asio::post(host.GetExecutor(), [&counter]() { ++counter; });
+    boost::asio::post(host.GetExecutor(), [&counter]() { ++counter; });
+    boost::asio::post(host.GetExecutor(), [&counter]() { ++counter; });
 
     auto count = host.Poll();
     EXPECT_EQ(count, 3u);
@@ -188,7 +188,7 @@ namespace Test2
     CooperativeThreadServiceHost host;
     bool handlerExecuted = false;
 
-    boost::asio::post(host.GetIoContext(), [&handlerExecuted]() { handlerExecuted = true; });
+    boost::asio::post(host.GetExecutor(), [&handlerExecuted]() { handlerExecuted = true; });
 
     host.Update();
     EXPECT_TRUE(handlerExecuted);
@@ -299,7 +299,7 @@ namespace Test2
       // Run the async registration synchronously using poll
       bool done = false;
       boost::asio::co_spawn(
-        host.GetIoContext(),
+        host.GetExecutor(),
         [this, services = std::move(services), priority, &done]() mutable -> boost::asio::awaitable<void>
         {
           co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(priority));
