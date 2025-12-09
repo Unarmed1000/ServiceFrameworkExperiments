@@ -48,7 +48,7 @@ namespace Test2
   /// Thread Safety:
   /// - TryStartServicesAsync() and TryShutdownServicesAsync() can be called from any thread
   /// - All other methods must be called from the service thread (m_ioContext's thread)
-  class ServiceHostBase : ILifeTracker
+  class ServiceHostBase : public ILifeTracker
   {
     std::thread::id m_ownerThreadId;
     bool m_shutdownRequested{false};

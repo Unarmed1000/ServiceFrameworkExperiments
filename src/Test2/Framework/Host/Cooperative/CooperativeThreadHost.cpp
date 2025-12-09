@@ -23,13 +23,14 @@ namespace Test2
 {
 
   CooperativeThreadHost::CooperativeThreadHost(boost::asio::cancellation_slot cancel_slot)
-  {
     // Create the service host on the current thread
-    m_serviceHost = std::make_shared<CooperativeThreadServiceHost>();
+    : m_serviceHost(std::make_shared<CooperativeThreadServiceHost>())
+    , m_sourceContext(Lifecycle::ExecutorContext<ILifeTracker>(m_serviceHost, m_serviceHost->GetExecutor()))
+    , m_targetContext(Lifecycle::ExecutorContext<ServiceHostBase>(m_serviceHost, m_serviceHost->GetExecutor()))
     // Create the proxy for thread-safe access, but as this is a cooperative host on the same thread,
     // we can use the same dispatch context for source and target.
-    m_serviceHostProxy = std::make_shared<ServiceHostProxy>(DispatchContext(m_serviceHost, m_serviceHost));
-
+    , m_serviceHostProxy(std::make_shared<ServiceHostProxy>(Lifecycle::DispatchContext(m_sourceContext, m_targetContext)))
+  {
     // Register internal cancellation signal to stop the io_context
     m_cancellationSignal.slot().assign([serviceHost = m_serviceHost](boost::asio::cancellation_type) { serviceHost->RequestStop(); });
 

@@ -13,6 +13,8 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Lifecycle/ExecutorContext.hpp>
+#include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
 #include <boost/asio/cancellation_signal.hpp>
 #include <memory>
 
@@ -20,12 +22,16 @@ namespace Test2
 {
   class IThreadSafeServiceHost;
   class CooperativeThreadServiceHost;
+  class ServiceHostBase;
   struct ProcessResult;
 
   /// @brief Manages a cooperative service host that runs on the current thread.
   class CooperativeThreadHost
   {
     std::shared_ptr<CooperativeThreadServiceHost> m_serviceHost;
+    Lifecycle::ExecutorContext<ILifeTracker> m_sourceContext;
+    Lifecycle::ExecutorContext<ServiceHostBase> m_targetContext;
+
     std::shared_ptr<IThreadSafeServiceHost> m_serviceHostProxy;
     boost::asio::cancellation_signal m_cancellationSignal;
 
@@ -39,6 +45,11 @@ namespace Test2
     /// @param cancel_slot Optional cancellation slot to stop the host.
     explicit CooperativeThreadHost(boost::asio::cancellation_slot cancel_slot = {});
     ~CooperativeThreadHost();
+
+    Lifecycle::ExecutorContext<ILifeTracker> GetExecutorContext() const
+    {
+      return m_sourceContext;
+    }
 
     std::shared_ptr<IThreadSafeServiceHost> GetServiceHost();
 
