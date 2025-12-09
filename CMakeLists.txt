@@ -672,3 +672,22 @@ target_include_directories(test_dispatch_context PRIVATE
 )
 target_link_libraries(test_dispatch_context PRIVATE GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Lifecycle" FILES UnitTest/Test2/Lifecycle/DispatchContextTest.cpp)
+
+# Executable 17: AsyncProxyHelper test
+add_executable(test_async_proxy_helper
+    UnitTest/Test2/Util/AsyncProxyHelperTest.cpp
+    include/Test2/Framework/Util/AsyncProxyHelper.hpp
+    include/Test2/Framework/Lifecycle/ExecutorContext.hpp
+    include/Test2/Framework/Lifecycle/DispatchContext.hpp
+    include/Test2/Framework/Exception/ServiceDisposedException.hpp
+)
+configure_target(test_async_proxy_helper)
+target_include_directories(test_async_proxy_helper PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(test_async_proxy_helper PRIVATE GTest::gtest GTest::gtest_main)
+if(MSVC)
+    target_compile_options(test_async_proxy_helper PRIVATE /bigobj)
+endif()
+source_group("Source Files\\UnitTest\\Test2\\Util" FILES UnitTest/Test2/Util/AsyncProxyHelperTest.cpp)
