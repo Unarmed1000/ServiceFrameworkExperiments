@@ -17,7 +17,7 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <utility>
 
-namespace Test2::Lifecycle
+namespace Test2
 {
   /// @brief Context for dispatching cross-thread invocations between a source and target executor.
   ///
@@ -80,6 +80,6 @@ namespace Test2::Lifecycle
       return m_targetContext.IsAlive();
     }
   };
-}    // namespace Test2::Lifecycle
+}    // namespace Test2
 
 #endif

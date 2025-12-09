@@ -17,7 +17,7 @@
 #include <memory>
 #include <utility>
 
-namespace Test2::Lifecycle
+namespace Test2
 {
   /// @brief Lifetime-aware executor context that pairs an executor with a weak_ptr for lifetime tracking.
   ///
@@ -65,6 +65,6 @@ namespace Test2::Lifecycle
       return !m_weakPtr.expired();
     }
   };
-}    // namespace Test2::Lifecycle
+}    // namespace Test2
 
 #endif

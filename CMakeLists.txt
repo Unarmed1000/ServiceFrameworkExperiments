@@ -538,6 +538,7 @@ add_executable(test_service_host_base
     UnitTest/Test2/Host/ServiceHostBaseTest.cpp
     src/Common/AggregateException.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
     include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
     include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
     src/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
@@ -599,6 +600,7 @@ add_executable(test_cooperative_thread_service_host
     UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp
     src/Common/AggregateException.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
     src/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
     src/Test2/Framework/Host/ServiceHostBase.hpp
     src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
@@ -618,6 +620,7 @@ add_executable(test_lifecycle_manager
     UnitTest/Test2/Lifecycle/LifecycleManagerTest.cpp
     src/Common/AggregateException.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
     include/Test2/Framework/Lifecycle/LifecycleManager.hpp
     include/Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp
     include/Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp

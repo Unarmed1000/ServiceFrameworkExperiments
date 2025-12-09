@@ -140,7 +140,7 @@ namespace Test2
                 auto it = m_threadHosts.find(threadGroupId);
                 if (it == m_threadHosts.end())
                 {
-                  auto host = std::make_unique<ManagedThreadHost>();
+                  auto host = std::make_unique<ManagedThreadHost>(m_mainHost.GetExecutorContext());
                   // Start the thread (it will run io_context.run())
                   co_await host->StartAsync();
                   it = m_threadHosts.emplace(threadGroupId, std::move(host)).first;

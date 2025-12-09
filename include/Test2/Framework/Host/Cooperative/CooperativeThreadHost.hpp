@@ -29,8 +29,8 @@ namespace Test2
   class CooperativeThreadHost
   {
     std::shared_ptr<CooperativeThreadServiceHost> m_serviceHost;
-    Lifecycle::ExecutorContext<ILifeTracker> m_sourceContext;
-    Lifecycle::ExecutorContext<ServiceHostBase> m_targetContext;
+    ExecutorContext<ILifeTracker> m_sourceContext;
+    ExecutorContext<ServiceHostBase> m_targetContext;
 
     std::shared_ptr<IThreadSafeServiceHost> m_serviceHostProxy;
     boost::asio::cancellation_signal m_cancellationSignal;
@@ -46,7 +46,7 @@ namespace Test2
     explicit CooperativeThreadHost(boost::asio::cancellation_slot cancel_slot = {});
     ~CooperativeThreadHost();
 
-    Lifecycle::ExecutorContext<ILifeTracker> GetExecutorContext() const
+    ExecutorContext<ILifeTracker> GetExecutorContext() const
     {
       return m_sourceContext;
     }

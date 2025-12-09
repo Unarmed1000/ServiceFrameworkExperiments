@@ -81,7 +81,7 @@ namespace Test2
     /// @return awaitable that completes with the result of the member function invocation.
     /// @throws ServiceDisposedException if the weak_ptr is expired.
     template <const char* DebugHintName = kEmptyDebugHint, typename T, typename MemberFunc, typename... Args>
-    auto InvokeAsync(const Lifecycle::ExecutorContext<T>& context, MemberFunc memberFunc, Args&&... args)
+    auto InvokeAsync(const ExecutorContext<T>& context, MemberFunc memberFunc, Args&&... args)
     {
       using RawResultType = std::invoke_result_t<MemberFunc, T*, std::decay_t<Args>...>;
       auto executor = context.GetExecutor();
@@ -155,7 +155,7 @@ namespace Test2
     /// @return awaitable<std::optional<ResultType>> for non-void functions, or awaitable<bool> for void functions.
     ///         Returns std::nullopt or false if the weak_ptr is expired.
     template <const char* DebugHintName = kEmptyDebugHint, typename T, typename MemberFunc, typename... Args>
-    auto TryInvokeAsync(const Lifecycle::ExecutorContext<T>& context, MemberFunc memberFunc, Args&&... args)
+    auto TryInvokeAsync(const ExecutorContext<T>& context, MemberFunc memberFunc, Args&&... args)
     {
       using RawResultType = std::invoke_result_t<MemberFunc, T*, std::decay_t<Args>...>;
       auto executor = context.GetExecutor();
@@ -248,7 +248,7 @@ namespace Test2
     /// @param args Arguments to forward to the member function.
     /// @return true if the post operation succeeded, false if an exception occurred during post.
     template <typename T, typename MemberFunc, typename... Args>
-    bool TryInvokePost(const Lifecycle::ExecutorContext<T>& context, MemberFunc memberFunc, Args&&... args) noexcept
+    bool TryInvokePost(const ExecutorContext<T>& context, MemberFunc memberFunc, Args&&... args) noexcept
     {
       auto executor = context.GetExecutor();
       auto weakPtr = context.GetWeakPtr();
@@ -292,7 +292,7 @@ namespace Test2
     /// @return awaitable that completes with the result of the member function invocation, resuming on source executor.
     /// @throws ServiceDisposedException if the target weak_ptr is expired.
     template <const char* DebugHintName = kEmptyDebugHint, typename TSource, typename TTarget, typename MemberFunc, typename... Args>
-    auto InvokeAsync(const Lifecycle::DispatchContext<TSource, TTarget>& context, MemberFunc memberFunc, Args&&... args)
+    auto InvokeAsync(const DispatchContext<TSource, TTarget>& context, MemberFunc memberFunc, Args&&... args)
     {
       using RawResultType = std::invoke_result_t<MemberFunc, TTarget*, std::decay_t<Args>...>;
       auto sourceExecutor = context.GetSourceExecutor();
@@ -418,7 +418,7 @@ namespace Test2
     /// @return awaitable<std::optional<ResultType>> for non-void functions, or awaitable<bool> for void functions.
     ///         Returns std::nullopt or false if the target weak_ptr is expired. Resumes on source executor.
     template <const char* DebugHintName = kEmptyDebugHint, typename TSource, typename TTarget, typename MemberFunc, typename... Args>
-    auto TryInvokeAsync(const Lifecycle::DispatchContext<TSource, TTarget>& context, MemberFunc memberFunc, Args&&... args)
+    auto TryInvokeAsync(const DispatchContext<TSource, TTarget>& context, MemberFunc memberFunc, Args&&... args)
     {
       using RawResultType = std::invoke_result_t<MemberFunc, TTarget*, std::decay_t<Args>...>;
       auto sourceExecutor = context.GetSourceExecutor();

@@ -21,7 +21,7 @@ namespace Test2
 {
   inline constexpr const char kProxyName[] = "ServiceHostProxy";
 
-  ServiceHostProxy::ServiceHostProxy(Lifecycle::DispatchContext<ILifeTracker, ServiceHostBase> dispatchContext)
+  ServiceHostProxy::ServiceHostProxy(DispatchContext<ILifeTracker, ServiceHostBase> dispatchContext)
     : m_dispatchContext(std::move(dispatchContext))
   {
   }

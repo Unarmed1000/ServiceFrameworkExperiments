@@ -39,12 +39,12 @@ namespace Test2
   class ServiceHostProxy final : public IThreadSafeServiceHost
   {
     ///! Dispatch context containing source and target executor contexts.
-    Lifecycle::DispatchContext<ILifeTracker, ServiceHostBase> m_dispatchContext;
+    DispatchContext<ILifeTracker, ServiceHostBase> m_dispatchContext;
 
   public:
     /// @brief Constructs a proxy that marshals operations to the given service host.
     /// @param dispatchContext Dispatch context containing source and target executor contexts.
-    explicit ServiceHostProxy(Lifecycle::DispatchContext<ILifeTracker, ServiceHostBase> dispatchContext);
+    explicit ServiceHostProxy(DispatchContext<ILifeTracker, ServiceHostBase> dispatchContext);
     ~ServiceHostProxy();
 
     //! @see IThreadSafeServiceHost

@@ -28,12 +28,12 @@ namespace Test2
   /// @brief Manages a thread that runs a ManagedThreadServiceHost.
   class ManagedThreadHost
   {
-    Lifecycle::ExecutorContext<ILifeTracker> m_sourceContext;
+    ExecutorContext<ILifeTracker> m_sourceContext;
     std::shared_ptr<ServiceHostProxy> m_serviceHostProxy;
     std::thread m_thread;
 
   public:
-    ManagedThreadHost(Lifecycle::ExecutorContext<ILifeTracker> sourceContext);
+    ManagedThreadHost(ExecutorContext<ILifeTracker> sourceContext);
     ~ManagedThreadHost();
     ManagedThreadHost(const ManagedThreadHost&) = delete;
     ManagedThreadHost& operator=(const ManagedThreadHost&) = delete;
@@ -41,7 +41,7 @@ namespace Test2
     ManagedThreadHost& operator=(ManagedThreadHost&&) = delete;
 
 
-    Lifecycle::ExecutorContext<ILifeTracker> GetExecutorContext() const
+    ExecutorContext<ILifeTracker> GetExecutorContext() const
     {
       return m_sourceContext;
     }
