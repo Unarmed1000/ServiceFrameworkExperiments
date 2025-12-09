@@ -64,7 +64,8 @@ namespace Test2
         {
           // Construct the service host ON THIS THREAD with parent cancellation slot
           auto serviceHost = std::make_shared<ManagedThreadServiceHost>();
-          m_serviceHostProxy = std::make_shared<ServiceHostProxy>(Lifecycle::DispatchContext(m_sourceContext, serviceHost));
+          m_serviceHostProxy = std::make_shared<ServiceHostProxy>(Lifecycle::DispatchContext(
+            m_sourceContext, Lifecycle::ExecutorContext(std::static_pointer_cast<ServiceHostBase>(serviceHost), serviceHost->GetExecutor())));
 
           // Signal that thread has started
           startedPromise->set_value();

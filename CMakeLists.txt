@@ -561,10 +561,14 @@ add_executable(test_managed_thread_service_host
     UnitTest/Test2/Host/TestManagedThreadLifecycle.hpp
     src/Common/AggregateException.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
+    src/Test2/Framework/Host/Cooperative/CooperativeThreadHost.cpp
     src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
     src/Test2/Framework/Host/ServiceHostProxy.cpp
+    include/Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp
     include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
     include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
+    src/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
     src/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
     src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
     src/Test2/Framework/Host/ServiceHostBase.hpp

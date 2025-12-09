@@ -13,6 +13,7 @@
 
 #include <Common/AggregateException.hpp>
 #include <Test2/Framework/Exception/EmptyPriorityGroupException.hpp>
+#include <Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp>
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp>
@@ -159,13 +160,14 @@ namespace Test2
   class ManagedThreadHostTestFixtureBase : public ::testing::Test
   {
   protected:
-    CooperativeThreadServiceHost m_testHost;
+    CooperativeThreadHost m_testHost;
     ManagedThreadHost m_host;
     TestManagedThreadLifecycle m_lifecycle;
     std::thread::id m_testThreadId;
 
     ManagedThreadHostTestFixtureBase()
-      : m_lifecycle(m_host)
+      : m_host(m_testHost.GetExecutorContext())
+      , m_lifecycle(m_host)
       , m_testThreadId(std::this_thread::get_id())
     {
     }
@@ -174,9 +176,9 @@ namespace Test2
     template <typename Func>
     auto RunTest(Func&& func)
     {
-      boost::asio::post(m_testHost.GetExecutor(), []() {});
+      boost::asio::post(m_testHost.GetExecutorContext().GetExecutor(), []() {});
       m_testHost.Poll();
-      auto future = boost::asio::co_spawn(m_testHost.GetExecutor(), std::forward<Func>(func), boost::asio::use_future);
+      auto future = boost::asio::co_spawn(m_testHost.GetExecutorContext().GetExecutor(), std::forward<Func>(func), boost::asio::use_future);
       while (future.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
       {
         m_testHost.Poll();
