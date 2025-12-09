@@ -570,7 +570,7 @@ sequenceDiagram
 
 ### Cross-Thread Async Invocation
 
-Demonstrates how `AsyncProxyHelper` uses `DispatchContext` to safely invoke async methods on objects living in different threads.
+Demonstrates how `AsyncProxyHelper` uses `DispatchContext` to safely invoke async methods on objects living in different threads, showing the suspension and resumption of the calling coroutine.
 
 ```mermaid
 sequenceDiagram
@@ -583,7 +583,7 @@ sequenceDiagram
 
     Note over Caller: Want to call method on object<br/>running in different thread
 
-    Caller->>Helper: InvokeAsync(dispatchCtx, &Method, args...)
+    Caller->>Helper: co_await InvokeAsync(dispatchCtx, &Method, args...)
     Helper->>DC: TryLock()
     DC-->>Helper: shared_ptr<T> (or nullptr)
 
@@ -594,22 +594,30 @@ sequenceDiagram
         Note over Helper: Create async operation<br/>that will run on target thread
 
         Helper->>Exec: co_await dispatch(executor, use_awaitable)
-        Note over Exec: Switch to target thread
+        Note over Helper,Caller: Coroutine SUSPENDS<br/>Control returns to calling thread's event loop
 
+        activate Caller
+        Note over Caller: Calling thread continues<br/>processing other work<br/>(poll/run io_context)
+        deactivate Caller
+
+        activate Exec
+        Note over Exec: Target thread picks up work
         Exec->>Obj: Call method(args...)
         Obj-->>Exec: Return result
+        deactivate Exec
 
-        Exec-->>Helper: Result
+        Note over Exec,Caller: Result ready, coroutine RESUMES<br/>on calling thread's executor
+
+        activate Caller
+        Exec-->>Helper: Resume with result
         Helper-->>Caller: co_return result
+        Note over Caller: Caller receives result<br/>and continues execution
+        deactivate Caller
 
     else Object Disposed
         Helper-->>Caller: throw ServiceDisposedException
     end
-
-    Note over Caller: Safe cross-thread call complete<br/>or disposed exception thrown
-```
-
-**Key Points:**
+```**Key Points:**
 
 1. **Lifetime Safety**: `TryLock()` ensures object still exists before invocation
 2. **Thread Switching**: `co_await dispatch()` moves execution to target thread's `io_context`
