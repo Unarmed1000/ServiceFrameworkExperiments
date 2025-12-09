@@ -40,6 +40,12 @@ namespace Test2
     ManagedThreadHost(ManagedThreadHost&&) = delete;
     ManagedThreadHost& operator=(ManagedThreadHost&&) = delete;
 
+
+    Lifecycle::ExecutorContext<ILifeTracker> GetExecutorContext() const
+    {
+      return m_sourceContext;
+    }
+
     /// @brief Starts the managed thread.
     /// @param cancel_slot Cancellation slot to stop the thread.
     /// @return An awaitable that completes when the thread has started, containing a ManagedThreadRecord with the lifetime awaitable.
