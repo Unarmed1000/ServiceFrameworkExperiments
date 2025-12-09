@@ -52,12 +52,29 @@ namespace Test2
     //! @see IThreadSafeServiceHost
     boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(const ServiceLaunchPriority priority) final;
 
-    //! @brief Attempts to request shutdown of the service host.
+    //! @brief Asynchronously attempts to request shutdown of the service host.
+    //!
+    //! This method marshals the shutdown request to the service host's executor and
+    //! co_awaits the result. The operation will fail gracefully if the service host
+    //! has been destroyed (weak_ptr expired).
+    //!
+    //! @return An awaitable that yields true if the shutdown request was successfully
+    //!         processed by the service host, or false if the service host is no longer
+    //!         available.
+    //! @note This method is safe to call from any thread. The actual shutdown logic
+    //!       executes on the service host's executor.
     boost::asio::awaitable<bool> TryRequestShutdownAsync();
 
     //! @brief Synchronously posts a shutdown request to the service host's thread.
+    //!
+    //! This is a fire-and-forget operation that posts the shutdown request without
+    //! waiting for completion. Unlike TryRequestShutdownAsync, this method does not
+    //! use coroutines and returns immediately after posting.
+    //!
+    //! @return true if the shutdown request was posted successfully (weak_ptr was valid),
+    //!         false if the service host has already been destroyed.
     //! @note This is safe to call from any thread, including destructors.
-    //! @return true if the shutdown request was posted successfully, false otherwise.
+    //! @note This method is noexcept and will not throw exceptions.
     bool TryRequestShutdown() noexcept;
   };
 }
