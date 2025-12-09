@@ -16,6 +16,7 @@
 #include <Test2/Framework/Host/IThreadSafeServiceHost.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Lifecycle/DispatchContext.hpp>
+#include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/awaitable.hpp>
