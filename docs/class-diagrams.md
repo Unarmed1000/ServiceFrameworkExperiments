@@ -16,6 +16,7 @@ This document provides Mermaid class diagrams documenting the Test2 service fram
 - [Sequence Diagrams](#sequence-diagrams)
   - [Startup Sequence](#startup-sequence)
   - [Shutdown Sequence](#shutdown-sequence)
+  - [Cross-Thread Async Invocation](#cross-thread-async-invocation)
 
 ---
 
@@ -566,6 +567,62 @@ sequenceDiagram
 
     LM-->>App: Shutdown complete
 ```
+
+### Cross-Thread Async Invocation
+
+Demonstrates how `AsyncProxyHelper` uses `DispatchContext` to safely invoke async methods on objects living in different threads.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Caller as Calling Thread
+    participant Helper as AsyncProxyHelper
+    participant DC as DispatchContext<T>
+    participant Exec as Target io_context
+    participant Obj as Target Object
+
+    Note over Caller: Want to call method on object<br/>running in different thread
+
+    Caller->>Helper: InvokeAsync(dispatchCtx, &Method, args...)
+    Helper->>DC: TryLock()
+    DC-->>Helper: shared_ptr<T> (or nullptr)
+
+    alt Object Still Alive
+        Helper->>DC: GetDispatcher()
+        DC-->>Helper: Dispatcher
+
+        Note over Helper: Create async operation<br/>that will run on target thread
+
+        Helper->>Exec: co_await dispatch(executor, use_awaitable)
+        Note over Exec: Switch to target thread
+
+        Exec->>Obj: Call method(args...)
+        Obj-->>Exec: Return result
+
+        Exec-->>Helper: Result
+        Helper-->>Caller: co_return result
+
+    else Object Disposed
+        Helper-->>Caller: throw ServiceDisposedException
+    end
+
+    Note over Caller: Safe cross-thread call complete<br/>or disposed exception thrown
+```
+
+**Key Points:**
+
+1. **Lifetime Safety**: `TryLock()` ensures object still exists before invocation
+2. **Thread Switching**: `co_await dispatch()` moves execution to target thread's `io_context`
+3. **Exception Handling**: Throws `ServiceDisposedException` if object was destroyed
+4. **Type Safety**: Template methods maintain compile-time type checking
+5. **Async-Friendly**: Fully compatible with C++20 coroutines (`co_await`)
+
+**Alternative Patterns:**
+
+- **TryInvokeAsync**: Returns `std::optional<Result>` instead of throwing on disposed objects
+- **TryInvokePost**: Fire-and-forget posting without waiting for result
+- **ExecutorContext**: Similar pattern but without dispatcher (simpler, dispatch-only)
+- **DispatchInvokeAsync**: Uses `co_await dispatch()` explicitly for guaranteed thread context
 
 ---
 
