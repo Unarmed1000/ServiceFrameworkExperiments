@@ -13,16 +13,21 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Exception/DuplicateServiceRegistrationException.hpp>
-#include <Test2/Framework/Exception/InvalidServiceFactoryException.hpp>
-#include <Test2/Framework/Exception/RegistryExtractedException.hpp>
 #include <Test2/Framework/Registry/IServiceRegistry.hpp>
+#include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceRegistrationRecord.hpp>
-#include <Test2/Framework/Service/IServiceFactory.hpp>
-#include <spdlog/spdlog.h>
+#include <Test2/Framework/Registry/ServiceThreadGroupId.hpp>
+#include <cstdint>
+#include <memory>
 #include <typeindex>
 #include <unordered_map>
 #include <vector>
+
+// Forward declarations
+namespace Test2
+{
+  class IServiceFactory;
+}
 
 namespace Test2
 {
@@ -71,47 +76,7 @@ namespace Test2
     /// @throws InvalidServiceFactoryException if factory is null or reports zero supported interfaces
     /// @throws RegistryExtractedException if ExtractRegistrations() has already been called
     /// @throws DuplicateServiceRegistrationException if this factory type is already registered
-    void RegisterService(std::unique_ptr<IServiceFactory> factory, const ServiceLaunchPriority priority,
-                         const ServiceThreadGroupId threadGroupId) override
-    {
-      // Validate factory is not null
-      if (!factory)
-      {
-        spdlog::error("ServiceRegistry::RegisterService: factory is null");
-        throw InvalidServiceFactoryException("Cannot register null service factory");
-      }
-
-      // Check if registry has been extracted
-      if (m_extracted)
-      {
-        spdlog::error("ServiceRegistry::RegisterService: registry has already been extracted");
-        throw RegistryExtractedException("Cannot register services after ExtractRegistrations() has been called");
-      }
-
-      // Validate factory reports at least one supported interface
-      auto interfaces = factory->GetSupportedInterfaces();
-      if (interfaces.empty())
-      {
-        spdlog::error("ServiceRegistry::RegisterService: factory reports zero supported interfaces");
-        throw InvalidServiceFactoryException("Service factory must support at least one interface");
-      }
-
-      // Get the factory type for duplicate detection
-      const std::type_index factoryType(typeid(*factory));
-
-      // Check if this factory type is already registered
-      if (m_registrations.find(factoryType) != m_registrations.end())
-      {
-        spdlog::error("ServiceRegistry::RegisterService: factory type '{}' is already registered", factoryType.name());
-        throw DuplicateServiceRegistrationException(fmt::format("Factory type '{}' is already registered", factoryType.name()));
-      }
-
-      // Register the factory
-      spdlog::debug("ServiceRegistry::RegisterService: registering factory type '{}' with priority {} and thread group {}", factoryType.name(),
-                    priority.GetValue(), threadGroupId.GetValue());
-
-      m_registrations.emplace(factoryType, ServiceRegistrationRecord(std::move(factory), priority, threadGroupId));
-    }
+    void RegisterService(std::unique_ptr<IServiceFactory> factory, ServiceLaunchPriority priority, ServiceThreadGroupId threadGroupId) override;
 
     /// @brief Creates a new unique service thread group identifier.
     ///
@@ -119,12 +84,7 @@ namespace Test2
     /// generates monotonically increasing unique identifiers starting from 1.
     ///
     /// @return A new unique ServiceThreadGroupId for organizing services.
-    ServiceThreadGroupId CreateServiceThreadGroupId() override
-    {
-      const uint32_t groupId = m_nextThreadGroupId++;
-      spdlog::debug("ServiceRegistry::CreateServiceThreadGroupId: created thread group ID {}", groupId);
-      return ServiceThreadGroupId(groupId);
-    }
+    ServiceThreadGroupId CreateServiceThreadGroupId() override;
 
     /// @brief Retrieves the main service thread group identifier.
     ///
@@ -133,11 +93,7 @@ namespace Test2
     /// distinct from dynamically created thread groups (which start from 1).
     ///
     /// @return The ServiceThreadGroupId for the main thread group.
-    ServiceThreadGroupId GetMainServiceThreadGroupId() override
-    {
-      spdlog::debug("ServiceRegistry::GetMainServiceThreadGroupId: returning main thread group ID 0");
-      return ServiceThreadGroupId(0);
-    }
+    ServiceThreadGroupId GetMainServiceThreadGroupId() override;
 
     /// @brief Extracts all registered service factories and their metadata.
     ///
@@ -149,28 +105,7 @@ namespace Test2
     ///
     /// @return A vector of ServiceRegistrationRecord objects containing all registered factories.
     ///         Factory ownership is transferred to the caller.
-    std::vector<ServiceRegistrationRecord> ExtractRegistrations()
-    {
-      spdlog::debug("ServiceRegistry::ExtractRegistrations: extracting {} registrations", m_registrations.size());
-
-      // Mark as extracted
-      m_extracted = true;
-
-      // Build result vector by moving records
-      std::vector<ServiceRegistrationRecord> result;
-      result.reserve(m_registrations.size());
-
-      for (auto& pair : m_registrations)
-      {
-        result.push_back(std::move(pair.second));
-      }
-
-      // Clear the map
-      m_registrations.clear();
-
-      spdlog::debug("ServiceRegistry::ExtractRegistrations: extracted {} registrations", result.size());
-      return result;
-    }
+    std::vector<ServiceRegistrationRecord> ExtractRegistrations();
   };
 
 }

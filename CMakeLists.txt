@@ -352,6 +352,7 @@ source_group("Source Files\\UnitTest\\Test1" FILES UnitTest/Test1/ServiceFramewo
 add_executable(test2
     src/test2.cpp
     src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Registry/ServiceRegistry.cpp
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Service/IServiceControl.hpp
     include/Test2/Framework/Service/IServiceFactory.hpp
@@ -458,6 +459,7 @@ configure_target(test3)
 # Executable 5: ServiceRegistry test
 add_executable(test_service_registry
     UnitTest/Test2/Registry/ServiceRegistryTest.cpp
+    src/Test2/Framework/Registry/ServiceRegistry.cpp
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Service/IServiceFactory.hpp
     include/Test2/Framework/Service/ServiceCreateInfo.hpp
