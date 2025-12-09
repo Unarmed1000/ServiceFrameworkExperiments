@@ -23,7 +23,8 @@
 
 namespace Test2
 {
-  ManagedThreadHost::ManagedThreadHost()
+  ManagedThreadHost::ManagedThreadHost(Lifecycle::ExecutorContext<ILifeTracker> sourceContext)
+    : m_sourceContext(std::move(sourceContext))
   {
   }
 
@@ -63,7 +64,7 @@ namespace Test2
         {
           // Construct the service host ON THIS THREAD with parent cancellation slot
           auto serviceHost = std::make_shared<ManagedThreadServiceHost>();
-          m_serviceHostProxy = std::make_shared<ServiceHostProxy>(serviceHost);
+          m_serviceHostProxy = std::make_shared<ServiceHostProxy>(Lifecycle::DispatchContext(m_sourceContext, serviceHost));
 
           // Signal that thread has started
           startedPromise->set_value();

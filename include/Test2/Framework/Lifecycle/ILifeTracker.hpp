@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ISERVICE_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ISERVICE_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_LIFECYCLE_ILIFETRACKER_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_LIFECYCLE_ILIFETRACKER_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,12 +13,14 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
 
 namespace Test2
 {
-  class IService : public ILifeTracker
+  class ILifeTracker
   {
+  public:
+    ILifeTracker() = default;
+    virtual ~ILifeTracker() = default;
   };
 }
 

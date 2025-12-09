@@ -15,21 +15,25 @@
 
 #include <Test2/Framework/Host/IThreadSafeServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadRecord.hpp>
+#include <Test2/Framework/Lifecycle/ExecutorContext.hpp>
+#include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
 #include <memory>
 #include <thread>
 
 namespace Test2
 {
   class ServiceHostProxy;
+  class ILifeTracker;
 
   /// @brief Manages a thread that runs a ManagedThreadServiceHost.
   class ManagedThreadHost
   {
+    Lifecycle::ExecutorContext<ILifeTracker> m_sourceContext;
     std::shared_ptr<ServiceHostProxy> m_serviceHostProxy;
     std::thread m_thread;
 
   public:
-    ManagedThreadHost();
+    ManagedThreadHost(Lifecycle::ExecutorContext<ILifeTracker> sourceContext);
     ~ManagedThreadHost();
     ManagedThreadHost(const ManagedThreadHost&) = delete;
     ManagedThreadHost& operator=(const ManagedThreadHost&) = delete;
