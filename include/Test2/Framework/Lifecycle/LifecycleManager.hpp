@@ -182,6 +182,7 @@ namespace Test2
     ///
     /// Iterates through started priority levels in reverse order and shuts down
     /// each one by calling TryShutdownServicesAsync on the appropriate host.
+    /// After all services are stopped, managed threads are also shut down.
     ///
     /// @return Vector of any exceptions that occurred during shutdown.
     boost::asio::awaitable<std::vector<std::exception_ptr>> ShutdownServicesAsync()
@@ -211,6 +212,19 @@ namespace Test2
 
       // Clear the tracking
       m_startedPriorities.clear();
+
+      // Shutdown all managed threads
+      for (auto& [threadGroupId, host] : m_threadHosts)
+      {
+        try
+        {
+          co_await host->TryShutdownAsync();
+        }
+        catch (...)
+        {
+          allErrors.push_back(std::current_exception());
+        }
+      }
 
       co_return allErrors;
     }
