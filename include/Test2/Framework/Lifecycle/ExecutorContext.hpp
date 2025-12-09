@@ -15,7 +15,6 @@
 
 #include <boost/asio/any_io_executor.hpp>
 #include <memory>
-#include <type_traits>
 #include <utility>
 
 namespace Test2::Lifecycle
@@ -38,16 +37,6 @@ namespace Test2::Lifecycle
     /// @param executor The executor associated with the target object's thread.
     ExecutorContext(std::shared_ptr<T> ptr, boost::asio::any_io_executor executor)
       : m_executor(std::move(executor))
-      , m_weakPtr(std::move(ptr))
-    {
-    }
-
-    /// @brief Constructs an executor context from a shared_ptr (deduces executor from object).
-    /// @param ptr Shared pointer to the target object.
-    /// @note This overload requires T to have a GetExecutor() method.
-    template <typename U = T, typename = decltype(std::declval<U>().GetExecutor())>
-    explicit ExecutorContext(std::shared_ptr<T> ptr)
-      : m_executor(ptr->GetExecutor())
       , m_weakPtr(std::move(ptr))
     {
     }

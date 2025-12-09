@@ -44,17 +44,6 @@ namespace Test2::Lifecycle
     {
     }
 
-    /// @brief Constructs a dispatch context from source context and target shared_ptr (auto-deduces target executor).
-    /// @param sourceContext The executor context for the source (calling) thread.
-    /// @param targetPtr Shared pointer to the target object (must have GetExecutor() method).
-    /// @note This overload requires TTarget to have a GetExecutor() method.
-    template <typename U = TTarget, typename = decltype(std::declval<U>().GetExecutor())>
-    DispatchContext(ExecutorContext<TSource> sourceContext, std::shared_ptr<TTarget> targetPtr)
-      : m_sourceContext(std::move(sourceContext))
-      , m_targetContext(std::move(targetPtr))
-    {
-    }
-
     /// @brief Gets the source executor context.
     [[nodiscard]] const ExecutorContext<TSource>& GetSourceContext() const noexcept
     {
