@@ -51,6 +51,9 @@ namespace Test2
     boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, const ServiceLaunchPriority currentPriority) final;
     //! @see IThreadSafeServiceHost
     boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(const ServiceLaunchPriority priority) final;
+
+    //! @brief Attempts to request shutdown of the service host.
+    boost::asio::awaitable<bool> TryRequestShutdownAsync();
   };
 }
 

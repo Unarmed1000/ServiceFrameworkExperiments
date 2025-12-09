@@ -45,6 +45,17 @@ namespace Test2
       co_return co_await servicePtr->TryShutdownServicesAsync(priority);
     }
 
+    boost::asio::awaitable<bool> DoTryRequestShutdownAsync(std::weak_ptr<ServiceHostBase> service)
+    {
+      auto servicePtr = service.lock();
+      if (!servicePtr)
+      {
+        co_return false;
+      }
+      servicePtr->RequestShutdown();
+      co_return true;
+    }
+
   }
 
   ServiceHostProxy::ServiceHostProxy(std::shared_ptr<ServiceHostBase> service)
@@ -67,4 +78,10 @@ namespace Test2
   {
     co_return co_await boost::asio::co_spawn(m_executor, DoTryShutdownServicesAsync(m_service, priority), boost::asio::use_awaitable);
   }
+
+  boost::asio::awaitable<bool> ServiceHostProxy::TryRequestShutdownAsync()
+  {
+    co_return co_await boost::asio::co_spawn(m_executor, DoTryRequestShutdownAsync(m_service), boost::asio::use_awaitable);
+  }
+
 }

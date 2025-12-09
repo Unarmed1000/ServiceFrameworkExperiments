@@ -58,6 +58,12 @@ namespace Test2
       m_work.reset();
     }
 
+    void RequestShutdown() final
+    {
+      ServiceHostBase::RequestShutdown();
+      m_work.reset();
+    }
+
     void Run()
     {
       DoRun();

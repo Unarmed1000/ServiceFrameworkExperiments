@@ -99,6 +99,19 @@ namespace Test2
                                   }(std::move(lifetimeFuture).share(), executor)};
   }
 
+
+  boost::asio::awaitable<bool> ManagedThreadHost::TryShutdownAsync()
+  {
+    // Guard against multiple starts
+    if (!m_thread.joinable() || m_serviceHostProxy)
+    {
+      co_return false;
+    }
+
+    co_return true;
+  }
+
+
   std::shared_ptr<IThreadSafeServiceHost> ManagedThreadHost::GetServiceHost()
   {
     if (m_serviceHostProxy)

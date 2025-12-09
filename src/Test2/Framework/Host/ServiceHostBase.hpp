@@ -50,6 +50,7 @@ namespace Test2
   class ServiceHostBase
   {
     std::thread::id m_ownerThreadId;
+    bool m_shutdownRequested{false};
 
   protected:
     boost::asio::io_context m_ioContext;
@@ -87,11 +88,7 @@ namespace Test2
           spdlog::warn("ServiceHostBase destroyed with {} services still registered", serviceCount);
         }
       }
-      if (!m_ioContext.stopped())
-      {
-        spdlog::warn("ServiceHostBase destroyed while io_context has not been stopped");
-        m_ioContext.stop();
-      }
+      m_ioContext.stop();
     }
 
     ServiceHostBase(const ServiceHostBase&) = delete;
@@ -109,6 +106,12 @@ namespace Test2
     auto GetExecutor()
     {
       return m_ioContext.get_executor();
+    }
+
+    virtual void RequestShutdown()
+    {
+      ValidateThreadAccess();
+      m_shutdownRequested = true;
     }
 
     /// @brief Implementation of service startup logic.

@@ -40,6 +40,7 @@ namespace Test2
     /// @param cancel_slot Cancellation slot to stop the thread.
     /// @return An awaitable that completes when the thread has started, containing a ManagedThreadRecord with the lifetime awaitable.
     boost::asio::awaitable<ManagedThreadRecord> StartAsync(boost::asio::cancellation_slot cancel_slot = {});
+    boost::asio::awaitable<bool> TryShutdownAsync();
 
     std::shared_ptr<IThreadSafeServiceHost> GetServiceHost();
   };
