@@ -294,6 +294,8 @@ namespace Test2
     RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
 
     EXPECT_TRUE(service->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_SingleService_MainThreadGroup_ProcessCalled)
@@ -314,6 +316,8 @@ namespace Test2
     manager.Update();
 
     EXPECT_EQ(service->GetProcessCallCount(), 1);
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_MultipleServices_SamePriority_MainThreadGroup_AllInitialized)
@@ -337,6 +341,8 @@ namespace Test2
 
     EXPECT_TRUE(service1->IsInitialized());
     EXPECT_TRUE(service2->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   // ============================================================================
@@ -366,6 +372,8 @@ namespace Test2
     ASSERT_EQ(tracker.Order.size(), 2u);
     EXPECT_EQ(tracker.Order[0], "HighPriority");
     EXPECT_EQ(tracker.Order[1], "LowPriority");
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_ThreePriorities_InitializedHighestToLowest)
@@ -395,6 +403,8 @@ namespace Test2
     EXPECT_EQ(tracker.Order[0], "High");
     EXPECT_EQ(tracker.Order[1], "Medium");
     EXPECT_EQ(tracker.Order[2], "Low");
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_MultipleServicesPerPriority_GroupedByPriority)
@@ -430,6 +440,8 @@ namespace Test2
     EXPECT_TRUE(std::find(highPriorityNames.begin(), highPriorityNames.end(), "High2") != highPriorityNames.end());
     EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "Low1") != lowPriorityNames.end());
     EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "Low2") != lowPriorityNames.end());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   // ============================================================================
@@ -454,6 +466,8 @@ namespace Test2
     RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.StartServicesAsync(); });
 
     EXPECT_TRUE(service->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_SingleService_NonMainThreadGroup_RunsOnDifferentThread)
@@ -475,6 +489,8 @@ namespace Test2
     ASSERT_TRUE(service->IsInitialized());
     // Non-main thread group services should NOT run on the main thread
     EXPECT_NE(service->GetInitThreadId(), mainThreadId);
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_MainThreadGroup_RunsOnMainThread)
@@ -495,6 +511,8 @@ namespace Test2
     ASSERT_TRUE(service->IsInitialized());
     // Main thread group services SHOULD run on the main thread
     EXPECT_EQ(service->GetInitThreadId(), mainThreadId);
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_MultipleServices_SameNonMainThreadGroup_AllInitialized)
@@ -520,6 +538,8 @@ namespace Test2
 
     EXPECT_TRUE(service1->IsInitialized());
     EXPECT_TRUE(service2->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_MultipleServices_SameNonMainThreadGroup_ShareSameThread)
@@ -544,6 +564,8 @@ namespace Test2
     ASSERT_TRUE(service2->IsInitialized());
     // Services in the same thread group should share the same thread
     EXPECT_EQ(service1->GetInitThreadId(), service2->GetInitThreadId());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_MixedThreadGroups_MainAndWorker_AllInitialized)
@@ -569,6 +591,8 @@ namespace Test2
 
     EXPECT_TRUE(mainService->IsInitialized());
     EXPECT_TRUE(workerService->IsInitialized());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_MixedThreadGroups_MainAndWorker_RunOnDifferentThreads)
@@ -596,6 +620,8 @@ namespace Test2
     EXPECT_EQ(mainService->GetInitThreadId(), mainThreadId);
     // Worker service should run on a different thread
     EXPECT_NE(workerService->GetInitThreadId(), mainThreadId);
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_MultipleNonMainThreadGroups_EachGetsOwnThread)
@@ -624,6 +650,8 @@ namespace Test2
     EXPECT_TRUE(worker2Service->IsInitialized());
     // Different thread groups should run on different threads
     EXPECT_NE(worker1Service->GetInitThreadId(), worker2Service->GetInitThreadId());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   TEST(LifecycleManager, StartServicesAsync_MixedThreadGroups_PriorityRespected)
@@ -662,6 +690,8 @@ namespace Test2
     EXPECT_TRUE(std::find(highPriorityNames.begin(), highPriorityNames.end(), "HighWorker") != highPriorityNames.end());
     EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "LowMain") != lowPriorityNames.end());
     EXPECT_TRUE(std::find(lowPriorityNames.begin(), lowPriorityNames.end(), "LowWorker") != lowPriorityNames.end());
+
+    RunAsyncWithPolling(manager, [&manager]() -> boost::asio::awaitable<void> { co_await manager.ShutdownServicesAsync(); });
   }
 
   // ============================================================================
