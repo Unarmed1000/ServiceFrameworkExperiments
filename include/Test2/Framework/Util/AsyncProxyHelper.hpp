@@ -137,105 +137,6 @@ namespace Test2
       }
     }
 
-    /// @brief Invokes a member function on an ExecutorContext-managed object, returning to the calling executor, throwing on expiration.
-    ///
-    /// This variant accepts a callingExecutor and an ExecutorContext for the target. After the
-    /// operation completes on the target executor, execution resumes on the calling executor.
-    ///
-    /// Handles both regular member functions and member functions that return awaitable<T>.
-    ///
-    /// @tparam DebugHintName Optional debug hint for exception messages (compile-time const char*).
-    /// @tparam T Type of the object managed by the ExecutorContext.
-    /// @tparam MemberFunc Type of the member function pointer.
-    /// @tparam Args Types of arguments to forward to the member function.
-    /// @param callingExecutor The executor to return to after the operation completes.
-    /// @param targetContext The executor context for the target object.
-    /// @param memberFunc Pointer to the member function to invoke.
-    /// @param args Arguments to forward to the member function.
-    /// @return awaitable that completes with the result of the member function invocation.
-    /// @throws ServiceDisposedException if the weak_ptr is expired. Resumes on callingExecutor.
-    template <const char* DebugHintName = kEmptyDebugHint, typename T, typename MemberFunc, typename... Args>
-    auto InvokeAsync(boost::asio::any_io_executor callingExecutor, const Lifecycle::ExecutorContext<T>& targetContext, MemberFunc memberFunc,
-                     Args&&... args)
-    {
-      using RawResultType = std::invoke_result_t<MemberFunc, T*, std::decay_t<Args>...>;
-      auto targetExecutor = targetContext.GetExecutor();
-      auto weakPtr = targetContext.GetWeakPtr();
-
-      // Check if the member function returns an awaitable
-      if constexpr (Detail::is_awaitable_v<RawResultType>)
-      {
-        // Member function returns awaitable<U>, extract U
-        using ResultType = Detail::awaitable_value_t<RawResultType>;
-
-        return boost::asio::co_spawn(
-          callingExecutor,
-          [targetExecutor, weakPtr, func = std::mem_fn(memberFunc),
-           ... args = std::forward<Args>(args)]() mutable -> boost::asio::awaitable<ResultType>
-          {
-            // Execute on target thread
-            auto result = co_await boost::asio::co_spawn(
-              targetExecutor,
-              [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ResultType>
-              {
-                auto ptr = weakPtr.lock();
-                if (!ptr)
-                {
-                  throw ServiceDisposedException(DebugHintName);
-                }
-
-                // Invoke returns awaitable, so we need to co_await it
-                co_return co_await func(ptr, std::move(args)...);
-              },
-              boost::asio::use_awaitable);
-
-            // Result is now back on calling executor
-            co_return result;
-          },
-          boost::asio::use_awaitable);
-      }
-      else
-      {
-        // Member function returns regular type
-        using ResultType = RawResultType;
-
-        return boost::asio::co_spawn(
-          callingExecutor,
-          [targetExecutor, weakPtr, func = std::mem_fn(memberFunc),
-           ... args = std::forward<Args>(args)]() mutable -> boost::asio::awaitable<ResultType>
-          {
-            // Execute on target thread
-            auto result = co_await boost::asio::co_spawn(
-              targetExecutor,
-              [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ResultType>
-              {
-                auto ptr = weakPtr.lock();
-                if (!ptr)
-                {
-                  throw ServiceDisposedException(DebugHintName);
-                }
-
-                if constexpr (std::is_void_v<ResultType>)
-                {
-                  func(ptr, std::move(args)...);
-                  co_return;
-                }
-                else
-                {
-                  co_return func(ptr, std::move(args)...);
-                }
-              },
-              boost::asio::use_awaitable);
-
-            // Result is now back on calling executor
-            if constexpr (!std::is_void_v<ResultType>)
-            {
-              co_return result;
-            }
-          },
-          boost::asio::use_awaitable);
-      }
-    }
 
     /// @brief Invokes a member function on an ExecutorContext-managed object, returning optional on expiration.
     ///
@@ -333,170 +234,6 @@ namespace Test2
       }
     }
 
-    /// @brief Invokes a member function using a DispatchContext, throwing on expiration.
-    ///
-    /// This helper uses a DispatchContext to automatically extract both source and target executors.
-    /// After the operation completes on the target executor, execution resumes on the source executor.
-    ///
-    /// @tparam DebugHintName Optional debug hint for exception messages (compile-time const char*).
-    /// @tparam TSource Type of the source object in the DispatchContext.
-    /// @tparam TTarget Type of the target object in the DispatchContext.
-    /// @tparam MemberFunc Type of the member function pointer.
-    /// @tparam Args Types of arguments to forward to the member function.
-    /// @param dispatchContext The dispatch context containing source and target executor contexts.
-    /// @param memberFunc Pointer to the member function to invoke.
-    /// @param args Arguments to forward to the member function.
-    /// @return awaitable that completes with the result of the member function invocation.
-    /// @throws ServiceDisposedException if the target weak_ptr is expired.
-    template <const char* DebugHintName = kEmptyDebugHint, typename TSource, typename TTarget, typename MemberFunc, typename... Args>
-    auto InvokeAsync(const Lifecycle::DispatchContext<TSource, TTarget>& dispatchContext, MemberFunc memberFunc, Args&&... args)
-    {
-      return InvokeAsync<DebugHintName>(dispatchContext.GetSourceExecutor(), dispatchContext.GetTargetContext(), std::move(memberFunc),
-                                        std::forward<Args>(args)...);
-    }
-
-    /// @brief Invokes a member function on an ExecutorContext-managed object, returning to the calling executor.
-    ///
-    /// This variant accepts a callingExecutor and an ExecutorContext for the target. After the
-    /// operation completes on the target executor, execution resumes on the calling executor.
-    ///
-    /// Handles both regular member functions and member functions that return awaitable<T>.
-    ///
-    /// @tparam DebugHintName Optional debug hint (unused in non-throwing variant, kept for consistency).
-    /// @tparam T Type of the object managed by the ExecutorContext.
-    /// @tparam MemberFunc Type of the member function pointer.
-    /// @tparam Args Types of arguments to forward to the member function.
-    /// @param callingExecutor The executor to return to after the operation completes.
-    /// @param targetContext The executor context for the target object.
-    /// @param memberFunc Pointer to the member function to invoke.
-    /// @param args Arguments to forward to the member function.
-    /// @return awaitable<std::optional<ResultType>> for non-void functions, or awaitable<bool> for void functions.
-    ///         Returns std::nullopt or false if the weak_ptr is expired. Resumes on callingExecutor.
-    template <const char* DebugHintName = kEmptyDebugHint, typename T, typename MemberFunc, typename... Args>
-    auto TryInvokeAsync(boost::asio::any_io_executor callingExecutor, const Lifecycle::ExecutorContext<T>& targetContext, MemberFunc memberFunc,
-                        Args&&... args)
-    {
-      using RawResultType = std::invoke_result_t<MemberFunc, T*, std::decay_t<Args>...>;
-      auto targetExecutor = targetContext.GetExecutor();
-      auto weakPtr = targetContext.GetWeakPtr();
-
-      // Check if the member function returns an awaitable
-      if constexpr (Detail::is_awaitable_v<RawResultType>)
-      {
-        // Member function returns awaitable<U>, extract U
-        using ResultType = Detail::awaitable_value_t<RawResultType>;
-        using ReturnType = std::conditional_t<std::is_void_v<ResultType>, bool, std::optional<ResultType>>;
-
-        return boost::asio::co_spawn(
-          callingExecutor,
-          [targetExecutor, weakPtr, func = std::mem_fn(memberFunc),
-           ... args = std::forward<Args>(args)]() mutable -> boost::asio::awaitable<ReturnType>
-          {
-            // Execute on target thread
-            auto result = co_await boost::asio::co_spawn(
-              targetExecutor,
-              [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ReturnType>
-              {
-                auto ptr = weakPtr.lock();
-                if (!ptr)
-                {
-                  if constexpr (std::is_void_v<ResultType>)
-                  {
-                    co_return false;
-                  }
-                  else
-                  {
-                    co_return std::nullopt;
-                  }
-                }
-
-                if constexpr (std::is_void_v<ResultType>)
-                {
-                  co_await func(ptr, std::move(args)...);
-                  co_return true;
-                }
-                else
-                {
-                  co_return std::optional<ResultType>(co_await func(ptr, std::move(args)...));
-                }
-              },
-              boost::asio::use_awaitable);
-
-            // Result is now back on calling executor
-            co_return result;
-          },
-          boost::asio::use_awaitable);
-      }
-      else
-      {
-        // Member function returns regular type
-        using ResultType = RawResultType;
-        using ReturnType = std::conditional_t<std::is_void_v<ResultType>, bool, std::optional<ResultType>>;
-
-        return boost::asio::co_spawn(
-          callingExecutor,
-          [targetExecutor, weakPtr, func = std::mem_fn(memberFunc),
-           ... args = std::forward<Args>(args)]() mutable -> boost::asio::awaitable<ReturnType>
-          {
-            // Execute on target thread
-            auto result = co_await boost::asio::co_spawn(
-              targetExecutor,
-              [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ReturnType>
-              {
-                auto ptr = weakPtr.lock();
-                if (!ptr)
-                {
-                  if constexpr (std::is_void_v<ResultType>)
-                  {
-                    co_return false;
-                  }
-                  else
-                  {
-                    co_return std::nullopt;
-                  }
-                }
-
-                if constexpr (std::is_void_v<ResultType>)
-                {
-                  func(ptr, std::move(args)...);
-                  co_return true;
-                }
-                else
-                {
-                  co_return std::optional<ResultType>(func(ptr, std::move(args)...));
-                }
-              },
-              boost::asio::use_awaitable);
-
-            // Result is now back on calling executor
-            co_return result;
-          },
-          boost::asio::use_awaitable);
-      }
-    }
-
-    /// @brief Invokes a member function using a DispatchContext, returning optional on expiration.
-    ///
-    /// This helper uses a DispatchContext to automatically extract both source and target executors.
-    /// After the operation completes on the target executor, execution resumes on the source executor.
-    /// This is the non-throwing variant that returns std::nullopt or false on expiration.
-    ///
-    /// @tparam DebugHintName Optional debug hint (unused in non-throwing variant, kept for consistency).
-    /// @tparam TSource Type of the source object in the DispatchContext.
-    /// @tparam TTarget Type of the target object in the DispatchContext.
-    /// @tparam MemberFunc Type of the member function pointer.
-    /// @tparam Args Types of arguments to forward to the member function.
-    /// @param dispatchContext The dispatch context containing source and target executor contexts.
-    /// @param memberFunc Pointer to the member function to invoke.
-    /// @param args Arguments to forward to the member function.
-    /// @return awaitable<std::optional<ResultType>> for non-void functions, or awaitable<bool> for void functions.
-    ///         Returns std::nullopt or false if the target weak_ptr is expired.
-    template <const char* DebugHintName = kEmptyDebugHint, typename TSource, typename TTarget, typename MemberFunc, typename... Args>
-    auto TryInvokeAsync(const Lifecycle::DispatchContext<TSource, TTarget>& dispatchContext, MemberFunc memberFunc, Args&&... args)
-    {
-      return TryInvokeAsync<DebugHintName>(dispatchContext.GetSourceExecutor(), dispatchContext.GetTargetContext(), std::move(memberFunc),
-                                           std::forward<Args>(args)...);
-    }
 
     /// @brief Posts a member function invocation using an ExecutorContext.
     ///
@@ -540,9 +277,9 @@ namespace Test2
 
     /// @brief Invokes a member function using a DispatchContext, throwing on expiration.
     ///
-    /// This is a convenience wrapper that extracts the source and target executors from
-    /// the DispatchContext and delegates to the dual-executor InvokeAsync overload.
-    /// The operation executes on the target executor and returns to the source executor.
+    /// This function handles cross-executor dispatch: the operation executes on the target executor
+    /// and returns to the source executor. It properly handles both regular functions and functions
+    /// that return awaitable<T>.
     ///
     /// @tparam DebugHintName Optional debug hint for exception messages (compile-time const char*).
     /// @tparam TSource Type of the source object managed by the DispatchContext.
@@ -574,22 +311,42 @@ namespace Test2
            ... args = std::forward<Args>(args)]() mutable -> boost::asio::awaitable<ResultType>
           {
             // Execute on target thread
-            auto result = co_await boost::asio::co_spawn(
-              targetExecutor,
-              [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ResultType>
-              {
-                auto ptr = weakPtr.lock();
-                if (!ptr)
+            if constexpr (std::is_void_v<ResultType>)
+            {
+              co_await boost::asio::co_spawn(
+                targetExecutor,
+                [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<void>
                 {
-                  throw ServiceDisposedException(DebugHintName);
-                }
+                  auto ptr = weakPtr.lock();
+                  if (!ptr)
+                  {
+                    throw ServiceDisposedException(DebugHintName);
+                  }
 
-                co_return co_await func(ptr, std::move(args)...);
-              },
-              boost::asio::use_awaitable);
+                  co_await func(ptr, std::move(args)...);
+                  co_return;
+                },
+                boost::asio::use_awaitable);
+              co_return;
+            }
+            else
+            {
+              auto result = co_await boost::asio::co_spawn(
+                targetExecutor,
+                [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ResultType>
+                {
+                  auto ptr = weakPtr.lock();
+                  if (!ptr)
+                  {
+                    throw ServiceDisposedException(DebugHintName);
+                  }
 
-            // Result is now back on calling executor
-            co_return result;
+                  co_return co_await func(ptr, std::move(args)...);
+                },
+                boost::asio::use_awaitable);
+
+              co_return result;
+            }
           },
           boost::asio::use_awaitable);
       }
@@ -604,35 +361,40 @@ namespace Test2
            ... args = std::forward<Args>(args)]() mutable -> boost::asio::awaitable<ResultType>
           {
             // Execute on target thread
-            auto result = co_await boost::asio::co_spawn(
-              targetExecutor,
-              [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ResultType>
-              {
-                auto ptr = weakPtr.lock();
-                if (!ptr)
-                {
-                  throw ServiceDisposedException(DebugHintName);
-                }
-
-                if constexpr (std::is_void_v<ResultType>)
-                {
-                  func(ptr, std::move(args)...);
-                  co_return;
-                }
-                else
-                {
-                  co_return func(ptr, std::move(args)...);
-                }
-              },
-              boost::asio::use_awaitable);
-
-            // Result is now back on calling executor
             if constexpr (std::is_void_v<ResultType>)
             {
+              co_await boost::asio::co_spawn(
+                targetExecutor,
+                [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<void>
+                {
+                  auto ptr = weakPtr.lock();
+                  if (!ptr)
+                  {
+                    throw ServiceDisposedException(DebugHintName);
+                  }
+
+                  func(ptr, std::move(args)...);
+                  co_return;
+                },
+                boost::asio::use_awaitable);
               co_return;
             }
             else
             {
+              auto result = co_await boost::asio::co_spawn(
+                targetExecutor,
+                [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ResultType>
+                {
+                  auto ptr = weakPtr.lock();
+                  if (!ptr)
+                  {
+                    throw ServiceDisposedException(DebugHintName);
+                  }
+
+                  co_return func(ptr, std::move(args)...);
+                },
+                boost::asio::use_awaitable);
+
               co_return result;
             }
           },
@@ -642,9 +404,8 @@ namespace Test2
 
     /// @brief Invokes a member function using a DispatchContext, returning optional on expiration.
     ///
-    /// This is a convenience wrapper that extracts the source and target executors from
-    /// the DispatchContext and delegates to the dual-executor TryInvokeAsync overload.
-    /// The operation executes on the target executor and returns to the source executor.
+    /// This function handles cross-executor dispatch: the operation executes on the target executor
+    /// and returns to the source executor. Instead of throwing, returns std::nullopt or false on expiration.
     ///
     /// @tparam DebugHintName Optional debug hint (unused in non-throwing variant, kept for consistency).
     /// @tparam TSource Type of the source object managed by the DispatchContext.
@@ -659,7 +420,100 @@ namespace Test2
     template <const char* DebugHintName = kEmptyDebugHint, typename TSource, typename TTarget, typename MemberFunc, typename... Args>
     auto TryInvokeAsync(const Lifecycle::DispatchContext<TSource, TTarget>& context, MemberFunc memberFunc, Args&&... args)
     {
-      return TryInvokeAsync<DebugHintName>(context.GetSourceExecutor(), context.GetTargetContext(), memberFunc, std::forward<Args>(args)...);
+      using RawResultType = std::invoke_result_t<MemberFunc, TTarget*, std::decay_t<Args>...>;
+      auto sourceExecutor = context.GetSourceExecutor();
+      auto targetExecutor = context.GetTargetExecutor();
+      auto weakPtr = context.GetTargetContext().GetWeakPtr();
+
+      // Check if the member function returns an awaitable
+      if constexpr (Detail::is_awaitable_v<RawResultType>)
+      {
+        // Member function returns awaitable<U>, extract U
+        using ResultType = Detail::awaitable_value_t<RawResultType>;
+        using ReturnType = std::conditional_t<std::is_void_v<ResultType>, bool, std::optional<ResultType>>;
+
+        return boost::asio::co_spawn(
+          sourceExecutor,
+          [targetExecutor, weakPtr, func = std::mem_fn(memberFunc),
+           ... args = std::forward<Args>(args)]() mutable -> boost::asio::awaitable<ReturnType>
+          {
+            auto result = co_await boost::asio::co_spawn(
+              targetExecutor,
+              [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ReturnType>
+              {
+                auto ptr = weakPtr.lock();
+                if (!ptr)
+                {
+                  if constexpr (std::is_void_v<ResultType>)
+                  {
+                    co_return false;
+                  }
+                  else
+                  {
+                    co_return std::nullopt;
+                  }
+                }
+
+                if constexpr (std::is_void_v<ResultType>)
+                {
+                  co_await func(ptr, std::move(args)...);
+                  co_return true;
+                }
+                else
+                {
+                  co_return std::optional<ResultType>(co_await func(ptr, std::move(args)...));
+                }
+              },
+              boost::asio::use_awaitable);
+
+            co_return result;
+          },
+          boost::asio::use_awaitable);
+      }
+      else
+      {
+        // Member function returns regular type
+        using ResultType = RawResultType;
+        using ReturnType = std::conditional_t<std::is_void_v<ResultType>, bool, std::optional<ResultType>>;
+
+        return boost::asio::co_spawn(
+          sourceExecutor,
+          [targetExecutor, weakPtr, func = std::mem_fn(memberFunc),
+           ... args = std::forward<Args>(args)]() mutable -> boost::asio::awaitable<ReturnType>
+          {
+            auto result = co_await boost::asio::co_spawn(
+              targetExecutor,
+              [weakPtr, func = std::move(func), ... args = std::move(args)]() mutable -> boost::asio::awaitable<ReturnType>
+              {
+                auto ptr = weakPtr.lock();
+                if (!ptr)
+                {
+                  if constexpr (std::is_void_v<ResultType>)
+                  {
+                    co_return false;
+                  }
+                  else
+                  {
+                    co_return std::nullopt;
+                  }
+                }
+
+                if constexpr (std::is_void_v<ResultType>)
+                {
+                  func(ptr, std::move(args)...);
+                  co_return true;
+                }
+                else
+                {
+                  co_return std::optional<ResultType>(func(ptr, std::move(args)...));
+                }
+              },
+              boost::asio::use_awaitable);
+
+            co_return result;
+          },
+          boost::asio::use_awaitable);
+      }
     }
 
   }    // namespace Util
