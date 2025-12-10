@@ -343,6 +343,21 @@ namespace Test2
       }
 
       // Shutdown all managed threads in parallel
+      auto threadShutdownErrors = co_await DoShutdownThreadHostsAsync(std::move(threadHosts), stopToken);
+      allErrors.insert(allErrors.end(), threadShutdownErrors.begin(), threadShutdownErrors.end());
+
+      co_return allErrors;
+    }
+
+    /// @brief Shuts down all managed thread hosts in parallel.
+    ///
+    /// @param threadHosts Map of managed thread hosts to shut down.
+    /// @param stopToken Stop token to indicate if the LifecycleManager object has died.
+    /// @return Vector of any exceptions that occurred during thread shutdown.
+    static boost::asio::awaitable<std::vector<std::exception_ptr>>
+      DoShutdownThreadHostsAsync(std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>> threadHosts, std::stop_token stopToken)
+    {
+      std::vector<std::exception_ptr> allErrors;
       std::vector<boost::asio::awaitable<bool>> threadShutdownTasks;
 
       // Check if LifecycleManager has died before thread shutdown
