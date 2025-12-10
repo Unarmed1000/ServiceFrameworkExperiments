@@ -315,36 +315,54 @@ namespace Test2
           break;
         }
 
-        // Shutdown all thread groups at this priority level in parallel
-        std::vector<boost::asio::awaitable<std::vector<std::exception_ptr>>> shutdownTasks;
-
-        for (const auto& record : records)
-        {
-          if (record.ThreadGroupId == ThreadGroupConfig::MainThreadGroupId)
-          {
-            shutdownTasks.push_back(mainHost.GetServiceHost()->TryShutdownServicesAsync(record.Priority));
-          }
-          else
-          {
-            auto hostIt = threadHosts.find(record.ThreadGroupId);
-            if (hostIt != threadHosts.end())
-            {
-              shutdownTasks.push_back(hostIt->second->GetServiceHost()->TryShutdownServicesAsync(record.Priority));
-            }
-          }
-        }
-
-        // Wait for all shutdowns at this priority level to complete
-        for (auto& task : shutdownTasks)
-        {
-          auto errors = co_await std::move(task);
-          allErrors.insert(allErrors.end(), errors.begin(), errors.end());
-        }
+        auto priorityErrors = co_await DoShutdownServicesByPriorityAsync(std::move(records), mainHost.GetServiceHost(), threadHosts);
+        allErrors.insert(allErrors.end(), priorityErrors.begin(), priorityErrors.end());
       }
 
       // Shutdown all managed threads in parallel
       auto threadShutdownErrors = co_await DoShutdownThreadHostsAsync(std::move(threadHosts), stopToken);
       allErrors.insert(allErrors.end(), threadShutdownErrors.begin(), threadShutdownErrors.end());
+
+      co_return allErrors;
+    }
+
+    /// @brief Shuts down services for a specific priority level across all thread groups in parallel.
+    ///
+    /// @param records Vector of priority records for the same priority level.
+    /// @param mainHost Reference to the main cooperative thread host.
+    /// @param threadHosts Map of managed thread hosts.
+    /// @return Vector of any exceptions that occurred during shutdown.
+    static boost::asio::awaitable<std::vector<std::exception_ptr>>
+      DoShutdownServicesByPriorityAsync(std::vector<StartedPriorityRecord> records, std::shared_ptr<IThreadSafeServiceHost> mainServiceHost,
+                                        std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>>& threadHosts)
+    {
+      std::vector<std::exception_ptr> allErrors;
+
+      // Shutdown all thread groups at this priority level in parallel
+      std::vector<boost::asio::awaitable<std::vector<std::exception_ptr>>> shutdownTasks;
+
+      for (const auto& record : records)
+      {
+        if (record.ThreadGroupId == ThreadGroupConfig::MainThreadGroupId)
+        {
+          shutdownTasks.push_back(mainServiceHost->TryShutdownServicesAsync(record.Priority));
+        }
+        else
+        {
+          auto hostIt = threadHosts.find(record.ThreadGroupId);
+          if (hostIt != threadHosts.end())
+          {
+            shutdownTasks.push_back(hostIt->second->GetServiceHost()->TryShutdownServicesAsync(record.Priority));
+          }
+        }
+      }
+
+      // Wait for all shutdowns at this priority level to complete
+      for (auto& task : shutdownTasks)
+      {
+        auto errors = co_await std::move(task);
+        allErrors.insert(allErrors.end(), errors.begin(), errors.end());
+      }
 
       co_return allErrors;
     }
