@@ -64,6 +64,28 @@ namespace Test2
     /// Used for rollback on failure and for normal shutdown (processed in reverse).
     std::vector<StartedPriorityRecord> m_startedPriorities;
 
+    /// @brief Collects all unique non-main thread group IDs from the priority groups.
+    ///
+    /// @param priorityGroups Map of priorities to thread groups with their service registrations.
+    /// @return Set of thread group IDs that require managed thread hosts.
+    static std::set<ServiceThreadGroupId>
+      CollectRequiredThreadGroups(const std::map<ServiceLaunchPriority, std::map<ServiceThreadGroupId, std::vector<ServiceRegistrationRecord*>>,
+                                                 std::greater<ServiceLaunchPriority>>& priorityGroups)
+    {
+      std::set<ServiceThreadGroupId> requiredThreadGroups;
+      for (const auto& [priority, threadGroups] : priorityGroups)
+      {
+        for (const auto& [threadGroupId, regsInGroup] : threadGroups)
+        {
+          if (threadGroupId != ThreadGroupConfig::MainThreadGroupId)
+          {
+            requiredThreadGroups.insert(threadGroupId);
+          }
+        }
+      }
+      return requiredThreadGroups;
+    }
+
   public:
     /// @brief Constructs a LifecycleManager with the given configuration and service registrations.
     ///
@@ -110,17 +132,7 @@ namespace Test2
       }
 
       // First pass: Start all required thread hosts before starting any services
-      std::set<ServiceThreadGroupId> requiredThreadGroups;
-      for (const auto& [priority, threadGroups] : priorityGroups)
-      {
-        for (const auto& [threadGroupId, regsInGroup] : threadGroups)
-        {
-          if (threadGroupId != ThreadGroupConfig::MainThreadGroupId)
-          {
-            requiredThreadGroups.insert(threadGroupId);
-          }
-        }
-      }
+      auto requiredThreadGroups = CollectRequiredThreadGroups(priorityGroups);
 
       for (const auto& threadGroupId : requiredThreadGroups)
       {
