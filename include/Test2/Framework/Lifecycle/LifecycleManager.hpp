@@ -105,95 +105,7 @@ namespace Test2
         co_return;
       }
 
-      // Group registrations by priority, then by thread group
-      // Outer map: priority (highest first via std::greater)
-      // Inner map: thread group ID -> services for that thread group at this priority
-      std::map<ServiceLaunchPriority, std::map<ServiceThreadGroupId, std::vector<ServiceRegistrationRecord*>>, std::greater<ServiceLaunchPriority>>
-        priorityGroups;
-
-      for (auto& reg : m_registrations)
-      {
-        priorityGroups[reg.Priority][reg.ThreadGroupId].push_back(&reg);
-      }
-
-      // First pass: Start all required thread hosts before starting any services
-      auto requiredThreadGroups = CollectRequiredThreadGroups(priorityGroups);
-
-      for (const auto& threadGroupId : requiredThreadGroups)
-      {
-        auto host = std::make_unique<ManagedThreadHost>(m_mainHost.GetExecutorContext());
-        // Start the thread (it will run io_context.run())
-        co_await host->StartAsync();
-        m_threadHosts.emplace(threadGroupId, std::move(host));
-      }
-
-      // Second pass: Start services in priority order (highest first due to std::greater comparator)
-      for (auto& [priority, threadGroups] : priorityGroups)
-      {
-        // For each thread group at this priority level
-        for (auto& [threadGroupId, regsInGroup] : threadGroups)
-        {
-          std::vector<StartServiceRecord> servicesForGroup;
-
-          for (auto* reg : regsInGroup)
-          {
-            // Get service name from first supported interface
-            auto interfaces = reg->Factory->GetSupportedInterfaces();
-            std::string serviceName = interfaces.empty() ? "UnknownService" : interfaces[0].name();
-
-            servicesForGroup.emplace_back(std::move(serviceName), std::move(reg->Factory));
-          }
-
-          if (!servicesForGroup.empty())
-          {
-            std::exception_ptr startupException;
-            try
-            {
-              if (threadGroupId == ThreadGroupConfig::MainThreadGroupId)
-              {
-                // Main thread group - use cooperative host
-                co_await m_mainHost.GetServiceHost()->TryStartServicesAsync(std::move(servicesForGroup), priority);
-              }
-              else
-              {
-                // Non-main thread group - use the pre-started ManagedThreadHost
-                auto it = m_threadHosts.find(threadGroupId);
-                if (it == m_threadHosts.end())
-                {
-                  throw std::runtime_error("Thread host not found for thread group");
-                }
-
-                // Start services on the managed thread host
-                co_await it->second->GetServiceHost()->TryStartServicesAsync(std::move(servicesForGroup), priority);
-              }
-
-              // Track successfully started priority level
-              m_startedPriorities.push_back({priority, threadGroupId});
-            }
-            catch (...)
-            {
-              startupException = std::current_exception();
-            }
-
-            // Handle startup failure outside catch block (co_await not allowed in catch)
-            if (startupException)
-            {
-              // Rollback all previously started priority levels
-              auto rollbackErrors =
-                co_await DoShutdownServicesAsync(std::move(m_startedPriorities), m_mainHost, m_threadHosts, m_stopSource.get_token());
-
-              // Combine startup error with any rollback errors
-              std::vector<std::exception_ptr> allErrors;
-              allErrors.push_back(startupException);
-              allErrors.insert(allErrors.end(), rollbackErrors.begin(), rollbackErrors.end());
-
-              throw Common::AggregateException("Service startup failed", std::move(allErrors));
-            }
-          }
-        }
-      }
-
-      co_return;
+      co_await DoStartServicesAsync(m_registrations, m_startedPriorities, m_mainHost, m_threadHosts, m_stopSource.get_token());
     }
 
     /// @brief Shuts down all started services in reverse priority order.
@@ -269,6 +181,109 @@ namespace Test2
         }
       }
       return requiredThreadGroups;
+    }
+
+    /// @brief Performs the actual startup of services across thread groups.
+    ///
+    /// @param registrations Vector of service registrations to start.
+    /// @param startedPriorities Output vector to track successfully started priority levels.
+    /// @param mainHost Reference to the main cooperative thread host.
+    /// @param threadHosts Map of managed thread hosts (will be populated as needed).
+    /// @param stopToken Stop token to indicate if the LifecycleManager object has died.
+    /// @throws AggregateException if any service fails to start (after rollback).
+    static boost::asio::awaitable<void> DoStartServicesAsync(std::vector<ServiceRegistrationRecord>& registrations,
+                                                             std::vector<StartedPriorityRecord>& startedPriorities, CooperativeThreadHost& mainHost,
+                                                             std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>>& threadHosts,
+                                                             std::stop_token stopToken)
+    {
+      // Group registrations by priority, then by thread group
+      // Outer map: priority (highest first via std::greater)
+      // Inner map: thread group ID -> services for that thread group at this priority
+      std::map<ServiceLaunchPriority, std::map<ServiceThreadGroupId, std::vector<ServiceRegistrationRecord*>>, std::greater<ServiceLaunchPriority>>
+        priorityGroups;
+
+      for (auto& reg : registrations)
+      {
+        priorityGroups[reg.Priority][reg.ThreadGroupId].push_back(&reg);
+      }
+
+      // First pass: Start all required thread hosts before starting any services
+      auto requiredThreadGroups = CollectRequiredThreadGroups(priorityGroups);
+
+      for (const auto& threadGroupId : requiredThreadGroups)
+      {
+        auto host = std::make_unique<ManagedThreadHost>(mainHost.GetExecutorContext());
+        // Start the thread (it will run io_context.run())
+        co_await host->StartAsync();
+        threadHosts.emplace(threadGroupId, std::move(host));
+      }
+
+      // Second pass: Start services in priority order (highest first due to std::greater comparator)
+      for (auto& [priority, threadGroups] : priorityGroups)
+      {
+        // For each thread group at this priority level
+        for (auto& [threadGroupId, regsInGroup] : threadGroups)
+        {
+          std::vector<StartServiceRecord> servicesForGroup;
+
+          for (auto* reg : regsInGroup)
+          {
+            // Get service name from first supported interface
+            auto interfaces = reg->Factory->GetSupportedInterfaces();
+            std::string serviceName = interfaces.empty() ? "UnknownService" : interfaces[0].name();
+
+            servicesForGroup.emplace_back(std::move(serviceName), std::move(reg->Factory));
+          }
+
+          if (!servicesForGroup.empty())
+          {
+            std::exception_ptr startupException;
+            try
+            {
+              if (threadGroupId == ThreadGroupConfig::MainThreadGroupId)
+              {
+                // Main thread group - use cooperative host
+                co_await mainHost.GetServiceHost()->TryStartServicesAsync(std::move(servicesForGroup), priority);
+              }
+              else
+              {
+                // Non-main thread group - use the pre-started ManagedThreadHost
+                auto it = threadHosts.find(threadGroupId);
+                if (it == threadHosts.end())
+                {
+                  throw std::runtime_error("Thread host not found for thread group");
+                }
+
+                // Start services on the managed thread host
+                co_await it->second->GetServiceHost()->TryStartServicesAsync(std::move(servicesForGroup), priority);
+              }
+
+              // Track successfully started priority level
+              startedPriorities.push_back({priority, threadGroupId});
+            }
+            catch (...)
+            {
+              startupException = std::current_exception();
+            }
+
+            // Handle startup failure outside catch block (co_await not allowed in catch)
+            if (startupException)
+            {
+              // Rollback all previously started priority levels
+              auto rollbackErrors = co_await DoShutdownServicesAsync(std::move(startedPriorities), mainHost, threadHosts, stopToken);
+
+              // Combine startup error with any rollback errors
+              std::vector<std::exception_ptr> allErrors;
+              allErrors.push_back(startupException);
+              allErrors.insert(allErrors.end(), rollbackErrors.begin(), rollbackErrors.end());
+
+              throw Common::AggregateException("Service startup failed", std::move(allErrors));
+            }
+          }
+        }
+      }
+
+      co_return;
     }
 
     /// @brief Performs the actual shutdown of services and managed threads.
