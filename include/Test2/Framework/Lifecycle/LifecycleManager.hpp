@@ -304,9 +304,12 @@ namespace Test2
 
     /// @brief Performs the actual shutdown of services and managed threads.
     ///
+    /// Handles exceptions from both service shutdown and thread shutdown operations.
+    /// All exceptions are caught, logged, and added to the returned error vector.
+    ///
     /// @param startedPriorities Vector of started priority records to shut down in reverse order.
     /// @param mainHost Reference to the main cooperative thread host.
-    /// @param threadHosts Map of managed thread hosts.
+    /// @param threadHosts Map of managed thread hosts (ownership transferred).
     /// @param stopToken Stop token to indicate if the LifecycleManager object has died.
     /// @return Vector of any exceptions that occurred during shutdown.
     static boost::asio::awaitable<std::vector<std::exception_ptr>> DoShutdownServicesAsync(std::vector<StartedPriorityRecord> startedPriorities,
@@ -350,10 +353,13 @@ namespace Test2
 
     /// @brief Shuts down services for all priority levels in reverse order of startup.
     ///
-    /// @param priorityMap Map of priority levels to their records (in ascending order).
+    /// Processes priority levels sequentially, transferring threadHosts ownership between
+    /// priority levels to ensure proper resource management.
+    ///
+    /// @param startedPriorities Vector of started priority records to shut down in reverse order.
     /// @param mainServiceHost Reference to the main thread service host.
-    /// @param threadHosts Map of managed thread hosts.
-    /// @return Vector of any exceptions that occurred during shutdown.
+    /// @param threadHosts Map of managed thread hosts (ownership transferred).
+    /// @return AsyncOperationResult containing threadHosts and any exceptions that occurred.
     static boost::asio::awaitable<AsyncOperationResult> DoShutdownAllServicePrioritiesAsync(std::vector<StartedPriorityRecord> startedPriorities,
                                                                                             std::shared_ptr<IThreadSafeServiceHost> mainServiceHost,
                                                                                             ThreadGroupHostsMap threadHosts)
@@ -368,6 +374,8 @@ namespace Test2
       std::vector<std::exception_ptr> allErrors;
       for (auto& [priority, records] : priorityMap)
       {
+        // FIX: threadHosts needs to be shared_ptr or similar to avoid move issues here
+        // This is necessary to ensure that if  DoShutdownServicesByPriorityAsync throws we can continue looping with the existing threadHosts
         auto result = co_await DoShutdownServicesByPriorityAsync(std::move(records), mainServiceHost, std::move(threadHosts));
         threadHosts = std::move(result.ThreadHosts);
         allErrors.insert(allErrors.end(), result.Errors.begin(), result.Errors.end());
@@ -378,9 +386,12 @@ namespace Test2
 
     /// @brief Shuts down services for a specific priority level across all thread groups in parallel.
     ///
+    /// Creates shutdown tasks for all thread groups at this priority level and awaits them.
+    /// Each task is individually wrapped in exception handling to ensure all errors are captured.
+    ///
     /// @param records Vector of priority records for the same priority level.
-    /// @param mainHost Reference to the main cooperative thread host.
-    /// @param threadHosts Map of managed thread hosts.
+    /// @param mainServiceHost Reference to the main thread service host.
+    /// @param threadHosts Map of managed thread hosts (ownership transferred and returned).
     /// @return AsyncOperationResult containing the threadHosts (for chaining) and any exceptions that occurred during shutdown.
     /// @note This does not need a stop token since it owns the lifetime of everything it touches at this point in time.
     static boost::asio::awaitable<AsyncOperationResult> DoShutdownServicesByPriorityAsync(std::vector<StartedPriorityRecord> records,
@@ -429,7 +440,10 @@ namespace Test2
 
     /// @brief Shuts down all managed thread hosts in parallel.
     ///
-    /// @param threadHosts Map of managed thread hosts to shut down.
+    /// Creates shutdown tasks for all thread hosts and awaits them sequentially.
+    /// Each shutdown operation is wrapped in exception handling to capture all errors.
+    ///
+    /// @param threadHosts Map of managed thread hosts to shut down (ownership transferred).
     /// @return Vector of any exceptions that occurred during thread shutdown.
     /// @note This does not need a stop token since it owns the lifetime of everything it touches at this point in time.
     static boost::asio::awaitable<std::vector<std::exception_ptr>> DoShutdownThreadHostsAsync(ThreadGroupHostsMap threadHosts)
