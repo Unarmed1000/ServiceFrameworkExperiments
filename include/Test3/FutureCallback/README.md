@@ -112,21 +112,6 @@ sequenceDiagram
     end
 ```
 
-### Flexible Executor Configuration
-
-```mermaid
-graph TD
-    A[ToFutureWithCallback] --> B{Executor Configuration}
-    B -->|Same Executor| C[co_spawn & post use same executor]
-    B -->|Different Executors| D[co_spawn on work executor<br/>post on callback executor]
-
-    C --> E[Single-threaded model<br/>e.g., Game loop, UI thread]
-    D --> F[Multi-threaded model<br/>e.g., Background worker + UI thread]
-
-    style C fill:#e1ffe1
-    style D fill:#e1f5ff
-```
-
 ## Sequence Diagrams
 
 ### Normal Flow - Successful Completion
