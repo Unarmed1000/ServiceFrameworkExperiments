@@ -27,6 +27,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <stop_token>
 #include <vector>
 
 namespace Test2
@@ -64,98 +65,8 @@ namespace Test2
     /// Used for rollback on failure and for normal shutdown (processed in reverse).
     std::vector<StartedPriorityRecord> m_startedPriorities;
 
-    /// @brief Collects all unique non-main thread group IDs from the priority groups.
-    ///
-    /// @param priorityGroups Map of priorities to thread groups with their service registrations.
-    /// @return Set of thread group IDs that require managed thread hosts.
-    static std::set<ServiceThreadGroupId>
-      CollectRequiredThreadGroups(const std::map<ServiceLaunchPriority, std::map<ServiceThreadGroupId, std::vector<ServiceRegistrationRecord*>>,
-                                                 std::greater<ServiceLaunchPriority>>& priorityGroups)
-    {
-      std::set<ServiceThreadGroupId> requiredThreadGroups;
-      for (const auto& [priority, threadGroups] : priorityGroups)
-      {
-        for (const auto& [threadGroupId, regsInGroup] : threadGroups)
-        {
-          if (threadGroupId != ThreadGroupConfig::MainThreadGroupId)
-          {
-            requiredThreadGroups.insert(threadGroupId);
-          }
-        }
-      }
-      return requiredThreadGroups;
-    }
-
-    /// @brief Performs the actual shutdown of services and managed threads.
-    ///
-    /// @param startedPriorities Vector of started priority records to shut down in reverse order.
-    /// @param mainHost Reference to the main cooperative thread host.
-    /// @param threadHosts Map of managed thread hosts.
-    /// @return Vector of any exceptions that occurred during shutdown.
-    static boost::asio::awaitable<std::vector<std::exception_ptr>>
-      PerformShutdown(std::vector<StartedPriorityRecord> startedPriorities, CooperativeThreadHost& mainHost,
-                      std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>>& threadHosts)
-    {
-      std::vector<std::exception_ptr> allErrors;
-
-      // Group by priority level for parallel shutdown (use std::less for ascending order)
-      std::map<ServiceLaunchPriority, std::vector<StartedPriorityRecord>, std::less<ServiceLaunchPriority>> priorityMap;
-      for (const auto& record : startedPriorities)
-      {
-        priorityMap[record.Priority].push_back(record);
-      }
-
-      // Shutdown in reverse order of startup (lowest priority first, then higher)
-      for (auto& [priority, records] : priorityMap)
-      {
-        // Shutdown all thread groups at this priority level in parallel
-        std::vector<boost::asio::awaitable<std::vector<std::exception_ptr>>> shutdownTasks;
-
-        for (const auto& record : records)
-        {
-          if (record.ThreadGroupId == ThreadGroupConfig::MainThreadGroupId)
-          {
-            shutdownTasks.push_back(mainHost.GetServiceHost()->TryShutdownServicesAsync(record.Priority));
-          }
-          else
-          {
-            auto hostIt = threadHosts.find(record.ThreadGroupId);
-            if (hostIt != threadHosts.end())
-            {
-              shutdownTasks.push_back(hostIt->second->GetServiceHost()->TryShutdownServicesAsync(record.Priority));
-            }
-          }
-        }
-
-        // Wait for all shutdowns at this priority level to complete
-        for (auto& task : shutdownTasks)
-        {
-          auto errors = co_await std::move(task);
-          allErrors.insert(allErrors.end(), errors.begin(), errors.end());
-        }
-      }
-
-      // Shutdown all managed threads in parallel
-      std::vector<boost::asio::awaitable<bool>> threadShutdownTasks;
-      for (auto& [threadGroupId, host] : threadHosts)
-      {
-        threadShutdownTasks.push_back(host->TryShutdownAsync());
-      }
-
-      for (auto& task : threadShutdownTasks)
-      {
-        try
-        {
-          co_await std::move(task);
-        }
-        catch (...)
-        {
-          allErrors.push_back(std::current_exception());
-        }
-      }
-
-      co_return allErrors;
-    }
+    /// @brief Stop source to signal when the LifecycleManager is being destroyed.
+    std::stop_source m_stopSource;
 
   public:
     /// @brief Constructs a LifecycleManager with the given configuration and service registrations.
@@ -168,7 +79,10 @@ namespace Test2
     {
     }
 
-    ~LifecycleManager() = default;
+    ~LifecycleManager()
+    {
+      m_stopSource.request_stop();
+    }
 
     LifecycleManager(const LifecycleManager&) = delete;
     LifecycleManager& operator=(const LifecycleManager&) = delete;
@@ -265,7 +179,8 @@ namespace Test2
             if (startupException)
             {
               // Rollback all previously started priority levels
-              auto rollbackErrors = co_await ShutdownServicesAsync();
+              auto rollbackErrors =
+                co_await DoShutdownServicesAsync(std::move(m_startedPriorities), m_mainHost, m_threadHosts, m_stopSource.get_token());
 
               // Combine startup error with any rollback errors
               std::vector<std::exception_ptr> allErrors;
@@ -290,10 +205,11 @@ namespace Test2
     /// @return Vector of any exceptions that occurred during shutdown.
     boost::asio::awaitable<std::vector<std::exception_ptr>> ShutdownServicesAsync()
     {
-      auto allErrors = co_await PerformShutdown(std::move(m_startedPriorities), m_mainHost, m_threadHosts);
+      auto allErrors = co_await DoShutdownServicesAsync(std::move(m_startedPriorities), m_mainHost, m_threadHosts, m_stopSource.get_token());
       m_startedPriorities = {};
       co_return allErrors;
     }
+
 
     /// @brief Polls the main thread's io_context and processes all services.
     ///
@@ -330,6 +246,112 @@ namespace Test2
     const CooperativeThreadHost& GetMainHost() const
     {
       return m_mainHost;
+    }
+
+  private:
+    /// @brief Collects all unique non-main thread group IDs from the priority groups.
+    ///
+    /// @param priorityGroups Map of priorities to thread groups with their service registrations.
+    /// @return Set of thread group IDs that require managed thread hosts.
+    static std::set<ServiceThreadGroupId>
+      CollectRequiredThreadGroups(const std::map<ServiceLaunchPriority, std::map<ServiceThreadGroupId, std::vector<ServiceRegistrationRecord*>>,
+                                                 std::greater<ServiceLaunchPriority>>& priorityGroups)
+    {
+      std::set<ServiceThreadGroupId> requiredThreadGroups;
+      for (const auto& [priority, threadGroups] : priorityGroups)
+      {
+        for (const auto& [threadGroupId, regsInGroup] : threadGroups)
+        {
+          if (threadGroupId != ThreadGroupConfig::MainThreadGroupId)
+          {
+            requiredThreadGroups.insert(threadGroupId);
+          }
+        }
+      }
+      return requiredThreadGroups;
+    }
+
+    /// @brief Performs the actual shutdown of services and managed threads.
+    ///
+    /// @param startedPriorities Vector of started priority records to shut down in reverse order.
+    /// @param mainHost Reference to the main cooperative thread host.
+    /// @param threadHosts Map of managed thread hosts.
+    /// @param stopToken Stop token to indicate if the LifecycleManager object has died.
+    /// @return Vector of any exceptions that occurred during shutdown.
+    static boost::asio::awaitable<std::vector<std::exception_ptr>>
+      DoShutdownServicesAsync(std::vector<StartedPriorityRecord> startedPriorities, CooperativeThreadHost& mainHost,
+                              std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>>& threadHosts, std::stop_token stopToken)
+    {
+      std::vector<std::exception_ptr> allErrors;
+
+      // Group by priority level for parallel shutdown (use std::less for ascending order)
+      std::map<ServiceLaunchPriority, std::vector<StartedPriorityRecord>, std::less<ServiceLaunchPriority>> priorityMap;
+      for (const auto& record : startedPriorities)
+      {
+        priorityMap[record.Priority].push_back(record);
+      }
+
+      // Shutdown in reverse order of startup (lowest priority first, then higher)
+      for (auto& [priority, records] : priorityMap)
+      {
+        // Check if LifecycleManager has died
+        if (stopToken.stop_requested())
+        {
+          break;
+        }
+
+        // Shutdown all thread groups at this priority level in parallel
+        std::vector<boost::asio::awaitable<std::vector<std::exception_ptr>>> shutdownTasks;
+
+        for (const auto& record : records)
+        {
+          if (record.ThreadGroupId == ThreadGroupConfig::MainThreadGroupId)
+          {
+            shutdownTasks.push_back(mainHost.GetServiceHost()->TryShutdownServicesAsync(record.Priority));
+          }
+          else
+          {
+            auto hostIt = threadHosts.find(record.ThreadGroupId);
+            if (hostIt != threadHosts.end())
+            {
+              shutdownTasks.push_back(hostIt->second->GetServiceHost()->TryShutdownServicesAsync(record.Priority));
+            }
+          }
+        }
+
+        // Wait for all shutdowns at this priority level to complete
+        for (auto& task : shutdownTasks)
+        {
+          auto errors = co_await std::move(task);
+          allErrors.insert(allErrors.end(), errors.begin(), errors.end());
+        }
+      }
+
+      // Shutdown all managed threads in parallel
+      std::vector<boost::asio::awaitable<bool>> threadShutdownTasks;
+
+      // Check if LifecycleManager has died before thread shutdown
+      if (!stopToken.stop_requested())
+      {
+        for (auto& [threadGroupId, host] : threadHosts)
+        {
+          threadShutdownTasks.push_back(host->TryShutdownAsync());
+        }
+      }
+
+      for (auto& task : threadShutdownTasks)
+      {
+        try
+        {
+          co_await std::move(task);
+        }
+        catch (...)
+        {
+          allErrors.push_back(std::current_exception());
+        }
+      }
+
+      co_return allErrors;
     }
   };
 }
