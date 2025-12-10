@@ -117,7 +117,8 @@ namespace Test2
     /// @return Vector of any exceptions that occurred during shutdown.
     boost::asio::awaitable<std::vector<std::exception_ptr>> ShutdownServicesAsync()
     {
-      auto allErrors = co_await DoShutdownServicesAsync(std::move(m_startedPriorities), m_mainHost, m_threadHosts, m_stopSource.get_token());
+      auto allErrors =
+        co_await DoShutdownServicesAsync(std::move(m_startedPriorities), m_mainHost, std::move(m_threadHosts), m_stopSource.get_token());
       m_startedPriorities = {};
       co_return allErrors;
     }
@@ -270,7 +271,7 @@ namespace Test2
             if (startupException)
             {
               // Rollback all previously started priority levels
-              auto rollbackErrors = co_await DoShutdownServicesAsync(std::move(startedPriorities), mainHost, threadHosts, stopToken);
+              auto rollbackErrors = co_await DoShutdownServicesAsync(std::move(startedPriorities), mainHost, std::move(threadHosts), stopToken);
 
               // Combine startup error with any rollback errors
               std::vector<std::exception_ptr> allErrors;
@@ -295,7 +296,7 @@ namespace Test2
     /// @return Vector of any exceptions that occurred during shutdown.
     static boost::asio::awaitable<std::vector<std::exception_ptr>>
       DoShutdownServicesAsync(std::vector<StartedPriorityRecord> startedPriorities, CooperativeThreadHost& mainHost,
-                              std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>>& threadHosts, std::stop_token stopToken)
+                              std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>> threadHosts, std::stop_token stopToken)
     {
       std::vector<std::exception_ptr> allErrors;
 
