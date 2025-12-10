@@ -14,61 +14,16 @@
 //****************************************************************************************************************************************************
 
 #include <Test4/Framework/Util/CompletionCallback.hpp>
+#include <Test4/Framework/Util/ServiceCallback_Method_Internal.hpp>
 #include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/post.hpp>
 #include <future>
 #include <memory>
 #include <stop_token>
-#include <type_traits>
-#include <utility>
 
 namespace Test4
 {
   namespace ServiceCallback
   {
-    /// @brief Implementation of method callback with stop_token lifetime tracking.
-    ///
-    /// Invokes a member function on the callback receiver when the operation completes.
-    /// Checks stop_token before invoking to ensure the object is still alive.
-    template <typename TResult, typename TCallback, typename CallbackMethod>
-    class MethodCallbackImpl final : public CompletionCallback<TResult>::ICallbackImpl
-    {
-      boost::asio::any_io_executor m_executor;
-      TCallback* m_callbackObj;
-      CallbackMethod m_callbackMethod;
-      std::stop_token m_stopToken;
-
-    public:
-      MethodCallbackImpl(boost::asio::any_io_executor executor, TCallback* callbackObj, CallbackMethod callbackMethod, std::stop_token stopToken)
-        : m_executor(std::move(executor))
-        , m_callbackObj(callbackObj)
-        , m_callbackMethod(callbackMethod)
-        , m_stopToken(std::move(stopToken))
-      {
-      }
-
-      void Invoke(std::future<TResult> result) override
-      {
-        // Post to the callback's executor with lifetime checking
-        boost::asio::post(
-          m_executor,
-          [callbackObj = m_callbackObj, callbackMethod = m_callbackMethod, stopToken = m_stopToken, result = std::move(result)]() mutable
-          {
-            // Check stop token before invoking callback
-            if constexpr (requires { stopToken.stop_requested(); })
-            {
-              if (stopToken.stop_requested())
-              {
-                return;    // Object is being destroyed - skip callback
-              }
-            }
-
-            // Invoke the callback method with the future
-            (callbackObj->*callbackMethod)(std::move(result));
-          });
-      }
-    };
-
     /// @brief Creates a method callback with explicit stop_token lifetime tracking.
     ///
     /// The callback will be marshaled to the specified executor and will only
@@ -86,8 +41,8 @@ namespace Test4
     CompletionCallback<TResult> CreateCallback(boost::asio::any_io_executor executor, TCallback* callbackObj, CallbackMethod callbackMethod,
                                                std::stop_token stopToken)
     {
-      auto impl = std::make_unique<MethodCallbackImpl<TResult, TCallback, CallbackMethod>>(std::move(executor), callbackObj, callbackMethod,
-                                                                                           std::move(stopToken));
+      auto impl = std::make_unique<Internal::MethodCallbackImpl<TResult, TCallback, CallbackMethod>>(std::move(executor), callbackObj, callbackMethod,
+                                                                                                     std::move(stopToken));
 
       return CompletionCallback<TResult>(std::move(impl));
     }

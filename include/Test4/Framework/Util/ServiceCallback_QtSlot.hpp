@@ -16,54 +16,16 @@
 #ifdef QT_VERSION
 
 #include <Test4/Framework/Util/CompletionCallback.hpp>
+#include <Test4/Framework/Util/ServiceCallback_QtSlot_Internal.hpp>
 #include <boost/asio/any_io_executor.hpp>
-#include <QMetaObject>
-#include <QObject>
 #include <future>
 #include <memory>
-#include <utility>
+#include <type_traits>
 
 namespace Test4
 {
   namespace ServiceCallback
   {
-    /// @brief Implementation of Qt slot-based callback with connection tracking.
-    ///
-    /// Invokes a Qt slot on the callback QObject when the operation completes.
-    /// The slot must be declared with the Q_OBJECT macro and slots keyword.
-    ///
-    /// The callback is invoked on the QObject's thread using Qt's queued connection
-    /// mechanism. The QObject's parent-child relationship provides automatic cleanup
-    /// if the object is destroyed.
-    template <typename TResult, typename TCallback, typename CallbackMethod>
-    class QtSlotCallbackImpl final : public CompletionCallback<TResult>::ICallbackImpl
-    {
-      boost::asio::any_io_executor m_executor;
-      TCallback* m_callbackObj;
-      CallbackMethod m_callbackMethod;
-
-    public:
-      QtSlotCallbackImpl(boost::asio::any_io_executor executor, TCallback* callbackObj, CallbackMethod callbackMethod)
-        : m_executor(std::move(executor))
-        , m_callbackObj(callbackObj)
-        , m_callbackMethod(callbackMethod)
-      {
-      }
-
-      void Invoke(std::future<TResult> result) override
-      {
-        // Invoke callback slot on QObject's thread using Qt's queued connection
-        QMetaObject::invokeMethod(
-          m_callbackObj,
-          [callbackObj = m_callbackObj, callbackMethod = m_callbackMethod, result = std::move(result)]() mutable
-          {
-            // Invoke callback slot with future
-            (callbackObj->*callbackMethod)(std::move(result));
-          },
-          Qt::QueuedConnection);
-      }
-    };
-
     /// @brief Creates a Qt slot-based callback.
     ///
     /// The callback will be invoked on the QObject's thread. The callback method
@@ -84,7 +46,8 @@ namespace Test4
     {
       static_assert(std::is_base_of_v<QObject, TCallback>, "TCallback must be derived from QObject");
 
-      auto impl = std::make_unique<QtSlotCallbackImpl<TResult, TCallback, CallbackMethod>>(std::move(executor), callbackObj, callbackMethod);
+      auto impl =
+        std::make_unique<Internal::QtSlotCallbackImpl<TResult, TCallback, CallbackMethod>>(std::move(executor), callbackObj, callbackMethod);
 
       return CompletionCallback<TResult>(std::move(impl));
     }
