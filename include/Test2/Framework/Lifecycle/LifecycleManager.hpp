@@ -26,6 +26,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <map>
 #include <memory>
+#include <set>
 #include <vector>
 
 namespace Test2
@@ -83,6 +84,7 @@ namespace Test2
 
     /// @brief Starts all registered services in priority order (highest first).
     ///
+    /// First ensures all required thread hosts are started, then starts services.
     /// Services are grouped by thread group and started in parallel within each priority level.
     /// On failure, all successfully started services are rolled back in reverse priority order,
     /// and an AggregateException is thrown containing all errors.
@@ -107,7 +109,28 @@ namespace Test2
         priorityGroups[reg.Priority][reg.ThreadGroupId].push_back(&reg);
       }
 
-      // Start services in priority order (highest first due to std::greater comparator)
+      // First pass: Start all required thread hosts before starting any services
+      std::set<ServiceThreadGroupId> requiredThreadGroups;
+      for (const auto& [priority, threadGroups] : priorityGroups)
+      {
+        for (const auto& [threadGroupId, regsInGroup] : threadGroups)
+        {
+          if (threadGroupId != ThreadGroupConfig::MainThreadGroupId)
+          {
+            requiredThreadGroups.insert(threadGroupId);
+          }
+        }
+      }
+
+      for (const auto& threadGroupId : requiredThreadGroups)
+      {
+        auto host = std::make_unique<ManagedThreadHost>(m_mainHost.GetExecutorContext());
+        // Start the thread (it will run io_context.run())
+        co_await host->StartAsync();
+        m_threadHosts.emplace(threadGroupId, std::move(host));
+      }
+
+      // Second pass: Start services in priority order (highest first due to std::greater comparator)
       for (auto& [priority, threadGroups] : priorityGroups)
       {
         // For each thread group at this priority level
@@ -136,14 +159,11 @@ namespace Test2
               }
               else
               {
-                // Non-main thread group - ensure ManagedThreadHost exists and start it
+                // Non-main thread group - use the pre-started ManagedThreadHost
                 auto it = m_threadHosts.find(threadGroupId);
                 if (it == m_threadHosts.end())
                 {
-                  auto host = std::make_unique<ManagedThreadHost>(m_mainHost.GetExecutorContext());
-                  // Start the thread (it will run io_context.run())
-                  co_await host->StartAsync();
-                  it = m_threadHosts.emplace(threadGroupId, std::move(host)).first;
+                  throw std::runtime_error("Thread host not found for thread group");
                 }
 
                 // Start services on the managed thread host
