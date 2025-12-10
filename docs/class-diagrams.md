@@ -70,12 +70,13 @@ classDiagram
         +IsAlive() bool
     }
 
-    class DispatchContext~T~ {
-        +GetExecutor() any_io_executor
-        +GetDispatcher() Dispatcher
-        +GetWeakPtr() weak_ptr~T~
-        +TryLock() shared_ptr~T~
-        +IsAlive() bool
+    class DispatchContext~TSource, TTarget~ {
+        +GetSourceContext() ExecutorContext~TSource~
+        +GetTargetContext() ExecutorContext~TTarget~
+        +GetSourceExecutor() any_io_executor
+        +GetTargetExecutor() any_io_executor
+        +IsSourceAlive() bool
+        +IsTargetAlive() bool
     }
 
     class CooperativeThreadHost
@@ -343,10 +344,13 @@ classDiagram
         +TryLock() shared_ptr~T~
     }
 
-    class DispatchContext~T~ {
-        +GetExecutor() any_io_executor
-        +GetDispatcher() Dispatcher
-        +TryLock() shared_ptr~T~
+    class DispatchContext~TSource, TTarget~ {
+        +GetSourceContext() ExecutorContext~TSource~
+        +GetTargetContext() ExecutorContext~TTarget~
+        +GetSourceExecutor() any_io_executor
+        +GetTargetExecutor() any_io_executor
+        +IsSourceAlive() bool
+        +IsTargetAlive() bool
     }
 
     class ServiceDisposedException
