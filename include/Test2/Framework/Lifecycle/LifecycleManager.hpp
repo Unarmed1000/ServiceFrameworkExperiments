@@ -93,7 +93,7 @@ namespace Test2
     /// @param threadHosts Map of managed thread hosts.
     /// @return Vector of any exceptions that occurred during shutdown.
     static boost::asio::awaitable<std::vector<std::exception_ptr>>
-      PerformShutdown(const std::vector<StartedPriorityRecord>& startedPriorities, CooperativeThreadHost& mainHost,
+      PerformShutdown(std::vector<StartedPriorityRecord> startedPriorities, CooperativeThreadHost& mainHost,
                       std::map<ServiceThreadGroupId, std::unique_ptr<ManagedThreadHost>>& threadHosts)
     {
       std::vector<std::exception_ptr> allErrors;
