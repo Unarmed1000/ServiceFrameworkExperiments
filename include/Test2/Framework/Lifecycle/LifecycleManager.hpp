@@ -364,7 +364,7 @@ namespace Test2
                                                                                             std::shared_ptr<IThreadSafeServiceHost> mainServiceHost,
                                                                                             ThreadGroupHostsMap threadHosts)
     {
-      // Group by priority level for parallel shutdown (use std::less for ascending order)
+      // Group by priority level (use std::less for ascending order, shutting down lowest priority first)
       PriorityMap priorityMap;
       for (const auto& record : startedPriorities)
       {
@@ -451,7 +451,7 @@ namespace Test2
       std::vector<std::exception_ptr> allErrors;
       std::vector<boost::asio::awaitable<bool>> threadShutdownTasks;
 
-      // Check if LifecycleManager has died before thread shutdown
+      // Create shutdown tasks for all thread hosts
       for (auto& [threadGroupId, host] : threadHosts)
       {
         threadShutdownTasks.push_back(host->TryShutdownAsync());
