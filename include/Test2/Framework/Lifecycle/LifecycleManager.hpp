@@ -314,17 +314,36 @@ namespace Test2
                                                                                            ThreadGroupHostsMap threadHosts, std::stop_token stopToken)
     {
       auto mainServiceHost = mainHost.GetServiceHost();
+      std::vector<std::exception_ptr> allErrors;
 
       // Shutdown in reverse order of startup (lowest priority first, then higher)
-      auto serviceShutdownResult =
-        co_await DoShutdownAllServicePrioritiesAsync(std::move(startedPriorities), mainServiceHost, std::move(threadHosts));
-
-      std::vector<std::exception_ptr> allErrors;
-      allErrors.insert(allErrors.end(), serviceShutdownResult.Errors.begin(), serviceShutdownResult.Errors.end());
+      AsyncOperationResult serviceShutdownResult;
+      try
+      {
+        serviceShutdownResult = co_await DoShutdownAllServicePrioritiesAsync(std::move(startedPriorities), mainServiceHost, std::move(threadHosts));
+        allErrors.insert(allErrors.end(), serviceShutdownResult.Errors.begin(), serviceShutdownResult.Errors.end());
+      }
+      catch (...)
+      {
+        auto exception = std::current_exception();
+        allErrors.push_back(exception);
+        spdlog::error("DoShutdownAllServicePrioritiesAsync threw an exception during shutdown");
+        // ThreadHosts were moved, so we have no hosts to shut down
+        serviceShutdownResult.ThreadHosts = {};
+      }
 
       // Shutdown all managed threads in parallel
-      auto threadShutdownErrors = co_await DoShutdownThreadHostsAsync(std::move(serviceShutdownResult.ThreadHosts));
-      allErrors.insert(allErrors.end(), threadShutdownErrors.begin(), threadShutdownErrors.end());
+      try
+      {
+        auto threadShutdownErrors = co_await DoShutdownThreadHostsAsync(std::move(serviceShutdownResult.ThreadHosts));
+        allErrors.insert(allErrors.end(), threadShutdownErrors.begin(), threadShutdownErrors.end());
+      }
+      catch (...)
+      {
+        auto exception = std::current_exception();
+        allErrors.push_back(exception);
+        spdlog::error("DoShutdownThreadHostsAsync threw an exception during shutdown");
+      }
 
       co_return allErrors;
     }
@@ -392,8 +411,17 @@ namespace Test2
       // Wait for all shutdowns at this priority level to complete
       for (auto& task : shutdownTasks)
       {
-        auto errors = co_await std::move(task);
-        allErrors.insert(allErrors.end(), errors.begin(), errors.end());
+        try
+        {
+          auto errors = co_await std::move(task);
+          allErrors.insert(allErrors.end(), errors.begin(), errors.end());
+        }
+        catch (...)
+        {
+          auto exception = std::current_exception();
+          allErrors.push_back(exception);
+          spdlog::error("TryShutdownServicesAsync threw an exception during shutdown");
+        }
       }
 
       co_return AsyncOperationResult{std::move(threadHosts), std::move(allErrors)};
