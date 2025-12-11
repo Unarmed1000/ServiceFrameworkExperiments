@@ -1,8 +1,8 @@
 # Test5 Framework - boost::future with .then() Continuations
 
-## Status: Non-Compilable Prototypes
+## ⚠️ Status: Non-Compilable Prototypes ⚠️
 
-This directory contains **prototype implementations only**. These files are designed to demonstrate patterns and architectures but are **not intended to be compiled or used in production**.
+⚠️ This directory contains **prototype implementations only**. These files are designed to demonstrate patterns and architectures but are **not intended to be compiled or used in production**. ⚠️
 
 ---
 
@@ -78,36 +78,22 @@ namespace ServiceCallback {
 
 ```cpp
 #include <Test5/Framework/Host/ServiceHostProxy.hpp>
-#include <Test5/Framework/Util/ServiceCallback_StopToken.hpp>
 
-class MyService {
-    std::stop_source m_stopSource;
-    boost::asio::any_io_executor m_executor;
-
-public:
-    ~MyService() {
-        m_stopSource.request_stop();  // Signal that object is being destroyed
+// Simplest usage: just chain .then() directly
+auto future = proxy.TryStartServicesAsync(services, priority);
+future.then([](boost::future<void> f) {
+    try {
+        f.get();  // Rethrows exception if any
+        // Success path
+    } catch (const std::exception& e) {
+        // Error handling
     }
+});
 
-    std::stop_token GetStopToken() const { return m_stopSource.get_token(); }
-
-    void StartServices() {
-        // Get future from proxy (no callback parameter!)
-        auto future = proxy.TryStartServicesAsync(services, priority);
-
-        // Attach callback using ServiceCallback - future is first parameter
-        Test5::ServiceCallback::Create(future, m_executor, GetStopToken(), this, &MyService::OnComplete);
-    }
-
-    void OnComplete(boost::future<void> result) {
-        try {
-            result.get();  // Rethrows exception if any
-            // Success path
-        } catch (const std::exception& e) {
-            // Error handling
-        }
-    }
-};
+// Or use future later
+auto future = proxy.TryStartServicesAsync(services, priority);
+// ... do other work ...
+future.get();  // Block when needed
 ```
 
 ### Blocking Pattern
@@ -139,10 +125,7 @@ public:
     void StartServices() {
         auto future = proxy.TryStartServicesAsync(services, priority);
 
-        // With member function callback - will only run if stop_token not requested
-        Test5::ServiceCallback::Create(future, m_executor, GetStopToken(), this, &MyService::OnComplete);
-
-        // Or with lambda callback
+        // Lambda callback - will only run if stop_token not requested
         Test5::ServiceCallback::Create(future, m_executor, GetStopToken(), [this](boost::future<void> result) {
             try {
                 result.get();
@@ -151,6 +134,16 @@ public:
                 // Error handling
             }
         });
+    }
+
+    void StartServicesWithMemberFunction() {
+        auto future = proxy.TryStartServicesAsync(services, priority);
+
+        // Or use member function callback
+        Test5::ServiceCallback::Create(future, m_executor, GetStopToken(), this, &MyService::OnComplete);
+    }
+
+    void OnComplete(boost::future<void> result) {
         try {
             result.get();
         } catch (...) {
@@ -237,6 +230,39 @@ public:
 };
 ```
 
+#### 5. Using Qt Signal to Promise (Bridging Qt Signals to boost::future)
+
+```cpp
+#include <Test5/Framework/Util/ServicePromise_QtSignal.hpp>
+
+class MyQObject : public QObject {
+    Q_OBJECT
+
+signals:
+    void operationFinished();
+    void dataReady(QString data);
+
+public:
+    void Example() {
+        // Connect a signal to get a boost::future
+        // Signal with no parameters:
+        auto future1 = Test5::ServiceCallback::ConnectSignalToPromise(this, &MyQObject::operationFinished);
+
+        // Signal with parameter:
+        auto future2 = Test5::ServiceCallback::ConnectSignalToPromise<QString>(this, &MyQObject::dataReady);
+
+        // Can chain with .then() continuations
+        future2.then([](boost::future<QString> f) {
+            QString data = f.get();
+            // Process the data from the signal
+        });
+
+        // Automatically disconnects after first signal emission
+        // Promise broken if QObject destroyed before signal fires
+    }
+};
+```
+
 ---
 
 ## Advantages over Test4
@@ -293,7 +319,8 @@ Test5/
 │       ├── ServiceCallback_StopToken.hpp   # std::stop_token lifetime tracking (member functions & lambdas)
 │       ├── ServiceCallback_QPointer.hpp    # Qt QPointer lifetime tracking
 │       ├── ServiceCallback_QtSlot.hpp      # Qt slot-based callbacks
-│       └── ServiceCallback_QtLambda.hpp    # Qt lambda callbacks (no MOC/slots)
+        ├── ServiceCallback_QtLambda.hpp    # Qt lambda callbacks (no MOC/slots)
+        └── ServicePromise_QtSignal.hpp     # Connect Qt signals to boost::promise/future
 ```
 
 ---
