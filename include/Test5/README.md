@@ -58,11 +58,16 @@ namespace ServiceCallback {
         class QtSlotHelper {
             +CreateQtSlot(future, obj, method) lambda
         }
+
+        class QtLambdaHelper {
+            +QtLambda(future, obj, lambda) lambda
+        }
     }
 
     ServiceHostProxy ..> StopTokenHelper : uses
     ServiceHostProxy ..> QPointerHelper : uses (Qt)
     ServiceHostProxy ..> QtSlotHelper : uses (Qt)
+    ServiceHostProxy ..> QtLambdaHelper : uses (Qt)
 ```
 
 ---
@@ -202,6 +207,30 @@ public slots:
 };
 ```
 
+#### 4. Using Qt Lambda
+
+```cpp
+#include <Test5/Framework/Util/ServiceCallback_QtLambda.hpp>
+
+class MyQObject : public QObject {
+public:
+    void StartServices() {
+        auto future = proxy.TryStartServicesAsync(services, priority);
+
+        // Lambda callback marshaled to QObject's thread, no MOC/slots required
+        Test5::ServiceCallback::QtLambda(future, this, [this](boost::future<void> result) {
+            // Runs on QObject's thread via Qt's event loop
+            try {
+                result.get();
+                // Can capture state and use inline logic
+            } catch (...) {
+                // Handle error
+            }
+        });
+    }
+};
+```
+
 ---
 
 ## Advantages over Test4
@@ -257,7 +286,8 @@ Test5/
 │   └── Util/
 │       ├── ServiceCallback_StopToken.hpp   # std::stop_token lifetime tracking
 │       ├── ServiceCallback_QPointer.hpp    # Qt QPointer lifetime tracking
-│       └── ServiceCallback_QtSlot.hpp      # Qt slot-based callbacks
+│       ├── ServiceCallback_QtSlot.hpp      # Qt slot-based callbacks
+│       └── ServiceCallback_QtLambda.hpp    # Qt lambda callbacks (no MOC/slots)
 ```
 
 ---
