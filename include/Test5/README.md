@@ -47,16 +47,16 @@ classDiagram
 
 namespace ServiceCallback {
         class StopTokenHelper {
-            +CreateCallback(executor, obj, method, token) lambda
-            +CreateCallback(executor, obj, method) lambda
+            +Create(future, executor, obj, method, token) lambda
+            +Create(future, executor, obj, method) lambda
         }
 
         class QPointerHelper {
-            +CreateQPointerCallback(executor, obj, method) lambda
+            +CreateQPointer(future, obj, method) lambda
         }
 
         class QtSlotHelper {
-            +CreateQtSlotCallback(executor, obj, method) lambda
+            +CreateQtSlot(future, obj, method) lambda
         }
     }
 
@@ -91,7 +91,7 @@ public:
         auto future = proxy.TryStartServicesAsync(services, priority);
 
         // Attach callback using ServiceCallback - future is first parameter
-        Test5::ServiceCallback::CreateCallback(future, m_executor, this, &MyService::OnComplete, GetStopToken());
+        Test5::ServiceCallback::Create(future, m_executor, this, &MyService::OnComplete, GetStopToken());
     }
 
     void OnComplete(boost::future<void> result) {
@@ -135,7 +135,7 @@ public:
         auto future = proxy.TryStartServicesAsync(services, priority);
 
         // Callback will only run if stop_token not requested
-        Test5::ServiceCallback::CreateCallback(future, m_executor, this, &MyService::OnComplete, GetStopToken());
+        Test5::ServiceCallback::Create(future, m_executor, this, &MyService::OnComplete, GetStopToken());
     }
 
     void OnComplete(boost::future<void> result) {
@@ -159,8 +159,8 @@ public:
     void StartServices() {
         auto future = proxy.TryStartServicesAsync(services, priority);
 
-        // Callback will only run if QObject not destroyed
-        Test5::ServiceCallback::CreateQPointerCallback(future, executor, this, &MyQObject::OnComplete);
+        // Callback marshaled to QObject's thread using Qt, only runs if QObject not destroyed
+        Test5::ServiceCallback::CreateQPointer(future, this, &MyQObject::OnComplete);
     }
 
     void OnComplete(boost::future<void> result) {
@@ -186,8 +186,8 @@ public:
     void StartServices() {
         auto future = proxy.TryStartServicesAsync(services, priority);
 
-        // Uses Qt's queued connection for thread safety
-        Test5::ServiceCallback::CreateQtSlotCallback(future, executor, this, &MyQObject::OnComplete);
+        // Uses Qt's queued connection for thread-safe marshaling to QObject's thread
+        Test5::ServiceCallback::CreateQtSlot(future, this, &MyQObject::OnComplete);
     }
 
 public slots:
@@ -219,7 +219,7 @@ auto future = proxy.TryStartServicesAsync(services, priority, std::move(callback
 ```cpp
 auto future = proxy.TryStartServicesAsync(services, priority);
 // Just pass future to ServiceCallback - no explicit template parameters needed
-ServiceCallback::CreateCallback(future, executor, this, &MyClass::OnComplete, stopToken);
+ServiceCallback::Create(future, executor, this, &MyClass::OnComplete, stopToken);
 ```
 
 ### Natural Composition
@@ -228,7 +228,7 @@ ServiceCallback::CreateCallback(future, executor, this, &MyClass::OnComplete, st
 
 ```cpp
 auto future = proxy.TryStartServicesAsync(services, priority);
-Test5::ServiceCallback::CreateCallback(future, executor, this, &MyService::OnStartComplete, stopToken)
+Test5::ServiceCallback::Create(future, executor, this, &MyService::OnStartComplete, stopToken)
     .then([this](boost::future<void> f) {
         f.get();  // Propagate exception if any
         return proxy.TryShutdownServicesAsync(priority);
@@ -303,7 +303,7 @@ Unlike Test4's `CompletionCallback` type erasure, Test5's helpers are simple tem
 
 ```cpp
 template <typename TResult, typename TCallback, typename CallbackMethod>
-auto CreateCallback(boost::future<TResult> future, executor, obj, method, stopToken) {
+auto Create(boost::future<TResult> future, executor, obj, method, stopToken) {
     return future.then([executor, obj, method, stopToken](boost::future<TResult> f) mutable {
         boost::asio::post(executor, [obj, method, stopToken, f = std::move(f)]() mutable {
             if (!stopToken.stop_requested()) {

@@ -21,15 +21,16 @@
 
 namespace Test5::ServiceCallback
 {
-  /// @brief Attaches a callback to a boost::future with std::stop_token lifetime tracking.
+  /// @brief Attaches a callback to a boost::future with std::stop_token lifetime tracking and executor marshaling.
   ///
-  /// The callback will be marshaled to the specified executor and will only
-  /// be invoked if the stop_token has not been requested (object still alive).
+  /// The callback will be marshaled to the specified executor and will only execute
+  /// if the stop_token has not been requested (object still alive). This provides
+  /// thread-safe lifetime tracking using std::stop_token.
   ///
   /// Usage:
   /// @code
   /// auto future = proxy.TryStartServicesAsync(services, priority);
-  /// ServiceCallback::CreateCallback(future, executor, this, &MyClass::OnComplete, stopToken);
+  /// ServiceCallback::Create(future, executor, this, &MyClass::OnComplete, stopToken);
   /// @endcode
   ///
   /// @tparam TResult Type of the future result.
@@ -42,8 +43,8 @@ namespace Test5::ServiceCallback
   /// @param stopToken Stop token for lifetime tracking.
   /// @return A new boost::future representing the continuation.
   template <typename TResult, typename TCallback, typename CallbackMethod>
-  auto CreateCallback(boost::future<TResult> future, boost::asio::any_io_executor executor, TCallback* callbackObj, CallbackMethod callbackMethod,
-                      std::stop_token stopToken)
+  auto Create(boost::future<TResult> future, boost::asio::any_io_executor executor, TCallback* callbackObj, CallbackMethod callbackMethod,
+              std::stop_token stopToken)
   {
     return future.then(
       [executor = std::move(executor), callbackObj, callbackMethod, stopToken = std::move(stopToken)](boost::future<TResult> f) mutable
@@ -64,16 +65,16 @@ namespace Test5::ServiceCallback
       });
   }
 
-  /// @brief Attaches a callback to a boost::future with automatic stop_token detection.
+  /// @brief Attaches a callback to a boost::future with automatic stop_token detection and executor marshaling.
   ///
-  /// If the callback object has a GetStopToken() method (e.g., inherits from
-  /// ServiceCallbackReceiver), it will be automatically used for lifetime tracking.
-  /// Otherwise, an empty stop_token is used (callback always invoked).
+  /// The callback will be marshaled to the specified executor. If the callback object has a
+  /// GetStopToken() method (e.g., inherits from ServiceCallbackReceiver), it will be automatically
+  /// used for lifetime tracking. Otherwise, an empty stop_token is used (callback always invoked).
   ///
   /// Usage:
   /// @code
   /// auto future = proxy.TryStartServicesAsync(services, priority);
-  /// ServiceCallback::CreateCallback(future, executor, this, &MyClass::OnComplete);
+  /// ServiceCallback::Create(future, executor, this, &MyClass::OnComplete);
   /// @endcode
   ///
   /// @tparam TResult Type of the future result.
@@ -85,7 +86,7 @@ namespace Test5::ServiceCallback
   /// @param callbackMethod Pointer to the member function to invoke.
   /// @return A new boost::future representing the continuation.
   template <typename TResult, typename TCallback, typename CallbackMethod>
-  auto CreateCallback(boost::future<TResult> future, boost::asio::any_io_executor executor, TCallback* callbackObj, CallbackMethod callbackMethod)
+  auto Create(boost::future<TResult> future, boost::asio::any_io_executor executor, TCallback* callbackObj, CallbackMethod callbackMethod)
   {
     std::stop_token stopToken;
 
@@ -95,7 +96,7 @@ namespace Test5::ServiceCallback
       stopToken = callbackObj->GetStopToken();
     }
 
-    return CreateCallback(std::move(future), std::move(executor), callbackObj, callbackMethod, std::move(stopToken));
+    return Create(std::move(future), std::move(executor), callbackObj, callbackMethod, std::move(stopToken));
   }
 }
 

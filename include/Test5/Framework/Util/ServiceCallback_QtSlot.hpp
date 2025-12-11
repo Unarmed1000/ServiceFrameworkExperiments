@@ -15,8 +15,6 @@
 
 #ifdef QT_VERSION
 
-#include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/post.hpp>
 #include <boost/thread/future.hpp>
 #include <QMetaObject>
 #include <QObject>
@@ -25,13 +23,15 @@
 
 namespace Test5::ServiceCallback
 {
-  /// @brief Attaches a callback to a boost::future using Qt's slot mechanism.
+  /// @brief Attaches a callback to a boost::future using Qt's slot mechanism with Qt marshaling.
   ///
-  /// The callback will be invoked on the QObject's thread. The callback method
-  /// must be declared as a slot (with Q_OBJECT macro and slots keyword).
+  /// The callback will be marshaled to the QObject's thread using Qt's event system
+  /// (QMetaObject::invokeMethod with Qt::QueuedConnection) and will always be executed
+  /// asynchronously (deferred). The callback method must be declared as a slot (with Q_OBJECT
+  /// macro and slots keyword).
   ///
-  /// Lifetime is managed by Qt's parent-child relationship - if the QObject is
-  /// destroyed, the queued invocation will be safely dropped by Qt.
+  /// Lifetime is managed by Qt's parent-child relationship and event queue - if the QObject
+  /// is destroyed, the queued invocation will be safely dropped by Qt.
   ///
   /// Usage:
   /// @code
@@ -44,28 +44,27 @@ namespace Test5::ServiceCallback
   ///
   /// // Usage:
   /// auto future = proxy.TryStartServicesAsync(services, priority);
-  /// ServiceCallback::CreateQtSlotCallback(future, executor, this, &MyQObject::OnComplete);
+  /// ServiceCallback::CreateQtSlot(future, this, &MyQObject::OnComplete);
   /// @endcode
   ///
   /// @tparam TResult Type of the future result.
   /// @tparam TCallback Type of the callback receiver (must be QObject-derived).
   /// @tparam CallbackMethod Type of the slot method pointer.
   /// @param future The boost::future to attach the callback to.
-  /// @param executor Executor for the async work (not used for callback marshaling - Qt handles that).
   /// @param callbackObj Pointer to the QObject callback receiver.
   /// @param callbackMethod Pointer to the slot method to invoke.
   /// @return A new boost::future representing the continuation.
   template <typename TResult, typename TCallback, typename CallbackMethod>
-  auto CreateQtSlotCallback(boost::future<TResult> future, [[maybe_unused]] boost::asio::any_io_executor executor, TCallback* callbackObj,
-                            CallbackMethod callbackMethod)
+  auto CreateQtSlot(boost::future<TResult> future, TCallback* callbackObj, CallbackMethod callbackMethod)
   {
     static_assert(std::is_base_of_v<QObject, TCallback>, "TCallback must be derived from QObject");
 
     return future.then(
-      [callbackObj, callbackMethod](boost::future<TResult> f) mutable
+      [callbackObj, callbackMethod](boost::future<TResult> f)
       {
-        // Use Qt's invokeMethod to queue the call on the object's thread
-        // Qt::QueuedConnection ensures thread safety and handles object lifetime
+        // Use Qt's invokeMethod to queue the call on the object's thread6
+        // Qt::QueuedConnection ensures the callback is always posted to the event queue
+        // and never invoked synchronously, even if we're already on the target thread
         QMetaObject::invokeMethod(
           callbackObj,
           [callbackObj, callbackMethod, f = std::move(f)]() mutable
@@ -73,7 +72,7 @@ namespace Test5::ServiceCallback
             // Invoke the slot method
             (callbackObj->*callbackMethod)(std::move(f));
           },
-          Qt::QueuedConnection);
+          Qt::QueuedConnection);    // Always deferred - queued to event loop
       });
   }
 }
