@@ -30,7 +30,7 @@ namespace Test5::ServiceCallback
   /// Usage:
   /// @code
   /// auto future = proxy.TryStartServicesAsync(services, priority);
-  /// ServiceCallback::Create(future, executor, this, &MyClass::OnComplete, stopToken);
+  /// ServiceCallback::Create(future, executor, stopToken, this, &MyClass::OnComplete);
   /// @endcode
   ///
   /// @tparam TResult Type of the future result.
@@ -38,13 +38,13 @@ namespace Test5::ServiceCallback
   /// @tparam CallbackMethod Type of the member function pointer.
   /// @param future The boost::future to attach the callback to.
   /// @param executor Executor to invoke the callback on.
+  /// @param stopToken Stop token for lifetime tracking.
   /// @param callbackObj Pointer to the callback receiver object.
   /// @param callbackMethod Pointer to the member function to invoke.
-  /// @param stopToken Stop token for lifetime tracking.
   /// @return A new boost::future representing the continuation.
   template <typename TResult, typename TCallback, typename CallbackMethod>
-  auto Create(boost::future<TResult> future, boost::asio::any_io_executor executor, TCallback* callbackObj, CallbackMethod callbackMethod,
-              std::stop_token stopToken)
+  auto Create(boost::future<TResult> future, boost::asio::any_io_executor executor, std::stop_token stopToken, TCallback* callbackObj,
+              CallbackMethod callbackMethod)
   {
     return future.then(
       [executor = std::move(executor), callbackObj, callbackMethod, stopToken = std::move(stopToken)](boost::future<TResult> f) mutable
@@ -96,7 +96,7 @@ namespace Test5::ServiceCallback
       stopToken = callbackObj->GetStopToken();
     }
 
-    return Create(std::move(future), std::move(executor), callbackObj, callbackMethod, std::move(stopToken));
+    return Create(std::move(future), std::move(executor), std::move(stopToken), callbackObj, callbackMethod);
   }
 
   /// @brief Attaches a lambda callback to a boost::future with std::stop_token lifetime tracking and executor marshaling.
@@ -108,25 +108,25 @@ namespace Test5::ServiceCallback
   /// Usage:
   /// @code
   /// auto future = proxy.TryStartServicesAsync(services, priority);
-  /// ServiceCallback::Create(future, executor, [this](boost::future<void> result) {
+  /// ServiceCallback::Create(future, executor, stopToken, [this](boost::future<void> result) {
   ///     try {
   ///         result.get();
   ///         // Success, can capture state and use inline logic
   ///     } catch (...) {
   ///         // Error handling
   ///     }
-  /// }, stopToken);
+  /// });
   /// @endcode
   ///
   /// @tparam TResult Type of the future result.
   /// @tparam TLambda Type of the lambda/callable.
   /// @param future The boost::future to attach the callback to.
   /// @param executor Executor to invoke the callback on.
-  /// @param lambda The lambda or callable to invoke with the future result.
   /// @param stopToken Stop token for lifetime tracking.
+  /// @param lambda The lambda or callable to invoke with the future result.
   /// @return A new boost::future representing the continuation.
   template <typename TResult, typename TLambda>
-  auto Create(boost::future<TResult> future, boost::asio::any_io_executor executor, TLambda&& lambda, std::stop_token stopToken)
+  auto Create(boost::future<TResult> future, boost::asio::any_io_executor executor, std::stop_token stopToken, TLambda&& lambda)
   {
     return future.then(
       [executor = std::move(executor), lambda = std::forward<TLambda>(lambda), stopToken = std::move(stopToken)](boost::future<TResult> f) mutable

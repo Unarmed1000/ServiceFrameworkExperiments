@@ -96,7 +96,7 @@ public:
         auto future = proxy.TryStartServicesAsync(services, priority);
 
         // Attach callback using ServiceCallback - future is first parameter
-        Test5::ServiceCallback::Create(future, m_executor, this, &MyService::OnComplete, GetStopToken());
+        Test5::ServiceCallback::Create(future, m_executor, GetStopToken(), this, &MyService::OnComplete);
     }
 
     void OnComplete(boost::future<void> result) {
@@ -140,21 +140,17 @@ public:
         auto future = proxy.TryStartServicesAsync(services, priority);
 
         // With member function callback - will only run if stop_token not requested
-        Test5::ServiceCallback::Create(future, m_executor, this, &MyService::OnComplete, GetStopToken());
+        Test5::ServiceCallback::Create(future, m_executor, GetStopToken(), this, &MyService::OnComplete);
 
         // Or with lambda callback
-        Test5::ServiceCallback::Create(future, m_executor, [this](boost::future<void> result) {
+        Test5::ServiceCallback::Create(future, m_executor, GetStopToken(), [this](boost::future<void> result) {
             try {
                 result.get();
                 // Success - inline logic with captures
             } catch (...) {
                 // Error handling
             }
-        }, GetStopToken());
-    }
-
-    void OnComplete(boost::future<void> result) {
-        // Runs on m_executor, only if object still alive
+        });
         try {
             result.get();
         } catch (...) {
@@ -258,7 +254,7 @@ auto future = proxy.TryStartServicesAsync(services, priority, std::move(callback
 ```cpp
 auto future = proxy.TryStartServicesAsync(services, priority);
 // Just pass future to ServiceCallback - no explicit template parameters needed
-ServiceCallback::Create(future, executor, this, &MyClass::OnComplete, stopToken);
+ServiceCallback::Create(future, executor, stopToken, this, &MyClass::OnComplete);
 ```
 
 ### Natural Composition
@@ -267,7 +263,7 @@ ServiceCallback::Create(future, executor, this, &MyClass::OnComplete, stopToken)
 
 ```cpp
 auto future = proxy.TryStartServicesAsync(services, priority);
-Test5::ServiceCallback::Create(future, executor, this, &MyService::OnStartComplete, stopToken)
+Test5::ServiceCallback::Create(future, executor, stopToken, this, &MyService::OnStartComplete)
     .then([this](boost::future<void> f) {
         f.get();  // Propagate exception if any
         return proxy.TryShutdownServicesAsync(priority);
@@ -343,7 +339,7 @@ Unlike Test4's `CompletionCallback` type erasure, Test5's helpers are simple tem
 
 ```cpp
 template <typename TResult, typename TCallback, typename CallbackMethod>
-auto Create(boost::future<TResult> future, executor, obj, method, stopToken) {
+auto Create(boost::future<TResult> future, executor, stopToken, obj, method) {
     return future.then([executor, obj, method, stopToken](boost::future<TResult> f) mutable {
         boost::asio::post(executor, [obj, method, stopToken, f = std::move(f)]() mutable {
             if (!stopToken.stop_requested()) {
