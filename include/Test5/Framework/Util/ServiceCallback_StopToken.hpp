@@ -98,6 +98,94 @@ namespace Test5::ServiceCallback
 
     return Create(std::move(future), std::move(executor), callbackObj, callbackMethod, std::move(stopToken));
   }
+
+  /// @brief Attaches a lambda callback to a boost::future with std::stop_token lifetime tracking and executor marshaling.
+  ///
+  /// The callback will be marshaled to the specified executor and will only execute
+  /// if the stop_token has not been requested (object still alive). This provides
+  /// thread-safe lifetime tracking using std::stop_token with lambda support.
+  ///
+  /// Usage:
+  /// @code
+  /// auto future = proxy.TryStartServicesAsync(services, priority);
+  /// ServiceCallback::Create(future, executor, [this](boost::future<void> result) {
+  ///     try {
+  ///         result.get();
+  ///         // Success, can capture state and use inline logic
+  ///     } catch (...) {
+  ///         // Error handling
+  ///     }
+  /// }, stopToken);
+  /// @endcode
+  ///
+  /// @tparam TResult Type of the future result.
+  /// @tparam TLambda Type of the lambda/callable.
+  /// @param future The boost::future to attach the callback to.
+  /// @param executor Executor to invoke the callback on.
+  /// @param lambda The lambda or callable to invoke with the future result.
+  /// @param stopToken Stop token for lifetime tracking.
+  /// @return A new boost::future representing the continuation.
+  template <typename TResult, typename TLambda>
+  auto Create(boost::future<TResult> future, boost::asio::any_io_executor executor, TLambda&& lambda, std::stop_token stopToken)
+  {
+    return future.then(
+      [executor = std::move(executor), lambda = std::forward<TLambda>(lambda), stopToken = std::move(stopToken)](boost::future<TResult> f) mutable
+      {
+        // Marshal callback to the specified executor
+        boost::asio::post(executor,
+                          [lambda = std::move(lambda), stopToken = std::move(stopToken), f = std::move(f)]() mutable
+                          {
+                            // Check if object is still alive
+                            if (stopToken.stop_requested())
+                            {
+                              return;    // Object destroyed, skip callback
+                            }
+
+                            // Invoke the lambda
+                            lambda(std::move(f));
+                          });
+      });
+  }
+
+  /// @brief Attaches a lambda callback to a boost::future with executor marshaling (no lifetime tracking).
+  ///
+  /// The callback will be marshaled to the specified executor. Use this when you don't need
+  /// lifetime tracking or when the lambda captures appropriate lifetime management.
+  ///
+  /// Usage:
+  /// @code
+  /// auto future = proxy.TryStartServicesAsync(services, priority);
+  /// ServiceCallback::Create(future, executor, [](boost::future<void> result) {
+  ///     try {
+  ///         result.get();
+  ///         // Success
+  ///     } catch (...) {
+  ///         // Error handling
+  ///     }
+  /// });
+  /// @endcode
+  ///
+  /// @tparam TResult Type of the future result.
+  /// @tparam TLambda Type of the lambda/callable.
+  /// @param future The boost::future to attach the callback to.
+  /// @param executor Executor to invoke the callback on.
+  /// @param lambda The lambda or callable to invoke with the future result.
+  /// @return A new boost::future representing the continuation.
+  template <typename TResult, typename TLambda>
+  auto Create(boost::future<TResult> future, boost::asio::any_io_executor executor, TLambda&& lambda)
+  {
+    return future.then(
+      [executor = std::move(executor), lambda = std::forward<TLambda>(lambda)](boost::future<TResult> f) mutable
+      {
+        // Marshal callback to the specified executor
+        boost::asio::post(executor,
+                          [lambda = std::move(lambda), f = std::move(f)]() mutable
+                          {
+                            // Invoke the lambda
+                            lambda(std::move(f));
+                          });
+      });
+  }
 }
 
 #endif

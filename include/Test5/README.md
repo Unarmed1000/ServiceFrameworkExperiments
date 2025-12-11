@@ -139,8 +139,18 @@ public:
     void StartServices() {
         auto future = proxy.TryStartServicesAsync(services, priority);
 
-        // Callback will only run if stop_token not requested
+        // With member function callback - will only run if stop_token not requested
         Test5::ServiceCallback::Create(future, m_executor, this, &MyService::OnComplete, GetStopToken());
+
+        // Or with lambda callback
+        Test5::ServiceCallback::Create(future, m_executor, [this](boost::future<void> result) {
+            try {
+                result.get();
+                // Success - inline logic with captures
+            } catch (...) {
+                // Error handling
+            }
+        }, GetStopToken());
     }
 
     void OnComplete(boost::future<void> result) {
@@ -284,7 +294,7 @@ Test5/
 │   │   ├── ServiceHostProxy.hpp       # Public API: returns boost::future<T>
 │   │   └── ServiceHostProxy.cpp       # Implementation (no callback handling)
 │   └── Util/
-│       ├── ServiceCallback_StopToken.hpp   # std::stop_token lifetime tracking
+│       ├── ServiceCallback_StopToken.hpp   # std::stop_token lifetime tracking (member functions & lambdas)
 │       ├── ServiceCallback_QPointer.hpp    # Qt QPointer lifetime tracking
 │       ├── ServiceCallback_QtSlot.hpp      # Qt slot-based callbacks
 │       └── ServiceCallback_QtLambda.hpp    # Qt lambda callbacks (no MOC/slots)
