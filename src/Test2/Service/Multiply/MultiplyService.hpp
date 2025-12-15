@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_MULTIPLY_MULTIPLYSERVICE_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_MULTIPLY_MULTIPLYSERVICE_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_MULTIPLY_MULTIPLYSERVICE_IMPL_HPP
+#define SERVICE_FRAMEWORK_TEST2_SERVICES_MULTIPLY_MULTIPLYSERVICE_IMPL_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -14,15 +14,8 @@
 //****************************************************************************************************************************************************
 
 #include <Test2/Framework/Service/Async/AsyncServiceBase.hpp>
-#include <Test2/Framework/Service/ProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
-#include <Test2/Framework/Service/ServiceInitResult.hpp>
-#include <Test2/Framework/Service/ServiceShutdownResult.hpp>
 #include <Test2/Services/Multiply/IMultiplyService.hpp>
-#include <Test2/Services/ServiceConfig.hpp>
-#include <spdlog/spdlog.h>
-#include <chrono>
-#include <thread>
 
 namespace Test2
 {
@@ -32,37 +25,10 @@ namespace Test2
     , public IMultiplyService
   {
   public:
-    explicit MultiplyService(const ServiceCreateInfo& createInfo)
-      : AsyncServiceBase(createInfo)
-    {
-      spdlog::debug("MultiplyService: constructed");
-    }
-
+    explicit MultiplyService(const ServiceCreateInfo& createInfo);
     ~MultiplyService() override = default;
 
-    boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*createInfo*/) override
-    {
-      spdlog::info("MultiplyService: InitAsync");
-      co_return ServiceInitResult{};
-    }
-
-    boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() override
-    {
-      spdlog::info("MultiplyService: ShutdownAsync");
-      co_return ServiceShutdownResult{};
-    }
-
-    ProcessResult Process() override
-    {
-      return ProcessResult{ProcessStatus::Idle};
-    }
-
-    boost::asio::awaitable<double> MultiplyAsync(const double a, const double b) override
-    {
-      spdlog::info("[MultiplyService] {} * {}", a, b);
-      std::this_thread::sleep_for(std::chrono::milliseconds(Config::MULTIPLY_SERVICE_DELAY_MS));
-      co_return a* b;
-    }
+    boost::asio::awaitable<double> MultiplyAsync(double a, double b) final;
   };
 
 }
