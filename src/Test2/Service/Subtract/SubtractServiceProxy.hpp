@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDSERVICEPROXYFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDSERVICEPROXYFACTORY_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_SUBTRACTSERVICEPROXY_HPP
+#define SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_SUBTRACTSERVICEPROXY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,18 +13,27 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/AsyncServiceProxyFactory.hpp>
-#include <Test2/Services/Add/IAddService.hpp>
+#include <Test2/Framework/Lifecycle/DispatchContext.hpp>
+#include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceProxyBase.hpp>
+#include <Test2/Services/Subtract/ISubtractService.hpp>
+#include "SubtractService.hpp"
 
 namespace Test2
 {
-  /// @brief Factory for creating AddServiceProxy instances.
-  class AddServiceProxyFactory final : public AsyncServiceProxyFactory
+  /// @brief Subtract Service proxy
+  class SubtractServiceProxy final
+    : public AsyncServiceProxyBase
+    , public ISubtractService
   {
-  public:
-    AddServiceProxyFactory();
+    ///! Dispatch context containing source and target executor contexts.
+    DispatchContext<ILifeTracker, SubtractService> m_dispatchContext;
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) override;
+  public:
+    explicit SubtractServiceProxy(const ServiceProxyCreateInfo& createInfo);
+
+    /// See ISubtractService
+    boost::asio::awaitable<double> SubtractAsync(double a, double b) final;
   };
 
 }

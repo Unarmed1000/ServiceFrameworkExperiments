@@ -152,7 +152,7 @@ namespace Test2
     {
     }
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;    // Not used in these tests
     }

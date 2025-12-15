@@ -33,12 +33,11 @@ namespace Test2
     /// Proxies enable services to interact with other services across different threading contexts
     /// or dispatch boundaries. The factory can expect that its only called with types returned by GetSupportedInterfaces().
     ///
-    /// @param type The type index of the service interface to create a proxy for.
     /// @param createInfo Context information for proxy creation, including the service
     ///                   provider for accessing dependencies.
     /// @return A shared pointer to the newly created service proxy instance.
     /// @throws std::invalid_argument if the requested type is not supported by this factory.
-    virtual std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& type, const ServiceProxyCreateInfo& createInfo) = 0;
+    virtual std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) = 0;
   };
 
 }

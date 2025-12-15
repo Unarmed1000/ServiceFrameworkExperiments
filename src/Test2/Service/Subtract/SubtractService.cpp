@@ -1,5 +1,3 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDSERVICEPROXYFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDSERVICEPROXYFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,20 +11,25 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/AsyncServiceProxyFactory.hpp>
-#include <Test2/Services/Add/IAddService.hpp>
+#include "SubtractService.hpp"
+#include <Test2/Framework/Service/ServiceCreateInfo.hpp>
+#include <Test2/Services/ServiceConfig.hpp>
+#include <spdlog/spdlog.h>
+#include <chrono>
+#include <thread>
 
 namespace Test2
 {
-  /// @brief Factory for creating AddServiceProxy instances.
-  class AddServiceProxyFactory final : public AsyncServiceProxyFactory
+  SubtractService::SubtractService(const ServiceCreateInfo& createInfo)
+    : AsyncServiceBase(createInfo)
   {
-  public:
-    AddServiceProxyFactory();
+    spdlog::debug("SubtractService: constructed");
+  }
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) override;
-  };
-
+  boost::asio::awaitable<double> SubtractService::SubtractAsync(const double a, const double b)
+  {
+    spdlog::info("[SubtractService] {} - {}", a, b);
+    std::this_thread::sleep_for(std::chrono::milliseconds(Config::SUBTRACT_SERVICE_DELAY_MS));
+    co_return a - b;
+  }
 }
-
-#endif

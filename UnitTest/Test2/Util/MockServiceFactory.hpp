@@ -158,7 +158,7 @@ namespace Test2::UnitTest
   public:
     explicit MockServiceProxyFactory(MockServiceConfig config);
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& type, const ServiceProxyCreateInfo& createInfo) override;
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) override;
   };
 
 }    // namespace Test2::UnitTest

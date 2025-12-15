@@ -1,5 +1,3 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDSERVICEPROXYFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDSERVICEPROXYFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,20 +11,24 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/AsyncServiceProxyFactory.hpp>
-#include <Test2/Services/Add/IAddService.hpp>
+#include "SubtractServiceProxy.hpp"
+#include <Test2/Framework/Service/ServiceProxyCreateInfo.hpp>
+#include <Test2/Framework/Util/AsyncProxyHelper.hpp>
+#include <spdlog/spdlog.h>
 
 namespace Test2
 {
-  /// @brief Factory for creating AddServiceProxy instances.
-  class AddServiceProxyFactory final : public AsyncServiceProxyFactory
+  inline constexpr const char kProxyName[] = "SubtractServiceProxy";
+
+  SubtractServiceProxy::SubtractServiceProxy(const ServiceProxyCreateInfo& createInfo)
+    : AsyncServiceProxyBase(createInfo)
+    , m_dispatchContext(createInfo.GetDispatchContext<SubtractService>())
   {
-  public:
-    AddServiceProxyFactory();
+    spdlog::debug("SubtractServiceProxy: constructed");
+  }
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) override;
-  };
-
+  boost::asio::awaitable<double> SubtractServiceProxy::SubtractAsync(const double a, const double b)
+  {
+    co_return co_await Util::InvokeAsync<kProxyName>(m_dispatchContext, &SubtractService::SubtractAsync, a, b);
+  }
 }
-
-#endif

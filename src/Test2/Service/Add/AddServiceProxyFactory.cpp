@@ -24,12 +24,8 @@ namespace Test2
   {
   }
 
-  std::shared_ptr<IServiceProxyControl> AddServiceProxyFactory::CreateProxy(const std::type_index& type, const ServiceProxyCreateInfo& createInfo)
+  std::shared_ptr<IServiceProxyControl> AddServiceProxyFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
   {
-    if (type == std::type_index(typeid(IAddService)))
-    {
-      return std::make_shared<AddServiceProxy>(createInfo);
-    }
-    throw std::invalid_argument("AddServiceProxyFactory: unsupported interface type");
+    return std::make_shared<AddServiceProxy>(createInfo);
   }
 }

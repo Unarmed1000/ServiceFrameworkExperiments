@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDSERVICEPROXYFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDSERVICEPROXYFACTORY_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_SUBTRACTSERVICEIMPLFACTORY_HPP
+#define SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_SUBTRACTSERVICEIMPLFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,18 +13,18 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/AsyncServiceProxyFactory.hpp>
-#include <Test2/Services/Add/IAddService.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
+#include <Test2/Services/Subtract/ISubtractService.hpp>
 
 namespace Test2
 {
-  /// @brief Factory for creating AddServiceProxy instances.
-  class AddServiceProxyFactory final : public AsyncServiceProxyFactory
+  /// @brief Factory for creating SubtractService instances.
+  class SubtractServiceImplFactory final : public AsyncServiceImplFactory
   {
   public:
-    AddServiceProxyFactory();
+    SubtractServiceImplFactory();
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) override;
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
   };
 
 }

@@ -46,7 +46,7 @@ namespace Test2
       throw std::invalid_argument("DivideServiceFactory: unsupported interface type");
     }
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }

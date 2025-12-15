@@ -38,7 +38,7 @@ namespace Test2
     {
     }
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }
@@ -68,7 +68,7 @@ namespace Test2
     {
     }
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }
@@ -100,7 +100,7 @@ namespace Test2
       return std::span<const std::type_index>();    // Empty span
     }
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }

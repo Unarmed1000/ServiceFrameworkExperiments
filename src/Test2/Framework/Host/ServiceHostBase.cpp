@@ -190,7 +190,7 @@ namespace Test2
           }
 
           // Create proxy for the first supported interface
-          auto proxy = proxyRecord.Factory->CreateProxy(interfaces[0], createInfo);
+          auto proxy = proxyRecord.Factory->CreateProxy(createInfo);
           if (!proxy)
           {
             throw std::runtime_error(fmt::format("Factory returned null proxy for '{}'", proxyRecord.ServiceName));

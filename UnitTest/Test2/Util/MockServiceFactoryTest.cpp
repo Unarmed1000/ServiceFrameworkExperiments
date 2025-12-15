@@ -246,6 +246,6 @@ TEST(MockServiceProxyFactoryTest, CreateProxy_ReturnsValidProxy)
   DispatchContext dispatchContext(sourceContext, targetContext);
   ServiceProxyCreateInfo createInfo(dispatchContext, provider);    // NOTE: DispatchContext first, then provider
 
-  auto proxy = factory.CreateProxy(typeid(ITestInterface), createInfo);
+  auto proxy = factory.CreateProxy(createInfo);
   ASSERT_NE(proxy, nullptr);
 }

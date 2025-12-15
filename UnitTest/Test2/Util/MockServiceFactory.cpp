@@ -139,8 +139,7 @@ namespace Test2::UnitTest
   {
   }
 
-  std::shared_ptr<IServiceProxyControl> MockServiceProxyFactory::CreateProxy(const std::type_index& /*type*/,
-                                                                             const ServiceProxyCreateInfo& createInfo)
+  std::shared_ptr<IServiceProxyControl> MockServiceProxyFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
   {
     return std::make_shared<MockServiceProxy>(createInfo, m_config);
   }

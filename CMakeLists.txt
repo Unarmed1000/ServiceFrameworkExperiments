@@ -388,6 +388,25 @@ else()
     target_compile_options(test2_add_service PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# Test2 Subtract Service library - SubtractService implementation
+add_library(test2_subtract_service STATIC
+    src/Test2/Service/Subtract/SubtractService.cpp
+    src/Test2/Service/Subtract/SubtractServiceProxy.cpp
+    src/Test2/Service/Subtract/SubtractServiceImplFactory.cpp
+    src/Test2/Service/Subtract/SubtractServiceProxyFactory.cpp
+)
+target_include_directories(test2_subtract_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test2_subtract_service
+    PUBLIC
+        test2_framework
+)
+target_compile_features(test2_subtract_service PUBLIC cxx_std_20)
+if(MSVC)
+    target_compile_options(test2_subtract_service PRIVATE /W4)
+else()
+    target_compile_options(test2_subtract_service PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 # ============================================================
 # Executables
 # ============================================================
@@ -643,6 +662,15 @@ configure_target(test_add_service)
 target_include_directories(test_add_service PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_add_service PRIVATE test2_add_service test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Service/AddServiceTest.cpp)
+
+# Executable 12b: SubtractService test
+add_executable(test_subtract_service
+    UnitTest/Test2/Service/SubtractServiceTest.cpp
+)
+configure_target(test_subtract_service)
+target_include_directories(test_subtract_service PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_subtract_service PRIVATE test2_subtract_service test2_framework GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Service/SubtractServiceTest.cpp)
 
 # Executable 13: CooperativeThreadServiceHost test (tests internal implementation)
 add_executable(test_cooperative_thread_service_host
