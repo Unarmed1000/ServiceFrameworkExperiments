@@ -339,6 +339,7 @@ add_library(test2_framework STATIC
     src/Test2/Framework/Provider/ServiceProviderProxy.cpp
     src/Test2/Framework/Registry/ServiceRegistry.cpp
     src/Test2/Framework/Lifecycle/LifecycleManager.cpp
+    src/Test2/Framework/Host/ServiceHostBase.cpp
     src/Test2/Framework/Host/ServiceHostProxy.cpp
     src/Test2/Framework/Host/Cooperative/CooperativeThreadHost.cpp
     src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
@@ -473,6 +474,7 @@ source_group("Header Files\\Test2\\Framework\\Host" FILES
     include/Test2/Framework/Host/ThreadRecord.hpp
 )
 source_group("Source Files\\Test2\\Framework\\Host" FILES
+    src/Test2/Framework/Host/ServiceHostBase.cpp
     src/Test2/Framework/Host/ServiceHostProxy.cpp
 )
 source_group("Header Files\\Test2\\Framework\\Host\\Cooperative" FILES
