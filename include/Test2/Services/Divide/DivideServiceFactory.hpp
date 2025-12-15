@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/IServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <Test2/Services/Divide/DivideService.hpp>
 #include <Test2/Services/Divide/IDivideService.hpp>
@@ -25,7 +25,7 @@
 namespace Test2
 {
   /// @brief Factory for creating DivideService instances.
-  class DivideServiceFactory final : public IServiceFactory
+  class DivideServiceFactory final : public IAsyncServiceImplFactory
   {
   public:
     DivideServiceFactory() = default;
@@ -44,6 +44,11 @@ namespace Test2
         return std::make_shared<DivideService>(createInfo);
       }
       throw std::invalid_argument("DivideServiceFactory: unsupported interface type");
+    }
+
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;
     }
   };
 

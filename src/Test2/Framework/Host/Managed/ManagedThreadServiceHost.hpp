@@ -13,7 +13,6 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Host/ServiceHostBase.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <boost/asio/awaitable.hpp>
@@ -24,6 +23,7 @@
 #include <spdlog/spdlog.h>
 #include <memory>
 #include <vector>
+#include "../ServiceHostBase.hpp"
 
 namespace Test2
 {

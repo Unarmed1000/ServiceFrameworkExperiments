@@ -315,7 +315,79 @@ function(configure_target target_name)
     else()
         target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
     endif()
-endfunction()# Executable 1: Main application
+endfunction()
+
+# ============================================================
+# Static Libraries
+# ============================================================
+
+# Common library - AggregateException
+add_library(common STATIC
+    src/Common/AggregateException.cpp
+)
+target_include_directories(common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_features(common PUBLIC cxx_std_20)
+if(MSVC)
+    target_compile_options(common PRIVATE /W4)
+else()
+    target_compile_options(common PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# Test2 Framework library - Core framework components
+add_library(test2_framework STATIC
+    src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
+    src/Test2/Framework/Registry/ServiceRegistry.cpp
+    src/Test2/Framework/Lifecycle/LifecycleManager.cpp
+    src/Test2/Framework/Host/ServiceHostProxy.cpp
+    src/Test2/Framework/Host/Cooperative/CooperativeThreadHost.cpp
+    src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
+    src/Test2/Framework/Service/Async/AsyncServiceFactory.cpp
+)
+target_include_directories(test2_framework
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(test2_framework
+    PUBLIC
+        common
+        Boost::boost
+        Boost::system
+        fmt::fmt
+        spdlog::spdlog
+)
+target_compile_features(test2_framework PUBLIC cxx_std_20)
+if(MSVC)
+    target_compile_options(test2_framework PRIVATE /W4)
+else()
+    target_compile_options(test2_framework PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# Test2 Add Service library - AddService implementation
+add_library(test2_add_service STATIC
+    src/Test2/Service/Add/AddService.cpp
+    src/Test2/Service/Add/AddServiceProxy.cpp
+    src/Test2/Service/Add/AddServiceFactory.cpp
+)
+target_include_directories(test2_add_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test2_add_service
+    PUBLIC
+        test2_framework
+)
+target_compile_features(test2_add_service PUBLIC cxx_std_20)
+if(MSVC)
+    target_compile_options(test2_add_service PRIVATE /W4)
+else()
+    target_compile_options(test2_add_service PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# ============================================================
+# Executables
+# ============================================================
+
+# Executable 1: Main application
 add_executable(main_app src/main.cpp)
 configure_target(main_app)
 
@@ -351,64 +423,37 @@ source_group("Source Files\\UnitTest\\Test1" FILES UnitTest/Test1/ServiceFramewo
 # Executable 3: Test program 2
 add_executable(test2
     src/test2.cpp
-    src/Test2/Framework/Provider/ServiceProvider.cpp
-    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
-    src/Test2/Framework/Registry/ServiceRegistry.cpp
-    include/Test2/Framework/Service/IService.hpp
-    include/Test2/Framework/Service/IServiceControl.hpp
-    include/Test2/Framework/Service/IServiceFactory.hpp
-    include/Test2/Framework/Service/ServiceCreateInfo.hpp
-    include/Test2/Framework/Service/ServiceDescription.hpp
-    include/Test2/Framework/Service/ServiceInitResult.hpp
-    include/Test2/Framework/Service/ServiceProcessResult.hpp
-    include/Test2/Framework/Service/ServiceShutdownResult.hpp
-    include/Test2/Framework/Service/Async/AsyncServiceBase.hpp
-    include/Test2/Framework/Provider/IServiceProvider.hpp
-    include/Test2/Framework/Provider/ServiceProvider.hpp
-    include/Test2/Framework/Provider/ServiceProviderProxy.hpp
-    include/Test2/Framework/Registry/IServiceRegistry.hpp
-    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
-    include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
-    include/Test2/Framework/Registry/ServiceRegistry.hpp
-    include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
-    include/Test2/Services/ServiceConfig.hpp
-    include/Test2/Services/Add/IAddService.hpp
-    include/Test2/Services/Add/AddService.hpp
-    include/Test2/Services/Add/AddServiceFactory.hpp
-    include/Test2/Services/Subtract/ISubtractService.hpp
-    include/Test2/Services/Subtract/SubtractService.hpp
-    include/Test2/Services/Subtract/SubtractServiceFactory.hpp
-    include/Test2/Services/Multiply/IMultiplyService.hpp
-    include/Test2/Services/Multiply/MultiplyService.hpp
-    include/Test2/Services/Multiply/MultiplyServiceFactory.hpp
-    include/Test2/Services/Divide/IDivideService.hpp
-    include/Test2/Services/Divide/DivideService.hpp
-    include/Test2/Services/Divide/DivideServiceFactory.hpp
-    include/Test2/Services/Calculator/ICalculatorService.hpp
-    include/Test2/Services/Calculator/CalculatorService.hpp
-    include/Test2/Services/Calculator/CalculatorServiceFactory.hpp
-    include/Test2/Services/Calculator/CalculatorServiceRegistration.hpp
 )
 configure_target(test2)
-target_include_directories(test2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test2 PRIVATE test2_add_service)
 
 # Organize Test2 files into folders for Visual Studio
 source_group("Header Files\\Test2\\Framework\\Service" FILES
     include/Test2/Framework/Service/IService.hpp
     include/Test2/Framework/Service/IServiceControl.hpp
-    include/Test2/Framework/Service/IServiceFactory.hpp
+    include/Test2/Framework/Service/IServiceProxyControl.hpp
+    include/Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp
     include/Test2/Framework/Service/ServiceCreateInfo.hpp
+    include/Test2/Framework/Service/ServiceProxyCreateInfo.hpp
     include/Test2/Framework/Service/ServiceDescription.hpp
     include/Test2/Framework/Service/ServiceInitResult.hpp
     include/Test2/Framework/Service/ServiceProcessResult.hpp
     include/Test2/Framework/Service/ServiceShutdownResult.hpp
+    include/Test2/Framework/Service/ProcessResult.hpp
+    include/Test2/Framework/Service/ProcessStatus.hpp
 )
 source_group("Header Files\\Test2\\Framework\\Service\\Async" FILES
     include/Test2/Framework/Service/Async/AsyncServiceBase.hpp
+    include/Test2/Framework/Service/Async/AsyncServiceProxyBase.hpp
 )
 source_group("Header Files\\Test2\\Framework\\Provider" FILES
     include/Test2/Framework/Provider/IServiceProvider.hpp
     include/Test2/Framework/Provider/ServiceProvider.hpp
+    include/Test2/Framework/Provider/ServiceProviderProxy.hpp
+)
+source_group("Source Files\\Test2\\Framework\\Provider" FILES
+    src/Test2/Framework/Provider/ServiceProvider.cpp
+    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
 )
 source_group("Header Files\\Test2\\Framework\\Registry" FILES
     include/Test2/Framework/Registry/IServiceRegistry.hpp
@@ -417,16 +462,68 @@ source_group("Header Files\\Test2\\Framework\\Registry" FILES
     include/Test2/Framework/Registry/ServiceRegistry.hpp
     include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
 )
-source_group("Header Files\\Test2\\Framework\\Manager" FILES
-    include/Test2/Framework/Manager/IServiceManager.hpp
+source_group("Source Files\\Test2\\Framework\\Registry" FILES
+    src/Test2/Framework/Registry/ServiceRegistry.cpp
+)
+source_group("Header Files\\Test2\\Framework\\Host" FILES
+    include/Test2/Framework/Host/IServiceHost.hpp
+    include/Test2/Framework/Host/ServiceHostProxy.hpp
+    include/Test2/Framework/Host/ServiceInstanceInfo.hpp
+    include/Test2/Framework/Host/StartServiceRecord.hpp
+    include/Test2/Framework/Host/ThreadRecord.hpp
+)
+source_group("Source Files\\Test2\\Framework\\Host" FILES
+    src/Test2/Framework/Host/ServiceHostProxy.cpp
+)
+source_group("Header Files\\Test2\\Framework\\Host\\Cooperative" FILES
+    include/Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp
+)
+source_group("Source Files\\Test2\\Framework\\Host\\Cooperative" FILES
+    src/Test2/Framework/Host/Cooperative/CooperativeThreadHost.cpp
+)
+source_group("Header Files\\Test2\\Framework\\Host\\Managed" FILES
+    include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
+    include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
+)
+source_group("Source Files\\Test2\\Framework\\Host\\Managed" FILES
+    src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
+)
+source_group("Header Files\\Test2\\Framework\\Lifecycle" FILES
+    include/Test2/Framework/Lifecycle/LifecycleManager.hpp
+    include/Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp
+    include/Test2/Framework/Lifecycle/ILifeTracker.hpp
+    include/Test2/Framework/Lifecycle/ExecutorContext.hpp
+    include/Test2/Framework/Lifecycle/DispatchContext.hpp
+)
+source_group("Header Files\\Test2\\Framework\\Util" FILES
+    include/Test2/Framework/Util/AsyncProxyHelper.hpp
+)
+source_group("Header Files\\Test2\\Framework\\Exception" FILES
+    include/Test2/Framework/Exception/DuplicateServiceRegistrationException.hpp
+    include/Test2/Framework/Exception/InvalidServiceFactoryException.hpp
+    include/Test2/Framework/Exception/RegistryExtractedException.hpp
+    include/Test2/Framework/Exception/ServiceCastException.hpp
+    include/Test2/Framework/Exception/ServiceProviderException.hpp
+    include/Test2/Framework/Exception/UnknownServiceException.hpp
+    include/Test2/Framework/Exception/MultipleServicesFoundException.hpp
+    include/Test2/Framework/Exception/InvalidPriorityOrderException.hpp
+    include/Test2/Framework/Exception/EmptyPriorityGroupException.hpp
+    include/Test2/Framework/Exception/ServiceDisposedException.hpp
+    include/Test2/Framework/Exception/WrongThreadException.hpp
 )
 source_group("Header Files\\Test2\\Services" FILES
     include/Test2/Services/ServiceConfig.hpp
 )
 source_group("Header Files\\Test2\\Services\\Add" FILES
     include/Test2/Services/Add/IAddService.hpp
-    include/Test2/Services/Add/AddService.hpp
     include/Test2/Services/Add/AddServiceFactory.hpp
+)
+source_group("Source Files\\Test2\\Services\\Add" FILES
+    src/Test2/Service/Add/AddService.hpp
+    src/Test2/Service/Add/AddService.cpp
+    src/Test2/Service/Add/AddServiceProxy.hpp
+    src/Test2/Service/Add/AddServiceProxy.cpp
+    src/Test2/Service/Add/AddServiceFactory.cpp
 )
 source_group("Header Files\\Test2\\Services\\Subtract" FILES
     include/Test2/Services/Subtract/ISubtractService.hpp
@@ -460,234 +557,130 @@ configure_target(test3)
 # Executable 5: ServiceRegistry test
 add_executable(test_service_registry
     UnitTest/Test2/Registry/ServiceRegistryTest.cpp
-    src/Test2/Framework/Registry/ServiceRegistry.cpp
-    include/Test2/Framework/Service/IService.hpp
-    include/Test2/Framework/Service/IServiceFactory.hpp
-    include/Test2/Framework/Service/ServiceCreateInfo.hpp
-    include/Test2/Framework/Provider/ServiceProvider.hpp
-    include/Test2/Framework/Registry/IServiceRegistry.hpp
-    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
-    include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
-    include/Test2/Framework/Registry/ServiceRegistry.hpp
-    include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
-    include/Test2/Framework/Exception/DuplicateServiceRegistrationException.hpp
-    include/Test2/Framework/Exception/InvalidServiceFactoryException.hpp
-    include/Test2/Framework/Exception/RegistryExtractedException.hpp
 )
 configure_target(test_service_registry)
-target_include_directories(test_service_registry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(test_service_registry PRIVATE GTest::gtest GTest::gtest_main)
+target_link_libraries(test_service_registry PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Registry" FILES UnitTest/Test2/Registry/ServiceRegistryTest.cpp)
 
 # Executable 6: AggregateException test
 add_executable(test_aggregate_exception
     UnitTest/Common/AggregateExceptionTest.cpp
-    src/Common/AggregateException.cpp
-    include/Common/AggregateException.hpp
 )
 configure_target(test_aggregate_exception)
-target_include_directories(test_aggregate_exception PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(test_aggregate_exception PRIVATE GTest::gtest GTest::gtest_main)
+target_link_libraries(test_aggregate_exception PRIVATE common GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Common" FILES UnitTest/Common/AggregateExceptionTest.cpp)
 
 # Executable 7: ManagedThreadServiceProvider test
 add_executable(test_managed_thread_service_provider
     UnitTest/Test2/Host/ManagedThreadServiceProviderTest.cpp
-    include/Test2/Framework/Service/IService.hpp
-    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
-    include/Test2/Framework/Exception/InvalidPriorityOrderException.hpp
-    include/Test2/Framework/Exception/EmptyPriorityGroupException.hpp
-    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
 )
 configure_target(test_managed_thread_service_provider)
-target_include_directories(test_managed_thread_service_provider PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(test_managed_thread_service_provider PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(test_managed_thread_service_provider PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_managed_thread_service_provider PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceProviderTest.cpp)
 
 # Executable 8: ServiceProviderProxy test
 add_executable(test_service_provider_proxy
     UnitTest/Test2/Provider/ServiceProviderProxyTest.cpp
-    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
-    include/Test2/Framework/Service/IService.hpp
-    include/Test2/Framework/Provider/IServiceProvider.hpp
-    include/Test2/Framework/Provider/ServiceProviderProxy.hpp
-    include/Test2/Framework/Exception/ServiceProviderException.hpp
 )
 configure_target(test_service_provider_proxy)
-target_include_directories(test_service_provider_proxy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(test_service_provider_proxy PRIVATE GTest::gtest GTest::gtest_main)
+target_link_libraries(test_service_provider_proxy PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Provider/ServiceProviderProxyTest.cpp)
 
 # Executable 9: ServiceProvider template methods test
 add_executable(test_service_provider
     UnitTest/Test2/Provider/ServiceProviderTest.cpp
-    src/Test2/Framework/Provider/ServiceProvider.cpp
-    include/Test2/Framework/Service/IService.hpp
-    include/Test2/Framework/Provider/IServiceProvider.hpp
-    include/Test2/Framework/Provider/ServiceProvider.hpp
-    include/Test2/Framework/Exception/ServiceCastException.hpp
-    include/Test2/Framework/Exception/UnknownServiceException.hpp
 )
 configure_target(test_service_provider)
-target_include_directories(test_service_provider PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(test_service_provider PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(test_service_provider PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_service_provider PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Provider" FILES UnitTest/Test2/Provider/ServiceProviderTest.cpp)
 
 # Executable 10: ServiceHostBase test (shared logic, uses CooperativeThreadServiceHost internal implementation for simplicity)
 add_executable(test_service_host_base
     UnitTest/Test2/Host/ServiceHostBaseTest.cpp
-    src/Common/AggregateException.cpp
-    src/Test2/Framework/Provider/ServiceProvider.cpp
-    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
-    include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
-    src/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
-    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
-    src/Test2/Framework/Host/ServiceHostBase.hpp
-    include/Test2/Framework/Host/StartServiceRecord.hpp
-    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
+    UnitTest/Test2/Util/MockServiceFactory.cpp
 )
 configure_target(test_service_host_base)
-target_include_directories(test_service_host_base PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(test_service_host_base PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(test_service_host_base PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_service_host_base PRIVATE ${CMAKE_SOURCE_DIR}/UnitTest)
+target_link_libraries(test_service_host_base PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ServiceHostBaseTest.cpp)
+source_group("Source Files\\UnitTest\\Test2\\Util" FILES UnitTest/Test2/Util/MockServiceFactory.cpp)
 
 # Executable 11: ManagedThreadServiceHost test (thread-specific behavior)
 add_executable(test_managed_thread_service_host
     UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp
     UnitTest/Test2/Host/TestManagedThreadLifecycle.cpp
     UnitTest/Test2/Host/TestManagedThreadLifecycle.hpp
-    src/Common/AggregateException.cpp
-    src/Test2/Framework/Provider/ServiceProvider.cpp
-    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
-    src/Test2/Framework/Host/Cooperative/CooperativeThreadHost.cpp
-    src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
-    src/Test2/Framework/Host/ServiceHostProxy.cpp
-    include/Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
-    include/Test2/Framework/Host/Managed/ManagedThreadRecord.hpp
-    src/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
-    src/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
-    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
-    src/Test2/Framework/Host/ServiceHostBase.hpp
-    include/Test2/Framework/Host/StartServiceRecord.hpp
-    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
 )
 configure_target(test_managed_thread_service_host)
-target_include_directories(test_managed_thread_service_host PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(test_managed_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(test_managed_thread_service_host PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_managed_thread_service_host PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceHostTest.cpp UnitTest/Test2/Host/TestManagedThreadLifecycle.cpp UnitTest/Test2/Host/TestManagedThreadLifecycle.hpp)
 
 # Executable 12: ProcessResult test
 add_executable(test_process_result
     UnitTest/Test2/Service/ProcessResultTest.cpp
-    include/Test2/Framework/Service/ProcessStatus.hpp
-    include/Test2/Framework/Service/ProcessResult.hpp
 )
 configure_target(test_process_result)
-target_include_directories(test_process_result PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(test_process_result PRIVATE GTest::gtest GTest::gtest_main)
+target_link_libraries(test_process_result PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Service/ProcessResultTest.cpp)
 
 # Executable 13: CooperativeThreadServiceHost test (tests internal implementation)
 add_executable(test_cooperative_thread_service_host
     UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp
-    src/Common/AggregateException.cpp
-    src/Test2/Framework/Provider/ServiceProvider.cpp
-    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
-    src/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
-    src/Test2/Framework/Host/ServiceHostBase.hpp
-    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
-    include/Test2/Framework/Host/StartServiceRecord.hpp
-    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
 )
 configure_target(test_cooperative_thread_service_host)
-target_include_directories(test_cooperative_thread_service_host PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(test_cooperative_thread_service_host PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(test_cooperative_thread_service_host PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_cooperative_thread_service_host PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/CooperativeThreadServiceHostTest.cpp)
 
 # Executable 14: LifecycleManager test
 add_executable(test_lifecycle_manager
     UnitTest/Test2/Lifecycle/LifecycleManagerTest.cpp
-    src/Common/AggregateException.cpp
-    src/Test2/Framework/Provider/ServiceProvider.cpp
-    src/Test2/Framework/Provider/ServiceProviderProxy.cpp
-    include/Test2/Framework/Lifecycle/LifecycleManager.hpp
-    include/Test2/Framework/Lifecycle/LifecycleManagerConfig.hpp
-    include/Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp
-    src/Test2/Framework/Host/Cooperative/CooperativeThreadHost.cpp
-    src/Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp
-    include/Test2/Framework/Host/ServiceHostProxy.hpp
-    src/Test2/Framework/Host/ServiceHostProxy.cpp
-    src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
-    include/Test2/Framework/Host/Managed/ManagedThreadHost.hpp
-    src/Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp
-    src/Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp
-    src/Test2/Framework/Host/ServiceHostBase.hpp
-    include/Test2/Framework/Host/StartServiceRecord.hpp
-    include/Test2/Framework/Registry/ServiceLaunchPriority.hpp
-    include/Test2/Framework/Registry/ServiceThreadGroupId.hpp
-    include/Test2/Framework/Registry/ServiceRegistrationRecord.hpp
 )
 configure_target(test_lifecycle_manager)
-target_include_directories(test_lifecycle_manager PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(test_lifecycle_manager PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(test_lifecycle_manager PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_lifecycle_manager PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Lifecycle" FILES UnitTest/Test2/Lifecycle/LifecycleManagerTest.cpp)
 
 # Executable 15: ExecutorContext test
 add_executable(test_executor_context
     UnitTest/Test2/Lifecycle/ExecutorContextTest.cpp
-    include/Test2/Framework/Lifecycle/ExecutorContext.hpp
 )
 configure_target(test_executor_context)
-target_include_directories(test_executor_context PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(test_executor_context PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(test_executor_context PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_executor_context PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Lifecycle" FILES UnitTest/Test2/Lifecycle/ExecutorContextTest.cpp)
 
 # Executable 16: DispatchContext test
 add_executable(test_dispatch_context
     UnitTest/Test2/Lifecycle/DispatchContextTest.cpp
-    include/Test2/Framework/Lifecycle/DispatchContext.hpp
-    include/Test2/Framework/Lifecycle/ExecutorContext.hpp
 )
 configure_target(test_dispatch_context)
-target_include_directories(test_dispatch_context PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(test_dispatch_context PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(test_dispatch_context PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_dispatch_context PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Lifecycle" FILES UnitTest/Test2/Lifecycle/DispatchContextTest.cpp)
 
 # Executable 17: AsyncProxyHelper test
 add_executable(test_async_proxy_helper
     UnitTest/Test2/Util/AsyncProxyHelperTest.cpp
-    include/Test2/Framework/Util/AsyncProxyHelper.hpp
-    include/Test2/Framework/Lifecycle/ExecutorContext.hpp
-    include/Test2/Framework/Lifecycle/DispatchContext.hpp
-    include/Test2/Framework/Exception/ServiceDisposedException.hpp
 )
 configure_target(test_async_proxy_helper)
-target_include_directories(test_async_proxy_helper PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(test_async_proxy_helper PRIVATE GTest::gtest GTest::gtest_main)
+target_include_directories(test_async_proxy_helper PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_async_proxy_helper PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 if(MSVC)
     target_compile_options(test_async_proxy_helper PRIVATE /bigobj)
 endif()
 source_group("Source Files\\UnitTest\\Test2\\Util" FILES UnitTest/Test2/Util/AsyncProxyHelperTest.cpp)
+# Executable 18: MockServiceFactory test
+add_executable(test_mock_service_factory
+    UnitTest/Test2/Util/MockServiceFactory.cpp
+    UnitTest/Test2/Util/MockServiceFactoryTest.cpp
+)
+configure_target(test_mock_service_factory)
+target_include_directories(test_mock_service_factory PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_mock_service_factory PRIVATE ${CMAKE_SOURCE_DIR}/UnitTest)
+target_link_libraries(test_mock_service_factory PRIVATE test2_framework GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Util" FILES UnitTest/Test2/Util/MockServiceFactory.cpp UnitTest/Test2/Util/MockServiceFactoryTest.cpp)

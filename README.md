@@ -62,7 +62,7 @@ A production-grade service framework with comprehensive architecture:
   - `IService`: Base interface for all services
   - `IServiceControl`: Control interface with `InitAsync`, `Process`, `ShutdownAsync`
   - `IServiceFactory`: Factory pattern for service creation
-  - `ASyncServiceBase`: Base implementation for async services
+  - `AsyncServiceBase`: Base implementation for async services
   - `ProcessResult`: Indicates sleep preferences and quit status
 
 - **Cross-Thread Communication**:

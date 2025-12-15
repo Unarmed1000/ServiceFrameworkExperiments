@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/IServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
 #include <memory>
 #include <string>
 
@@ -24,10 +24,10 @@ namespace Test2
     std::string ServiceName;
 
     /// @brief The service factory that creates service instances.
-    /// Ownership is held by this record.
-    std::unique_ptr<IServiceFactory> Factory;
+    /// Ownership is shared with the registration record.
+    std::shared_ptr<IAsyncServiceImplFactory> Factory;
 
-    StartServiceRecord(std::string serviceName, std::unique_ptr<IServiceFactory> factory)
+    StartServiceRecord(std::string serviceName, std::shared_ptr<IAsyncServiceImplFactory> factory)
       : ServiceName(std::move(serviceName))
       , Factory(std::move(factory))
     {

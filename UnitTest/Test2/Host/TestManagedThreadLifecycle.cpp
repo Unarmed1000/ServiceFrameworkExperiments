@@ -30,7 +30,7 @@ namespace Test2
                                                                               ServiceLaunchPriority priority)
   {
     // Start services on the host
-    co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), priority);
+    [[maybe_unused]] auto startedServices = co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), priority);
 
     // Track the priority for automatic cleanup
     m_startedPriorities.push_back(priority);

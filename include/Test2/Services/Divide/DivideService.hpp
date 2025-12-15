@@ -29,12 +29,12 @@ namespace Test2
 {
   /// @brief Divide Service implementation - runs in its own thread.
   class DivideService final
-    : public ASyncServiceBase
+    : public AsyncServiceBase
     , public IDivideService
   {
   public:
     explicit DivideService(const ServiceCreateInfo& createInfo)
-      : ASyncServiceBase(createInfo)
+      : AsyncServiceBase(createInfo)
     {
       spdlog::debug("DivideService: constructed");
     }

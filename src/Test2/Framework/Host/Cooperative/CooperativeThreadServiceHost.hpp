@@ -13,7 +13,6 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Host/ServiceHostBase.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
@@ -30,6 +29,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include "../ServiceHostBase.hpp"
 
 namespace Test2
 {

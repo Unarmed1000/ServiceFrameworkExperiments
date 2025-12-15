@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Host/IThreadSafeServiceHost.hpp>
+#include <Test2/Framework/Host/IServiceHost.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Lifecycle/DispatchContext.hpp>
 #include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
@@ -36,7 +36,7 @@ namespace Test2
   /// This proxy can be safely used from any thread to invoke operations on a
   /// service host that lives on a different thread. All operations are marshalled
   /// to the target executor using co_spawn.
-  class ServiceHostProxy final : public IThreadSafeServiceHost
+  class ServiceHostProxy final : public IServiceHost
   {
     ///! Dispatch context containing source and target executor contexts.
     DispatchContext<ILifeTracker, ServiceHostBase> m_dispatchContext;
@@ -47,10 +47,16 @@ namespace Test2
     explicit ServiceHostProxy(DispatchContext<ILifeTracker, ServiceHostBase> dispatchContext);
     ~ServiceHostProxy();
 
-    //! @see IThreadSafeServiceHost
-    boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, const ServiceLaunchPriority currentPriority) final;
-    //! @see IThreadSafeServiceHost
+    //! @see IServiceHost
+    boost::asio::awaitable<std::vector<StartedServiceInfo>> TryStartServicesAsync(std::vector<StartServiceRecord> services,
+                                                                                  const ServiceLaunchPriority currentPriority) final;
+    //! @see IServiceHost
+    boost::asio::awaitable<void> TryStartServiceProxiesAsync(std::vector<StartServiceProxyRecord> services,
+                                                             const ServiceLaunchPriority currentPriority) final;
+    //! @see IServiceHost
     boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(const ServiceLaunchPriority priority) final;
+    //! @see IServiceHost
+    boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServiceProxiesAsync(const ServiceLaunchPriority priority) final;
 
     //! @brief Asynchronously attempts to request shutdown of the service host.
     //!

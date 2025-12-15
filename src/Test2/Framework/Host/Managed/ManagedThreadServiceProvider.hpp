@@ -20,10 +20,14 @@
 #include <Test2/Framework/Exception/UnknownServiceException.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Provider/IServiceProvider.hpp>
+#include <Test2/Framework/Provider/ServiceProviderServiceInstance.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Service/IService.hpp>
+#include <Test2/Framework/Service/IServiceControlBase.hpp>
+#include <Test2/Framework/Service/ProcessResult.hpp>
 #include <fmt/std.h>
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <memory>
 #include <thread>
 #include <typeindex>
@@ -35,19 +39,20 @@ namespace Test2
   class ManagedThreadServiceProvider : public IServiceProvider
   {
   public:
-    /// @brief Represents a group of services at a specific priority level.
+    /// @brief Represents a group of services and/or proxies at a specific priority level.
     ///
-    /// Services within a priority group are stored in the order they were registered,
-    /// enabling reverse-order shutdown within the priority level.
+    /// Instances within a priority group are stored in the order they were registered,
+    /// with services always registered before proxies at the same priority level.
+    /// This enables reverse-order shutdown within the priority level.
     struct PriorityGroup
     {
       ServiceLaunchPriority Priority;
-      std::vector<ServiceInstanceInfo> Services;
+      std::vector<ServiceProviderServiceInstance> Instances;
     };
 
   private:
     std::vector<PriorityGroup> m_priorityGroups;
-    std::unordered_multimap<std::type_index, std::shared_ptr<IServiceControl>> m_servicesByType;
+    std::unordered_multimap<std::type_index, std::shared_ptr<IServiceControlBase>> m_servicesByType;
     std::thread::id m_ownerThreadId;
 
     /// @brief Validates that the current thread is the owner thread.
@@ -67,68 +72,148 @@ namespace Test2
       : m_ownerThreadId(std::this_thread::get_id())
     {
     }
-    /// @brief Registers a priority group of services.
+    /// @brief Registers a priority group of services or proxies.
     ///
     /// Priority groups must be registered in strictly decreasing priority order.
-    /// Each subsequent call must provide a priority value strictly less than the
-    /// previously registered priority.
+    /// Services must be registered before proxies at the same priority level.
     ///
-    /// Each ServiceInstanceInfo must contain a valid service and at least one supported interface.
+    /// If the priority group doesn't exist, it will be created.
+    /// If the priority group exists, instances will be appended (must follow service-before-proxy rule).
     ///
-    /// @param priority The priority level for this group of services.
-    /// @param services The service instance info structs to register (will be moved).
-    /// @throws EmptyPriorityGroupException if the services vector is empty.
-    /// @throws InvalidPriorityOrderException if priority >= last registered priority.
-    /// @throws std::invalid_argument if any service has no supported interfaces or null service pointer.
-    void RegisterPriorityGroup(ServiceLaunchPriority priority, std::vector<Test2::ServiceInstanceInfo>&& services)
+    /// Each instance must have a valid pointer and at least one supported interface.
+    ///
+    /// @param instanceType Whether these are services or proxies.
+    /// @param priority The priority level for this group.
+    /// @param instances The instance info structs to register (will be moved).
+    /// @throws EmptyPriorityGroupException if the instances vector is empty.
+    /// @throws InvalidPriorityOrderException if priority ordering is violated or service-before-proxy rule violated.
+    /// @throws std::invalid_argument if any instance has no supported interfaces or null pointer.
+    void RegisterPriorityGroup(InstanceType instanceType, ServiceLaunchPriority priority, std::vector<ServiceProviderServiceInstance>&& instances)
     {
-      if (services.empty())
+      if (instances.empty())
       {
         throw EmptyPriorityGroupException(fmt::format("Cannot register empty priority group for priority {}", priority.GetValue()));
       }
 
-      if (!m_priorityGroups.empty())
+      // Validate all instances have correct type
+      for (size_t i = 0; i < instances.size(); ++i)
       {
-        const auto lastPriority = m_priorityGroups.back().Priority;
-        if (priority >= lastPriority)
+        if (instances[i].Type != instanceType)
+        {
+          throw std::invalid_argument(fmt::format("Instance at index {} has type mismatch. Expected {}, got {}", i,
+                                                  instanceType == InstanceType::Service ? "Service" : "Proxy",
+                                                  instances[i].Type == InstanceType::Service ? "Service" : "Proxy"));
+        }
+      }
+
+      // Find existing priority group
+      auto it =
+        std::find_if(m_priorityGroups.begin(), m_priorityGroups.end(), [priority](const PriorityGroup& group) { return group.Priority == priority; });
+
+      if (it != m_priorityGroups.end())
+      {
+        // Priority group exists - check if this instance type was already registered
+        bool hasInstancesOfType = false;
+        for (const auto& instance : it->Instances)
+        {
+          if (instance.Type == instanceType)
+          {
+            hasInstancesOfType = true;
+            break;
+          }
+        }
+
+        if (hasInstancesOfType)
         {
           throw InvalidPriorityOrderException(
-            fmt::format("Priority order violation: attempting to register priority {} after priority {}. "
-                        "Priority groups must be registered in strictly decreasing order (high to low).",
-                        priority.GetValue(), lastPriority.GetValue()));
+            fmt::format("Cannot register {} instances at priority {} multiple times. Each instance type can only be registered once per priority.",
+                        instanceType == InstanceType::Service ? "service" : "proxy", priority.GetValue()));
         }
-      }
 
-      // Validate each service and build type index
-      for (size_t i = 0; i < services.size(); ++i)
+        // Validate service-before-proxy ordering
+        if (!it->Instances.empty())
+        {
+          const auto lastInstanceType = it->Instances.back().Type;
+          if (lastInstanceType == InstanceType::Proxy && instanceType == InstanceType::Service)
+          {
+            throw InvalidPriorityOrderException(
+              fmt::format("Cannot register services at priority {} after proxies have already been registered. "
+                          "Services must be registered before proxies at the same priority level.",
+                          priority.GetValue()));
+          }
+        }
+
+        // Validate and index new instances
+        for (size_t i = 0; i < instances.size(); ++i)
+        {
+          if (!instances[i].Instance)
+          {
+            throw std::invalid_argument(fmt::format("Instance at index {} has null instance pointer", i));
+          }
+          if (instances[i].SupportedInterfaces.empty())
+          {
+            throw std::invalid_argument(fmt::format("Instance at index {} has no supported interfaces", i));
+          }
+
+          // Index by each supported interface type
+          for (const std::type_index& typeIndex : instances[i].SupportedInterfaces)
+          {
+            m_servicesByType.emplace(typeIndex, instances[i].Instance);
+          }
+        }
+
+        // Append to existing group
+        it->Instances.insert(it->Instances.end(), std::make_move_iterator(instances.begin()), std::make_move_iterator(instances.end()));
+      }
+      else
       {
-        if (!services[i].Service)
+        // New priority group - validate decreasing priority order
+        if (!m_priorityGroups.empty())
         {
-          throw std::invalid_argument(fmt::format("Service at index {} has null service pointer", i));
-        }
-        if (services[i].SupportedInterfaces.empty())
-        {
-          throw std::invalid_argument(fmt::format("Service at index {} has no supported interfaces", i));
+          const auto lastPriority = m_priorityGroups.back().Priority;
+          if (priority >= lastPriority)
+          {
+            throw InvalidPriorityOrderException(
+              fmt::format("Priority order violation: attempting to register priority {} after priority {}. "
+                          "Priority groups must be registered in strictly decreasing order (high to low).",
+                          priority.GetValue(), lastPriority.GetValue()));
+          }
         }
 
-        // Index service by each supported interface type
-        for (const std::type_index& typeIndex : services[i].SupportedInterfaces)
+        // Validate and index instances
+        for (size_t i = 0; i < instances.size(); ++i)
         {
-          m_servicesByType.emplace(typeIndex, services[i].Service);
+          if (!instances[i].Instance)
+          {
+            throw std::invalid_argument(fmt::format("Instance at index {} has null instance pointer", i));
+          }
+          if (instances[i].SupportedInterfaces.empty())
+          {
+            throw std::invalid_argument(fmt::format("Instance at index {} has no supported interfaces", i));
+          }
+
+          // Index by each supported interface type
+          for (const std::type_index& typeIndex : instances[i].SupportedInterfaces)
+          {
+            m_servicesByType.emplace(typeIndex, instances[i].Instance);
+          }
         }
+
+        // Create new priority group
+        m_priorityGroups.emplace_back(PriorityGroup{priority, std::move(instances)});
       }
-
-      m_priorityGroups.emplace_back(PriorityGroup{priority, std::move(services)});
     }
 
-    /// @brief Unregisters services at a specific priority level.
+    /// @brief Unregisters instances of a specific type at a specific priority level.
     ///
-    /// Removes the priority group from the provider and returns the services.
-    /// Services are removed from the type index as well.
+    /// Removes all instances matching the specified type from the priority group.
+    /// Instances are removed from the type index as well.
+    /// If the priority group becomes empty, it is removed entirely.
     ///
-    /// @param priority The priority level to unregister.
-    /// @return The services that were at that priority level, or empty if not found.
-    [[nodiscard]] std::vector<ServiceInstanceInfo> UnregisterPriorityGroup(ServiceLaunchPriority priority)
+    /// @param instanceType Whether to unregister services or proxies.
+    /// @param priority The priority level to unregister from.
+    /// @return The instances that were unregistered, or empty if none found.
+    [[nodiscard]] std::vector<ServiceProviderServiceInstance> UnregisterPriorityGroup(InstanceType instanceType, ServiceLaunchPriority priority)
     {
       // Find the priority group
       auto it =
@@ -139,27 +224,41 @@ namespace Test2
         return {};
       }
 
-      // Remove services from type index
-      for (const auto& info : it->Services)
+      std::vector<ServiceProviderServiceInstance> result;
+
+      // Partition instances: matching type goes to end
+      auto partitionPoint = std::partition(it->Instances.begin(), it->Instances.end(),
+                                           [instanceType](const ServiceProviderServiceInstance& instance) { return instance.Type != instanceType; });
+
+      // Move matching instances to result and remove from type index
+      for (auto instanceIt = partitionPoint; instanceIt != it->Instances.end(); ++instanceIt)
       {
-        for (const auto& typeIndex : info.SupportedInterfaces)
+        // Remove from type index
+        for (const auto& typeIndex : instanceIt->SupportedInterfaces)
         {
-          // Find and erase the specific service for this type
           auto range = m_servicesByType.equal_range(typeIndex);
           for (auto typeIt = range.first; typeIt != range.second; ++typeIt)
           {
-            if (typeIt->second == info.Service)
+            if (typeIt->second == instanceIt->Instance)
             {
               m_servicesByType.erase(typeIt);
               break;
             }
           }
         }
+
+        result.push_back(std::move(*instanceIt));
       }
 
-      // Move services out and remove the priority group
-      std::vector<ServiceInstanceInfo> result = std::move(it->Services);
-      m_priorityGroups.erase(it);
+      // Erase the moved instances
+      it->Instances.erase(partitionPoint, it->Instances.end());
+
+      // If priority group is now empty, remove it
+      if (it->Instances.empty())
+      {
+        m_priorityGroups.erase(it);
+      }
+
       return result;
     }
 
@@ -222,11 +321,11 @@ namespace Test2
       return true;
     }
 
-    /// @brief Get the total count of registered services.
+    /// @brief Get the total count of registered instances (services and proxies).
     ///
     /// Validates thread access and logs a warning if called from wrong thread.
     ///
-    /// @return The total number of services across all priority groups, or 0 if called from wrong thread.
+    /// @return The total number of instances across all priority groups, or 0 if called from wrong thread.
     [[nodiscard]] std::size_t GetServiceCount() const noexcept
     {
       const auto currentThreadId = std::this_thread::get_id();
@@ -239,27 +338,27 @@ namespace Test2
       std::size_t count = 0;
       for (const auto& group : m_priorityGroups)
       {
-        count += group.Services.size();
+        count += group.Instances.size();
       }
       return count;
     }
 
-    /// @brief Get all registered service controls.
+    /// @brief Process all registered instances (services and proxies).
     ///
-    /// Returns all unique IServiceControl instances in registration order.
-    /// This is useful for iterating over all services, e.g., for processing.
+    /// Iterates through all instances in registration order, calling Process() on each,
+    /// and merges the results to determine the most restrictive outcome.
     ///
-    /// @return Vector of all service controls in registration order.
-    [[nodiscard]] std::vector<std::shared_ptr<IServiceControl>> GetAllServiceControls() const
+    /// @return Merged ProcessResult representing the most restrictive result from all instances.
+    [[nodiscard]] ProcessResult Process()
     {
       ValidateThreadAccess();
-      std::vector<std::shared_ptr<IServiceControl>> result;
+      ProcessResult result = ProcessResult::NoSleepLimit();
 
       for (const auto& group : m_priorityGroups)
       {
-        for (const auto& info : group.Services)
+        for (const auto& instance : group.Instances)
         {
-          result.push_back(info.Service);
+          result = Merge(result, instance.Instance->Process());
         }
       }
 

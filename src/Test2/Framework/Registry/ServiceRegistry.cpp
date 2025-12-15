@@ -15,14 +15,16 @@
 #include <Test2/Framework/Exception/InvalidServiceFactoryException.hpp>
 #include <Test2/Framework/Exception/RegistryExtractedException.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
-#include <Test2/Framework/Service/IServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceProxyFactory.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <typeindex>
 
 namespace Test2
 {
-  void ServiceRegistry::RegisterService(std::unique_ptr<IServiceFactory> factory, const ServiceLaunchPriority priority,
+  void ServiceRegistry::RegisterService(std::unique_ptr<AsyncServiceFactory> factory, const ServiceLaunchPriority priority,
                                         const ServiceThreadGroupId threadGroupId)
   {
     // Validate factory is not null
@@ -47,18 +49,22 @@ namespace Test2
       throw InvalidServiceFactoryException("Service factory must support at least one interface");
     }
 
-    // Get the factory type for duplicate detection
-    const std::type_index factoryType(typeid(*factory));
+    // Get the proxy and impl factory for duplicate detection
+    auto proxyFactory = factory->GetProxyFactory();
+    auto implFactory = factory->GetImplFactory();
+
+    // Use impl factory type as the key since it represents the actual service being created
+    const std::type_index factoryType(typeid(*implFactory));
 
     // Check if this factory type is already registered
     if (m_registrations.find(factoryType) != m_registrations.end())
     {
-      spdlog::error("ServiceRegistry::RegisterService: factory type '{}' is already registered", factoryType.name());
-      throw DuplicateServiceRegistrationException(fmt::format("Factory type '{}' is already registered", factoryType.name()));
+      spdlog::error("ServiceRegistry::RegisterService: impl factory type '{}' is already registered", factoryType.name());
+      throw DuplicateServiceRegistrationException(fmt::format("Impl factory type '{}' is already registered", factoryType.name()));
     }
 
     // Register the factory
-    spdlog::debug("ServiceRegistry::RegisterService: registering factory type '{}' with priority {} and thread group {}", factoryType.name(),
+    spdlog::debug("ServiceRegistry::RegisterService: registering impl factory type '{}' with priority {} and thread group {}", factoryType.name(),
                   priority.GetValue(), threadGroupId.GetValue());
 
     m_registrations.emplace(factoryType, ServiceRegistrationRecord(std::move(factory), priority, threadGroupId));

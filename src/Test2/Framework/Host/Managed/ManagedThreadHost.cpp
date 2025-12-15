@@ -123,7 +123,7 @@ namespace Test2
   }
 
 
-  std::shared_ptr<IThreadSafeServiceHost> ManagedThreadHost::GetServiceHost()
+  std::shared_ptr<IServiceHost> ManagedThreadHost::GetServiceHost()
   {
     if (m_serviceHostProxy)
     {

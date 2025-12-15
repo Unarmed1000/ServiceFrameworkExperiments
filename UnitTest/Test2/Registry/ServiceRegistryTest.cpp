@@ -15,65 +15,129 @@
 #include <Test2/Framework/Exception/InvalidServiceFactoryException.hpp>
 #include <Test2/Framework/Exception/RegistryExtractedException.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
-#include <Test2/Framework/Service/IServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/IServiceControl.hpp>
+#include <Test2/Framework/Service/IServiceProxyControl.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
+#include <Test2/Framework/Service/ServiceProxyCreateInfo.hpp>
 #include <gtest/gtest.h>
 #include <typeindex>
 
 namespace Test2
 {
-  // Mock service factory for testing
-  class MockServiceFactory : public IServiceFactory
+  // Mock proxy factory for testing
+  class MockProxyFactory : public AsyncServiceProxyFactory
   {
   public:
-    MockServiceFactory() = default;
-
-    std::span<const std::type_index> GetSupportedInterfaces() const override
+    MockProxyFactory()
+      : AsyncServiceProxyFactory(typeid(IService))
     {
-      static const std::type_index interfaces[] = {std::type_index(typeid(IService))};
-      return std::span<const std::type_index>(interfaces);
     }
 
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }
   };
 
-  // Another mock factory with different type
-  class AnotherMockServiceFactory : public IServiceFactory
+  // Mock impl factory for testing
+  class MockImplFactory : public AsyncServiceImplFactory
   {
   public:
-    AnotherMockServiceFactory() = default;
-
-    std::span<const std::type_index> GetSupportedInterfaces() const override
+    MockImplFactory()
+      : AsyncServiceImplFactory(typeid(IService))
     {
-      static const std::type_index interfaces[] = {std::type_index(typeid(IService))};
-      return std::span<const std::type_index>(interfaces);
     }
 
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }
   };
 
-  // Empty factory (reports zero interfaces)
-  class EmptyServiceFactory : public IServiceFactory
+  // Another mock proxy factory with different type
+  class AnotherMockProxyFactory : public AsyncServiceProxyFactory
   {
   public:
-    EmptyServiceFactory() = default;
+    AnotherMockProxyFactory()
+      : AsyncServiceProxyFactory(typeid(IService))
+    {
+    }
+
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;
+    }
+  };
+
+  // Another mock impl factory with different type
+  class AnotherMockImplFactory : public AsyncServiceImplFactory
+  {
+  public:
+    AnotherMockImplFactory()
+      : AsyncServiceImplFactory(typeid(IService))
+    {
+    }
+
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;
+    }
+  };
+
+  // Empty proxy factory (reports zero interfaces) - needs custom implementation since base requires type_index
+  class EmptyProxyFactory : public IAsyncServiceProxyFactory
+  {
+  public:
+    EmptyProxyFactory() = default;
 
     std::span<const std::type_index> GetSupportedInterfaces() const override
     {
       return std::span<const std::type_index>();    // Empty span
     }
 
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;
     }
   };
+
+  // Empty impl factory (reports zero interfaces) - needs custom implementation since base requires type_index
+  class EmptyImplFactory : public IAsyncServiceImplFactory
+  {
+  public:
+    EmptyImplFactory() = default;
+
+    std::span<const std::type_index> GetSupportedInterfaces() const override
+    {
+      return std::span<const std::type_index>();    // Empty span
+    }
+
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;
+    }
+  };
+
+  // Helper to create AsyncServiceFactory for tests
+  std::unique_ptr<AsyncServiceFactory> CreateMockFactory()
+  {
+    return std::make_unique<AsyncServiceFactory>(std::make_shared<MockProxyFactory>(), std::make_shared<MockImplFactory>());
+  }
+
+  std::unique_ptr<AsyncServiceFactory> CreateAnotherMockFactory()
+  {
+    return std::make_unique<AsyncServiceFactory>(std::make_shared<AnotherMockProxyFactory>(), std::make_shared<AnotherMockImplFactory>());
+  }
+
+  std::unique_ptr<AsyncServiceFactory> CreateEmptyFactory()
+  {
+    return std::make_unique<AsyncServiceFactory>(std::make_shared<EmptyProxyFactory>(), std::make_shared<EmptyImplFactory>());
+  }
 }
 
 using namespace Test2;
@@ -81,7 +145,7 @@ using namespace Test2;
 TEST(ServiceRegistryTest, SuccessfulFactoryRegistration)
 {
   ServiceRegistry registry;
-  auto factory = std::make_unique<MockServiceFactory>();
+  auto factory = CreateMockFactory();
   registry.RegisterService(std::move(factory), ServiceLaunchPriority(100), ServiceThreadGroupId(1));
   // No exception means success
 }
@@ -89,7 +153,7 @@ TEST(ServiceRegistryTest, SuccessfulFactoryRegistration)
 TEST(ServiceRegistryTest, ExtractRegistrations)
 {
   ServiceRegistry registry;
-  auto factory = std::make_unique<MockServiceFactory>();
+  auto factory = CreateMockFactory();
   registry.RegisterService(std::move(factory), ServiceLaunchPriority(100), ServiceThreadGroupId(1));
 
   auto records = registry.ExtractRegistrations();
@@ -109,7 +173,7 @@ TEST(ServiceRegistryTest, EmptyRegistryReturnsEmptyRecords)
 TEST(ServiceRegistryTest, MultipleExtractionsReturnEmptyAfterFirst)
 {
   ServiceRegistry registry;
-  auto factory = std::make_unique<MockServiceFactory>();
+  auto factory = CreateMockFactory();
   registry.RegisterService(std::move(factory), ServiceLaunchPriority(100), ServiceThreadGroupId(1));
 
   auto records1 = registry.ExtractRegistrations();
@@ -122,8 +186,8 @@ TEST(ServiceRegistryTest, MultipleExtractionsReturnEmptyAfterFirst)
 TEST(ServiceRegistryTest, DuplicateFactoryTypeThrows)
 {
   ServiceRegistry registry;
-  auto factory1 = std::make_unique<MockServiceFactory>();
-  auto factory2 = std::make_unique<MockServiceFactory>();
+  auto factory1 = CreateMockFactory();
+  auto factory2 = CreateMockFactory();
 
   registry.RegisterService(std::move(factory1), ServiceLaunchPriority(100), ServiceThreadGroupId(1));
 
@@ -134,8 +198,8 @@ TEST(ServiceRegistryTest, DuplicateFactoryTypeThrows)
 TEST(ServiceRegistryTest, MultipleDifferentFactoryTypes)
 {
   ServiceRegistry registry;
-  auto factory1 = std::make_unique<MockServiceFactory>();
-  auto factory2 = std::make_unique<AnotherMockServiceFactory>();
+  auto factory1 = CreateMockFactory();
+  auto factory2 = CreateAnotherMockFactory();
 
   registry.RegisterService(std::move(factory1), ServiceLaunchPriority(100), ServiceThreadGroupId(1));
   registry.RegisterService(std::move(factory2), ServiceLaunchPriority(200), ServiceThreadGroupId(2));
@@ -153,7 +217,7 @@ TEST(ServiceRegistryTest, NullFactoryThrows)
 TEST(ServiceRegistryTest, EmptyFactoryThrows)
 {
   ServiceRegistry registry;
-  auto factory = std::make_unique<EmptyServiceFactory>();
+  auto factory = CreateEmptyFactory();
 
   EXPECT_THROW(registry.RegisterService(std::move(factory), ServiceLaunchPriority(100), ServiceThreadGroupId(1)), InvalidServiceFactoryException);
 }
@@ -161,12 +225,12 @@ TEST(ServiceRegistryTest, EmptyFactoryThrows)
 TEST(ServiceRegistryTest, RegistrationAfterExtractionThrows)
 {
   ServiceRegistry registry;
-  auto factory1 = std::make_unique<MockServiceFactory>();
+  auto factory1 = CreateMockFactory();
   registry.RegisterService(std::move(factory1), ServiceLaunchPriority(100), ServiceThreadGroupId(1));
 
   auto records = registry.ExtractRegistrations();
 
-  auto factory2 = std::make_unique<MockServiceFactory>();
+  auto factory2 = CreateMockFactory();
   EXPECT_THROW(registry.RegisterService(std::move(factory2), ServiceLaunchPriority(200), ServiceThreadGroupId(2)), RegistryExtractedException);
 }
 
@@ -189,7 +253,7 @@ TEST(ServiceRegistryTest, ThreadGroupIdContinuesAfterRegistrations)
 
   auto id1 = registry.CreateServiceThreadGroupId();
 
-  auto factory = std::make_unique<MockServiceFactory>();
+  auto factory = CreateMockFactory();
   registry.RegisterService(std::move(factory), ServiceLaunchPriority(100), id1);
 
   auto id2 = registry.CreateServiceThreadGroupId();
@@ -201,7 +265,7 @@ TEST(ServiceRegistryTest, ThreadGroupIdContinuesAfterExtraction)
   ServiceRegistry registry;
 
   auto id1 = registry.CreateServiceThreadGroupId();
-  auto factory = std::make_unique<MockServiceFactory>();
+  auto factory = CreateMockFactory();
   registry.RegisterService(std::move(factory), ServiceLaunchPriority(100), id1);
 
   auto records = registry.ExtractRegistrations();
@@ -214,8 +278,8 @@ TEST(ServiceRegistryTest, PrioritiesAndThreadGroupsPreserved)
 {
   ServiceRegistry registry;
 
-  auto factory1 = std::make_unique<MockServiceFactory>();
-  auto factory2 = std::make_unique<AnotherMockServiceFactory>();
+  auto factory1 = CreateMockFactory();
+  auto factory2 = CreateAnotherMockFactory();
 
   registry.RegisterService(std::move(factory1), ServiceLaunchPriority(100), ServiceThreadGroupId(5));
   registry.RegisterService(std::move(factory2), ServiceLaunchPriority(200), ServiceThreadGroupId(10));

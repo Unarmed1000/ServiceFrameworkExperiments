@@ -13,38 +13,18 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/IServiceFactory.hpp>
-#include <Test2/Framework/Service/ServiceCreateInfo.hpp>
-#include <Test2/Services/Add/AddService.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
 #include <Test2/Services/Add/IAddService.hpp>
-#include <memory>
-#include <span>
-#include <stdexcept>
-#include <typeindex>
 
 namespace Test2
 {
   /// @brief Factory for creating AddService instances.
-  class AddServiceFactory final : public IServiceFactory
+  class AddServiceFactory final : public AsyncServiceImplFactory
   {
   public:
-    AddServiceFactory() = default;
-    ~AddServiceFactory() override = default;
+    AddServiceFactory();
 
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      static const std::type_index interfaces[] = {std::type_index(typeid(IAddService))};
-      return std::span<const std::type_index>(interfaces);
-    }
-
-    std::shared_ptr<IServiceControl> Create(const std::type_index& type, const ServiceCreateInfo& createInfo) override
-    {
-      if (type == std::type_index(typeid(IAddService)))
-      {
-        return std::make_shared<AddService>(createInfo);
-      }
-      throw std::invalid_argument("AddServiceFactory: unsupported interface type");
-    }
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
   };
 
 }

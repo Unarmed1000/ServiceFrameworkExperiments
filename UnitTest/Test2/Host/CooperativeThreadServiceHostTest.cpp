@@ -14,8 +14,9 @@
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
-#include <Test2/Framework/Service/IServiceFactory.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -81,24 +82,19 @@ namespace Test2
   };
 
   // Mock factory
-  class MockCooperativeServiceFactory : public IServiceFactory
+  class MockCooperativeServiceFactory : public AsyncServiceImplFactory
   {
   private:
     std::shared_ptr<MockCooperativeService> m_service;
 
   public:
     explicit MockCooperativeServiceFactory(std::shared_ptr<MockCooperativeService> service)
-      : m_service(std::move(service))
+      : AsyncServiceImplFactory(typeid(ITestInterface))
+      , m_service(std::move(service))
     {
     }
 
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
-      return std::span<const std::type_index>(interfaces);
-    }
-
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
     {
       return m_service;
     }
@@ -302,7 +298,7 @@ namespace Test2
         host.GetExecutor(),
         [this, services = std::move(services), priority, &done]() mutable -> boost::asio::awaitable<void>
         {
-          co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(priority));
+          [[maybe_unused]] auto result = co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(priority));
           done = true;
         },
         boost::asio::detached);

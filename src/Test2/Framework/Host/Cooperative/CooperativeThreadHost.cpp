@@ -12,12 +12,12 @@
 //****************************************************************************************************************************************************
 
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp>
-#include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
-#include <Test2/Framework/Host/IThreadSafeServiceHost.hpp>
+#include <Test2/Framework/Host/IServiceHost.hpp>
 #include <Test2/Framework/Host/ServiceHostProxy.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
 #include <stdexcept>
 #include "../ServiceHostBase.hpp"
+#include "CooperativeThreadServiceHost.hpp"
 
 namespace Test2
 {
@@ -47,7 +47,7 @@ namespace Test2
     m_cancellationSignal.emit(boost::asio::cancellation_type::terminal);
   }
 
-  std::shared_ptr<IThreadSafeServiceHost> CooperativeThreadHost::GetServiceHost()
+  std::shared_ptr<IServiceHost> CooperativeThreadHost::GetServiceHost()
   {
     if (m_serviceHostProxy)
     {

@@ -36,7 +36,7 @@ namespace Test2
   /// Supports +, -, *, /, parentheses, and proper operator precedence.
   /// Uses dependency injection to acquire the math services via ServiceProvider.
   class CalculatorService final
-    : public ASyncServiceBase
+    : public AsyncServiceBase
     , public ICalculatorService
   {
   private:
@@ -234,7 +234,7 @@ namespace Test2
     /// @throws UnknownServiceException if any required service is not found.
     /// @throws ServiceCastException if a service cannot be cast to the required type.
     explicit CalculatorService(const ServiceCreateInfo& createInfo)
-      : ASyncServiceBase(createInfo)
+      : AsyncServiceBase(createInfo)
       , m_addService(createInfo.Provider.GetService<IAddService>())
       , m_multiplyService(createInfo.Provider.GetService<IMultiplyService>())
       , m_subtractService(createInfo.Provider.GetService<ISubtractService>())

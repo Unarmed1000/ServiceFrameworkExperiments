@@ -19,7 +19,7 @@
 
 namespace Test2
 {
-  class IServiceFactory;
+  class AsyncServiceFactory;
 
   /// @brief Interface for registering services with the service framework.
   ///
@@ -45,7 +45,7 @@ namespace Test2
     ///                 services with higher priority values.
     /// @param threadGroupId The thread group identifier for this service's execution context.
     ///                      Services within the same thread group may share execution resources.
-    virtual void RegisterService(std::unique_ptr<IServiceFactory> factory, const ServiceLaunchPriority priority,
+    virtual void RegisterService(std::unique_ptr<AsyncServiceFactory> factory, const ServiceLaunchPriority priority,
                                  const ServiceThreadGroupId threadGroupId) = 0;
 
     /// @brief Creates a new unique service thread group identifier.

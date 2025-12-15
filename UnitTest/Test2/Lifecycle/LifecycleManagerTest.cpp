@@ -18,8 +18,11 @@
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceRegistrationRecord.hpp>
 #include <Test2/Framework/Registry/ServiceThreadGroupId.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceFactoryUtil.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
-#include <Test2/Framework/Service/IServiceFactory.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -140,29 +143,46 @@ namespace Test2
   {
   };
 
-  // Mock factory
-  class MockLifecycleServiceFactory : public IServiceFactory
+  // Mock proxy factory
+  class MockLifecycleServiceProxyFactory : public AsyncServiceProxyFactory
+  {
+  public:
+    MockLifecycleServiceProxyFactory()
+      : AsyncServiceProxyFactory(typeid(ITestInterface))
+    {
+    }
+
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const std::type_index& /*type*/, const ServiceProxyCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;    // Not used in these tests
+    }
+  };
+
+  // Mock impl factory
+  class MockLifecycleServiceFactory : public AsyncServiceImplFactory
   {
   private:
     std::shared_ptr<MockLifecycleService> m_service;
 
   public:
     explicit MockLifecycleServiceFactory(std::shared_ptr<MockLifecycleService> service)
-      : m_service(std::move(service))
+      : AsyncServiceImplFactory(typeid(ITestInterface))
+      , m_service(std::move(service))
     {
     }
 
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
-      return std::span<const std::type_index>(interfaces);
-    }
-
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
     {
       return m_service;
     }
   };
+
+  // Helper to create AsyncServiceFactory for tests
+  std::unique_ptr<AsyncServiceFactory> CreateMockFactory(std::shared_ptr<MockLifecycleService> service)
+  {
+    return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
+                                                              std::make_shared<MockLifecycleServiceFactory>(std::move(service)));
+  }
 
   // ============================================================================
   // Phase 1: Basic Construction and Destruction Tests
@@ -281,7 +301,7 @@ namespace Test2
   TEST(LifecycleManager, StartServicesAsync_SingleService_MainThreadGroup_ServiceInitialized)
   {
     auto service = std::make_shared<MockLifecycleService>();
-    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+    auto factory = CreateMockFactory(service);
 
     std::vector<ServiceRegistrationRecord> registrations;
     registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
@@ -301,7 +321,7 @@ namespace Test2
   TEST(LifecycleManager, StartServicesAsync_SingleService_MainThreadGroup_ProcessCalled)
   {
     auto service = std::make_shared<MockLifecycleService>();
-    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+    auto factory = CreateMockFactory(service);
 
     std::vector<ServiceRegistrationRecord> registrations;
     registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
@@ -324,8 +344,8 @@ namespace Test2
   {
     auto service1 = std::make_shared<MockLifecycleService>();
     auto service2 = std::make_shared<MockLifecycleService>();
-    auto factory1 = std::make_unique<MockLifecycleServiceFactory>(service1);
-    auto factory2 = std::make_unique<MockLifecycleServiceFactory>(service2);
+    auto factory1 = CreateMockFactory(service1);
+    auto factory2 = CreateMockFactory(service2);
 
     std::vector<ServiceRegistrationRecord> registrations;
     registrations.emplace_back(std::move(factory1), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
@@ -355,8 +375,8 @@ namespace Test2
 
     auto highPriorityService = std::make_shared<MockLifecycleService>("HighPriority", &tracker);
     auto lowPriorityService = std::make_shared<MockLifecycleService>("LowPriority", &tracker);
-    auto highFactory = std::make_unique<MockLifecycleServiceFactory>(highPriorityService);
-    auto lowFactory = std::make_unique<MockLifecycleServiceFactory>(lowPriorityService);
+    auto highFactory = CreateMockFactory(highPriorityService);
+    auto lowFactory = CreateMockFactory(lowPriorityService);
 
     std::vector<ServiceRegistrationRecord> registrations;
     // Register in reverse order to ensure priority sorting works
@@ -383,9 +403,9 @@ namespace Test2
     auto highService = std::make_shared<MockLifecycleService>("High", &tracker);
     auto medService = std::make_shared<MockLifecycleService>("Medium", &tracker);
     auto lowService = std::make_shared<MockLifecycleService>("Low", &tracker);
-    auto highFactory = std::make_unique<MockLifecycleServiceFactory>(highService);
-    auto medFactory = std::make_unique<MockLifecycleServiceFactory>(medService);
-    auto lowFactory = std::make_unique<MockLifecycleServiceFactory>(lowService);
+    auto highFactory = CreateMockFactory(highService);
+    auto medFactory = CreateMockFactory(medService);
+    auto lowFactory = CreateMockFactory(lowService);
 
     std::vector<ServiceRegistrationRecord> registrations;
     // Register in scrambled order
@@ -418,12 +438,10 @@ namespace Test2
 
     std::vector<ServiceRegistrationRecord> registrations;
     // Interleave high and low priority registrations
-    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(low1), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(high1), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(low2), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(high2), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateMockFactory(low1), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateMockFactory(high1), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateMockFactory(low2), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateMockFactory(high2), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -451,7 +469,7 @@ namespace Test2
   TEST(LifecycleManager, StartServicesAsync_SingleService_NonMainThreadGroup_ServiceInitialized)
   {
     auto service = std::make_shared<MockLifecycleService>();
-    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+    auto factory = CreateMockFactory(service);
 
     ServiceThreadGroupId workerThreadGroup{1};    // Non-main thread group
 
@@ -473,7 +491,7 @@ namespace Test2
   TEST(LifecycleManager, StartServicesAsync_SingleService_NonMainThreadGroup_RunsOnDifferentThread)
   {
     auto service = std::make_shared<MockLifecycleService>();
-    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+    auto factory = CreateMockFactory(service);
 
     ServiceThreadGroupId workerThreadGroup{1};
     std::thread::id mainThreadId = std::this_thread::get_id();
@@ -496,7 +514,7 @@ namespace Test2
   TEST(LifecycleManager, StartServicesAsync_MainThreadGroup_RunsOnMainThread)
   {
     auto service = std::make_shared<MockLifecycleService>();
-    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+    auto factory = CreateMockFactory(service);
 
     std::thread::id mainThreadId = std::this_thread::get_id();
 
@@ -519,8 +537,8 @@ namespace Test2
   {
     auto service1 = std::make_shared<MockLifecycleService>();
     auto service2 = std::make_shared<MockLifecycleService>();
-    auto factory1 = std::make_unique<MockLifecycleServiceFactory>(service1);
-    auto factory2 = std::make_unique<MockLifecycleServiceFactory>(service2);
+    auto factory1 = CreateMockFactory(service1);
+    auto factory2 = CreateMockFactory(service2);
 
     ServiceThreadGroupId workerThreadGroup{1};
 
@@ -546,8 +564,8 @@ namespace Test2
   {
     auto service1 = std::make_shared<MockLifecycleService>();
     auto service2 = std::make_shared<MockLifecycleService>();
-    auto factory1 = std::make_unique<MockLifecycleServiceFactory>(service1);
-    auto factory2 = std::make_unique<MockLifecycleServiceFactory>(service2);
+    auto factory1 = CreateMockFactory(service1);
+    auto factory2 = CreateMockFactory(service2);
 
     ServiceThreadGroupId workerThreadGroup{1};
 
@@ -572,8 +590,8 @@ namespace Test2
   {
     auto mainService = std::make_shared<MockLifecycleService>();
     auto workerService = std::make_shared<MockLifecycleService>();
-    auto mainFactory = std::make_unique<MockLifecycleServiceFactory>(mainService);
-    auto workerFactory = std::make_unique<MockLifecycleServiceFactory>(workerService);
+    auto mainFactory = CreateMockFactory(mainService);
+    auto workerFactory = CreateMockFactory(workerService);
 
     ServiceThreadGroupId workerThreadGroup{1};
 
@@ -599,8 +617,8 @@ namespace Test2
   {
     auto mainService = std::make_shared<MockLifecycleService>();
     auto workerService = std::make_shared<MockLifecycleService>();
-    auto mainFactory = std::make_unique<MockLifecycleServiceFactory>(mainService);
-    auto workerFactory = std::make_unique<MockLifecycleServiceFactory>(workerService);
+    auto mainFactory = CreateMockFactory(mainService);
+    auto workerFactory = CreateMockFactory(workerService);
 
     ServiceThreadGroupId workerThreadGroup{1};
     std::thread::id mainThreadId = std::this_thread::get_id();
@@ -628,8 +646,8 @@ namespace Test2
   {
     auto worker1Service = std::make_shared<MockLifecycleService>();
     auto worker2Service = std::make_shared<MockLifecycleService>();
-    auto worker1Factory = std::make_unique<MockLifecycleServiceFactory>(worker1Service);
-    auto worker2Factory = std::make_unique<MockLifecycleServiceFactory>(worker2Service);
+    auto worker1Factory = CreateMockFactory(worker1Service);
+    auto worker2Factory = CreateMockFactory(worker2Service);
 
     ServiceThreadGroupId workerGroup1{1};
     ServiceThreadGroupId workerGroup2{2};
@@ -667,12 +685,10 @@ namespace Test2
 
     std::vector<ServiceRegistrationRecord> registrations;
     // Scramble the order
-    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(lowWorker), ServiceLaunchPriority(100), workerThreadGroup);
-    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(highMain), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(lowMain), ServiceLaunchPriority(100),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<MockLifecycleServiceFactory>(highWorker), ServiceLaunchPriority(1000), workerThreadGroup);
+    registrations.emplace_back(CreateMockFactory(lowWorker), ServiceLaunchPriority(100), workerThreadGroup);
+    registrations.emplace_back(CreateMockFactory(highMain), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateMockFactory(lowMain), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateMockFactory(highWorker), ServiceLaunchPriority(1000), workerThreadGroup);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -743,28 +759,30 @@ namespace Test2
   };
 
   // Mock factory for failing service
-  class FailingMockServiceFactory : public IServiceFactory
+  class FailingMockServiceFactory : public AsyncServiceImplFactory
   {
   private:
     std::shared_ptr<FailingMockService> m_service;
 
   public:
     explicit FailingMockServiceFactory(std::shared_ptr<FailingMockService> service)
-      : m_service(std::move(service))
+      : AsyncServiceImplFactory(typeid(ITestInterface))
+      , m_service(std::move(service))
     {
     }
 
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
-      return std::span<const std::type_index>(interfaces);
-    }
-
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
     {
       return m_service;
     }
   };
+
+  // Helper to create AsyncServiceFactory for failing mock
+  std::unique_ptr<AsyncServiceFactory> CreateFailingMockFactory(std::shared_ptr<FailingMockService> service)
+  {
+    return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
+                                                              std::make_shared<FailingMockServiceFactory>(std::move(service)));
+  }
 
   // Shutdown-tracking mock service
   class ShutdownTrackingMockService : public IServiceControl
@@ -821,33 +839,35 @@ namespace Test2
   };
 
   // Mock factory for shutdown-tracking service
-  class ShutdownTrackingMockServiceFactory : public IServiceFactory
+  class ShutdownTrackingMockServiceFactory : public AsyncServiceImplFactory
   {
   private:
     std::shared_ptr<ShutdownTrackingMockService> m_service;
 
   public:
     explicit ShutdownTrackingMockServiceFactory(std::shared_ptr<ShutdownTrackingMockService> service)
-      : m_service(std::move(service))
+      : AsyncServiceImplFactory(typeid(ITestInterface))
+      , m_service(std::move(service))
     {
     }
 
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
-      return std::span<const std::type_index>(interfaces);
-    }
-
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
     {
       return m_service;
     }
   };
 
+  // Helper to create AsyncServiceFactory for shutdown-tracking mock
+  std::unique_ptr<AsyncServiceFactory> CreateShutdownTrackingMockFactory(std::shared_ptr<ShutdownTrackingMockService> service)
+  {
+    return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
+                                                              std::make_shared<ShutdownTrackingMockServiceFactory>(std::move(service)));
+  }
+
   TEST(LifecycleManager, StartServicesAsync_ServiceInitFails_ThrowsAggregateException)
   {
     auto failingService = std::make_shared<FailingMockService>("FailingService", "Init failed");
-    auto factory = std::make_unique<FailingMockServiceFactory>(failingService);
+    auto factory = CreateFailingMockFactory(failingService);
 
     std::vector<ServiceRegistrationRecord> registrations;
     registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
@@ -878,10 +898,8 @@ namespace Test2
     auto lowFailingService = std::make_shared<FailingMockService>("LowPriority", "Low priority init failed", &initTracker);
 
     std::vector<ServiceRegistrationRecord> registrations;
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<FailingMockServiceFactory>(lowFailingService), ServiceLaunchPriority(100),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(highService), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateFailingMockFactory(lowFailingService), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -913,12 +931,9 @@ namespace Test2
     auto lowFailingService = std::make_shared<FailingMockService>("Low", "Low priority init failed", &initTracker);
 
     std::vector<ServiceRegistrationRecord> registrations;
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(medService), ServiceLaunchPriority(500),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<FailingMockServiceFactory>(lowFailingService), ServiceLaunchPriority(100),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(highService), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(medService), ServiceLaunchPriority(500), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateFailingMockFactory(lowFailingService), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -952,12 +967,9 @@ namespace Test2
     auto lowFailingService = std::make_shared<FailingMockService>("Low", "Low priority init failed", &initTracker);
 
     std::vector<ServiceRegistrationRecord> registrations;
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(medService), ServiceLaunchPriority(500),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<FailingMockServiceFactory>(lowFailingService), ServiceLaunchPriority(100),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(highService), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(medService), ServiceLaunchPriority(500), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateFailingMockFactory(lowFailingService), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -993,10 +1005,8 @@ namespace Test2
     auto lowService = std::make_shared<ShutdownTrackingMockService>("Low", &initTracker, &shutdownTracker);
 
     std::vector<ServiceRegistrationRecord> registrations;
-    registrations.emplace_back(std::make_unique<FailingMockServiceFactory>(failingService), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(lowService), ServiceLaunchPriority(100),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateFailingMockFactory(failingService), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(lowService), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -1032,12 +1042,9 @@ namespace Test2
     auto lowService = std::make_shared<ShutdownTrackingMockService>("Low", &initTracker, &shutdownTracker);
 
     std::vector<ServiceRegistrationRecord> registrations;
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(medService), ServiceLaunchPriority(500),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(lowService), ServiceLaunchPriority(100),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(highService), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(medService), ServiceLaunchPriority(500), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(lowService), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -1069,12 +1076,9 @@ namespace Test2
     auto lowService = std::make_shared<ShutdownTrackingMockService>("Low", &initTracker, &shutdownTracker);
 
     std::vector<ServiceRegistrationRecord> registrations;
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(medService), ServiceLaunchPriority(500),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(lowService), ServiceLaunchPriority(100),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(highService), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(medService), ServiceLaunchPriority(500), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(lowService), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -1106,8 +1110,7 @@ namespace Test2
     auto service = std::make_shared<ShutdownTrackingMockService>("Service", &initTracker, &shutdownTracker);
 
     std::vector<ServiceRegistrationRecord> registrations;
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(service), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(service), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -1144,7 +1147,7 @@ namespace Test2
   TEST(LifecycleManager, ShutdownServicesAsync_ReturnsEmptyVectorOnSuccess)
   {
     auto service = std::make_shared<MockLifecycleService>();
-    auto factory = std::make_unique<MockLifecycleServiceFactory>(service);
+    auto factory = CreateMockFactory(service);
 
     std::vector<ServiceRegistrationRecord> registrations;
     registrations.emplace_back(std::move(factory), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
@@ -1213,28 +1216,30 @@ namespace Test2
     }
   };
 
-  class FailingShutdownMockServiceFactory : public IServiceFactory
+  class FailingShutdownMockServiceFactory : public AsyncServiceImplFactory
   {
   private:
     std::shared_ptr<FailingShutdownMockService> m_service;
 
   public:
     explicit FailingShutdownMockServiceFactory(std::shared_ptr<FailingShutdownMockService> service)
-      : m_service(std::move(service))
+      : AsyncServiceImplFactory(typeid(ITestInterface))
+      , m_service(std::move(service))
     {
     }
 
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
-      return std::span<const std::type_index>(interfaces);
-    }
-
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
     {
       return m_service;
     }
   };
+
+  // Helper to create AsyncServiceFactory for failing shutdown mock
+  std::unique_ptr<AsyncServiceFactory> CreateFailingShutdownMockFactory(std::shared_ptr<FailingShutdownMockService> service)
+  {
+    return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
+                                                              std::make_shared<FailingShutdownMockServiceFactory>(std::move(service)));
+  }
 
   TEST(LifecycleManager, ShutdownServicesAsync_ServiceShutdownFails_ReturnsErrors)
   {
@@ -1243,8 +1248,7 @@ namespace Test2
     auto failingService = std::make_shared<FailingShutdownMockService>("FailingService", "Shutdown failed", &initTracker);
 
     std::vector<ServiceRegistrationRecord> registrations;
-    registrations.emplace_back(std::make_unique<FailingShutdownMockServiceFactory>(failingService), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateFailingShutdownMockFactory(failingService), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));
@@ -1271,12 +1275,9 @@ namespace Test2
     auto lowService = std::make_shared<ShutdownTrackingMockService>("Low", &initTracker, &shutdownTracker);
 
     std::vector<ServiceRegistrationRecord> registrations;
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(highService), ServiceLaunchPriority(1000),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<FailingShutdownMockServiceFactory>(failingService), ServiceLaunchPriority(500),
-                               ThreadGroupConfig::MainThreadGroupId);
-    registrations.emplace_back(std::make_unique<ShutdownTrackingMockServiceFactory>(lowService), ServiceLaunchPriority(100),
-                               ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(highService), ServiceLaunchPriority(1000), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateFailingShutdownMockFactory(failingService), ServiceLaunchPriority(500), ThreadGroupConfig::MainThreadGroupId);
+    registrations.emplace_back(CreateShutdownTrackingMockFactory(lowService), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
     LifecycleManagerConfig config;
     LifecycleManager manager(config, std::move(registrations));

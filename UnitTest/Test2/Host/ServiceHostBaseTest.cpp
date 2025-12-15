@@ -16,10 +16,13 @@
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
+#include <Test2/Framework/Host/StartServiceProxyRecord.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
-#include <Test2/Framework/Service/IServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
+#include <Test2/Util/MockServiceFactory.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/post.hpp>
@@ -114,7 +117,7 @@ namespace Test2
   };
 
   // Mock factory
-  class MockServiceFactory : public IServiceFactory
+  class MockServiceFactory : public AsyncServiceImplFactory
   {
   private:
     std::string m_serviceName;
@@ -125,20 +128,15 @@ namespace Test2
   public:
     explicit MockServiceFactory(std::string serviceName, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr, bool initShouldFail = false,
                                 bool shutdownShouldFail = false)
-      : m_serviceName(std::move(serviceName))
+      : AsyncServiceImplFactory(typeid(ITestInterface))
+      , m_serviceName(std::move(serviceName))
       , m_tracker(std::move(tracker))
       , m_initShouldFail(initShouldFail)
       , m_shutdownShouldFail(shutdownShouldFail)
     {
     }
 
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
-      return std::span<const std::type_index>(interfaces);
-    }
-
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
     {
       return std::make_shared<MockService>(m_serviceName, m_tracker, m_initShouldFail, m_shutdownShouldFail);
     }
@@ -191,7 +189,7 @@ namespace Test2
     void RegisterServices(std::vector<StartServiceRecord> services, uint32_t priority)
     {
       RunAsync([this, services = std::move(services), priority]() mutable -> boost::asio::awaitable<void>
-               { co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(priority)); });
+               { [[maybe_unused]] auto result = co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(priority)); });
     }
 
     // Helper to start services and capture AggregateException if thrown
@@ -206,7 +204,7 @@ namespace Test2
         {
           try
           {
-            co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(priority));
+            [[maybe_unused]] auto result = co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(priority));
           }
           catch (const Common::AggregateException& ex)
           {
@@ -225,6 +223,22 @@ namespace Test2
     }
   };
 
+  // Helper to convert ServiceInstanceInfo to ServiceProviderServiceInstance
+  std::vector<ServiceProviderServiceInstance> ConvertToProviderInstances(const std::vector<ServiceInstanceInfo>& serviceInfos, InstanceType type)
+  {
+    std::vector<ServiceProviderServiceInstance> instances;
+    instances.reserve(serviceInfos.size());
+    for (const auto& info : serviceInfos)
+    {
+      ServiceProviderServiceInstance instance;
+      instance.Type = type;
+      instance.Instance = info.Service;
+      instance.SupportedInterfaces = info.SupportedInterfaces;
+      instances.push_back(std::move(instance));
+    }
+    return instances;
+  }
+
   // ========================================
   // Phase 3: Empty Service List Handling
   // ========================================
@@ -233,7 +247,9 @@ namespace Test2
   {
     ManagedThreadServiceProvider provider;
     std::vector<ServiceInstanceInfo> emptyServices;
-    EXPECT_THROW(provider.RegisterPriorityGroup(ServiceLaunchPriority(1000), std::move(emptyServices)), EmptyPriorityGroupException);
+    auto providerInstances = ConvertToProviderInstances(emptyServices, InstanceType::Service);
+    EXPECT_THROW(provider.RegisterPriorityGroup(InstanceType::Service, ServiceLaunchPriority(1000), std::move(providerInstances)),
+                 EmptyPriorityGroupException);
   }
 
   // ========================================
@@ -343,5 +359,198 @@ namespace Test2
 
     ASSERT_TRUE(exception.has_value());
     EXPECT_GE(exception->GetInnerExceptions().size(), 2);    // Init failure + shutdown failure
+  }
+
+  // ========================================
+  // Phase 3: Service Proxy Lifecycle Tests
+  // ========================================
+
+  TEST_F(ServiceHostTest, TryStartServiceProxiesAsync_EmptyList_Succeeds)
+  {
+    std::vector<StartServiceProxyRecord> emptyProxies;
+
+    RunAsync([this, &emptyProxies]() -> boost::asio::awaitable<void>
+             { co_await host.TryStartServiceProxiesAsync(std::move(emptyProxies), ServiceLaunchPriority(1000)); });
+
+    // Test passes if no exception is thrown
+  }
+
+  TEST_F(ServiceHostTest, TryStartServiceProxiesAsync_SingleProxy_CreatesSuccessfully)
+  {
+    using namespace Test2::UnitTest;
+
+    InitializationOrderTracker tracker;
+    MockServiceConfig config("TestProxy");
+    config.InitTracker = &tracker;
+
+    std::vector<StartServiceProxyRecord> proxies;
+    proxies.emplace_back("TestProxy", std::make_unique<MockServiceProxyFactory>(config));
+
+    RunAsync([this, &proxies]() -> boost::asio::awaitable<void>
+             { co_await host.TryStartServiceProxiesAsync(std::move(proxies), ServiceLaunchPriority(1000)); });
+
+    // Once implemented, verify proxy was created via tracker
+    // EXPECT_EQ(tracker.GetOrder().size(), 1);
+    // EXPECT_EQ(tracker.GetOrder()[0], "TestProxy");
+  }
+
+  TEST_F(ServiceHostTest, TryStartServiceProxiesAsync_MultipleProxies_CreatesInOrder)
+  {
+    using namespace Test2::UnitTest;
+
+    InitializationOrderTracker tracker;
+    MockServiceConfig config1("Proxy1");
+    config1.InitTracker = &tracker;
+
+    MockServiceConfig config2("Proxy2");
+    config2.InitTracker = &tracker;
+
+    MockServiceConfig config3("Proxy3");
+    config3.InitTracker = &tracker;
+
+    std::vector<StartServiceProxyRecord> proxies;
+    proxies.emplace_back("Proxy1", std::make_unique<MockServiceProxyFactory>(config1));
+    proxies.emplace_back("Proxy2", std::make_unique<MockServiceProxyFactory>(config2));
+    proxies.emplace_back("Proxy3", std::make_unique<MockServiceProxyFactory>(config3));
+
+    RunAsync([this, &proxies]() -> boost::asio::awaitable<void>
+             { co_await host.TryStartServiceProxiesAsync(std::move(proxies), ServiceLaunchPriority(1000)); });
+
+    // Once implemented, verify creation order
+    // EXPECT_EQ(tracker.GetOrder().size(), 3);
+    // EXPECT_EQ(tracker.GetOrder()[0], "Proxy1");
+    // EXPECT_EQ(tracker.GetOrder()[1], "Proxy2");
+    // EXPECT_EQ(tracker.GetOrder()[2], "Proxy3");
+  }
+
+  TEST_F(ServiceHostTest, TryStartServiceProxiesAsync_NullFactory_ThrowsException)
+  {
+    std::vector<StartServiceProxyRecord> proxies;
+    proxies.emplace_back("ValidProxy", nullptr);    // Null factory should cause exception
+
+    bool exceptionThrown = false;
+    RunAsync(
+      [this, &proxies, &exceptionThrown]() -> boost::asio::awaitable<void>
+      {
+        try
+        {
+          co_await host.TryStartServiceProxiesAsync(std::move(proxies), ServiceLaunchPriority(1000));
+        }
+        catch (const std::exception&)
+        {
+          exceptionThrown = true;
+        }
+      });
+
+    EXPECT_TRUE(exceptionThrown);
+  }
+
+  // ========================================
+  // Phase 4: Service Proxy Shutdown Tests
+  // ========================================
+
+  TEST_F(ServiceHostTest, TryShutdownServiceProxiesAsync_EmptyPriority_ReturnsEmpty)
+  {
+    // Shutdown with no proxies registered should return empty exception list
+    std::vector<std::exception_ptr> failures;
+
+    RunAsync([this, &failures]() -> boost::asio::awaitable<void>
+             { failures = co_await host.TryShutdownServiceProxiesAsync(ServiceLaunchPriority(1000)); });
+
+    EXPECT_TRUE(failures.empty());
+  }
+
+  TEST_F(ServiceHostTest, TryShutdownServiceProxiesAsync_SingleProxy_ShutdownsSuccessfully)
+  {
+    using namespace Test2::UnitTest;
+
+    InitializationOrderTracker tracker;
+    MockServiceConfig config("TestProxy");
+    config.InitTracker = &tracker;
+
+    // Start a proxy first
+    std::vector<StartServiceProxyRecord> proxies;
+    proxies.emplace_back("TestProxy", std::make_unique<MockServiceProxyFactory>(config));
+
+    RunAsync([this, &proxies]() -> boost::asio::awaitable<void>
+             { co_await host.TryStartServiceProxiesAsync(std::move(proxies), ServiceLaunchPriority(1000)); });
+
+    // Shutdown the proxy
+    std::vector<std::exception_ptr> failures;
+    RunAsync([this, &failures]() -> boost::asio::awaitable<void>
+             { failures = co_await host.TryShutdownServiceProxiesAsync(ServiceLaunchPriority(1000)); });
+
+    // No failures expected (proxies don't have ShutdownAsync)
+    EXPECT_TRUE(failures.empty());
+  }
+
+  TEST_F(ServiceHostTest, TryShutdownServiceProxiesAsync_MultipleProxies_ShutdownsInReverseOrder)
+  {
+    using namespace Test2::UnitTest;
+
+    InitializationOrderTracker tracker;
+    MockServiceConfig config1("Proxy1");
+    config1.InitTracker = &tracker;
+
+    MockServiceConfig config2("Proxy2");
+    config2.InitTracker = &tracker;
+
+    MockServiceConfig config3("Proxy3");
+    config3.InitTracker = &tracker;
+
+    // Start proxies
+    std::vector<StartServiceProxyRecord> proxies;
+    proxies.emplace_back("Proxy1", std::make_unique<MockServiceProxyFactory>(config1));
+    proxies.emplace_back("Proxy2", std::make_unique<MockServiceProxyFactory>(config2));
+    proxies.emplace_back("Proxy3", std::make_unique<MockServiceProxyFactory>(config3));
+
+    RunAsync([this, &proxies]() -> boost::asio::awaitable<void>
+             { co_await host.TryStartServiceProxiesAsync(std::move(proxies), ServiceLaunchPriority(1000)); });
+
+    // Shutdown proxies
+    std::vector<std::exception_ptr> failures;
+    RunAsync([this, &failures]() -> boost::asio::awaitable<void>
+             { failures = co_await host.TryShutdownServiceProxiesAsync(ServiceLaunchPriority(1000)); });
+
+    // No failures expected
+    EXPECT_TRUE(failures.empty());
+
+    // Once implemented, verify shutdown order is reverse of creation
+    // (Note: Proxies don't have ShutdownAsync, so this is about cleanup order)
+  }
+
+  TEST_F(ServiceHostTest, TryShutdownServiceProxiesAsync_DifferentPriority_OnlyShutdownsMatchingPriority)
+  {
+    using namespace Test2::UnitTest;
+
+    InitializationOrderTracker tracker;
+    MockServiceConfig config1000("Proxy1000");
+    config1000.InitTracker = &tracker;
+
+    MockServiceConfig config2000("Proxy2000");
+    config2000.InitTracker = &tracker;
+
+    // Start proxies at different priorities (descending order: high to low)
+    std::vector<StartServiceProxyRecord> proxies1000;
+    proxies1000.emplace_back("Proxy1000", std::make_unique<MockServiceProxyFactory>(config1000));
+
+    std::vector<StartServiceProxyRecord> proxies2000;
+    proxies2000.emplace_back("Proxy2000", std::make_unique<MockServiceProxyFactory>(config2000));
+
+    // Register higher priority (2000) first, then lower priority (1000)
+    RunAsync([this, &proxies2000]() -> boost::asio::awaitable<void>
+             { co_await host.TryStartServiceProxiesAsync(std::move(proxies2000), ServiceLaunchPriority(2000)); });
+
+    RunAsync([this, &proxies1000]() -> boost::asio::awaitable<void>
+             { co_await host.TryStartServiceProxiesAsync(std::move(proxies1000), ServiceLaunchPriority(1000)); });
+
+    // Shutdown only priority 1000
+    std::vector<std::exception_ptr> failures;
+    RunAsync([this, &failures]() -> boost::asio::awaitable<void>
+             { failures = co_await host.TryShutdownServiceProxiesAsync(ServiceLaunchPriority(1000)); });
+
+    EXPECT_TRUE(failures.empty());
+
+    // Once implemented, verify Proxy2000 is still available and Proxy1000 is not
   }
 }

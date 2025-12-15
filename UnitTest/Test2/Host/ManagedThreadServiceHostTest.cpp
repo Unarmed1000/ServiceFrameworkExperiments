@@ -20,7 +20,8 @@
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
-#include <Test2/Framework/Service/IServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -119,7 +120,7 @@ namespace Test2
   };
 
   // Mock factory
-  class MockServiceFactory : public IServiceFactory
+  class MockServiceFactory : public AsyncServiceImplFactory
   {
   private:
     std::string m_serviceName;
@@ -130,20 +131,15 @@ namespace Test2
   public:
     explicit MockServiceFactory(std::string serviceName, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr, bool initShouldFail = false,
                                 bool shutdownShouldFail = false)
-      : m_serviceName(std::move(serviceName))
+      : AsyncServiceImplFactory(typeid(ITestInterface))
+      , m_serviceName(std::move(serviceName))
       , m_tracker(std::move(tracker))
       , m_initShouldFail(initShouldFail)
       , m_shutdownShouldFail(shutdownShouldFail)
     {
     }
 
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      static const std::type_index interfaces[] = {std::type_index(typeid(ITestInterface))};
-      return std::span<const std::type_index>(interfaces);
-    }
-
-    std::shared_ptr<IServiceControl> Create(const std::type_index& /*type*/, const ServiceCreateInfo& /*createInfo*/) override
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
     {
       return std::make_shared<MockService>(m_serviceName, m_tracker, m_initShouldFail, m_shutdownShouldFail);
     }
@@ -306,8 +302,12 @@ namespace Test2
     auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}});
 
     // Attempt to start services without starting the host should fail
-    EXPECT_THROW(RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-                         { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); }),
+    EXPECT_THROW(RunTest(
+                   [this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+                   {
+                     [[maybe_unused]] auto result =
+                       co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
+                   }),
                  std::exception);
   }
 
@@ -382,8 +382,12 @@ namespace Test2
   {
     auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", false, false}, {"Service2", true, false}, {"Service3", false, false}});
 
-    EXPECT_THROW(RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-                         { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); }),
+    EXPECT_THROW(RunTest(
+                   [this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+                   {
+                     [[maybe_unused]] auto result =
+                       co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
+                   }),
                  Common::AggregateException);
 
     EXPECT_TRUE(trackers[0]->initCalled);
@@ -396,8 +400,12 @@ namespace Test2
   {
     auto [services, trackers] = CreateTrackedServiceRecords({{"Service1", true, false}});
 
-    EXPECT_THROW(RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-                         { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); }),
+    EXPECT_THROW(RunTest(
+                   [this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+                   {
+                     [[maybe_unused]] auto result =
+                       co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
+                   }),
                  Common::AggregateException);
 
     EXPECT_TRUE(trackers[0]->initCalled);
@@ -414,8 +422,11 @@ namespace Test2
 
     try
     {
-      RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-              { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+      RunTest(
+        [this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+        {
+          [[maybe_unused]] auto result = co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
+        });
       FAIL() << "Expected AggregateException to be thrown";
     }
     catch (const Common::AggregateException& ex)
@@ -430,8 +441,11 @@ namespace Test2
 
     try
     {
-      RunTest([this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
-              { co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000)); });
+      RunTest(
+        [this, services = std::move(services)]() mutable -> boost::asio::awaitable<void>
+        {
+          [[maybe_unused]] auto result = co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), ServiceLaunchPriority(1000));
+        });
       FAIL() << "Expected AggregateException to be thrown";
     }
     catch (const Common::AggregateException& ex)

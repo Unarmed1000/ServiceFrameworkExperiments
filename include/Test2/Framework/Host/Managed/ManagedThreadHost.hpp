@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Host/IThreadSafeServiceHost.hpp>
+#include <Test2/Framework/Host/IServiceHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadRecord.hpp>
 #include <Test2/Framework/Lifecycle/ExecutorContext.hpp>
 #include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
@@ -52,7 +52,7 @@ namespace Test2
     boost::asio::awaitable<ManagedThreadRecord> StartAsync();
     boost::asio::awaitable<bool> TryShutdownAsync();
 
-    std::shared_ptr<IThreadSafeServiceHost> GetServiceHost();
+    std::shared_ptr<IServiceHost> GetServiceHost();
   };
 }
 

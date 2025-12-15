@@ -28,12 +28,12 @@ namespace Test2
 {
   /// @brief Multiply Service implementation - runs in its own thread.
   class MultiplyService final
-    : public ASyncServiceBase
+    : public AsyncServiceBase
     , public IMultiplyService
   {
   public:
     explicit MultiplyService(const ServiceCreateInfo& createInfo)
-      : ASyncServiceBase(createInfo)
+      : AsyncServiceBase(createInfo)
     {
       spdlog::debug("MultiplyService: constructed");
     }

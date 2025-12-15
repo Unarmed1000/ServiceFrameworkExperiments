@@ -31,17 +31,17 @@ namespace Test2
     std::shared_ptr<IService> m_service = std::make_shared<MockService>();
 
   public:
-    std::shared_ptr<IService> GetService(const std::type_info& type) const override
+    std::shared_ptr<IService> GetService(const std::type_info& /*type*/) const override
     {
       return m_service;
     }
 
-    std::shared_ptr<IService> TryGetService(const std::type_info& type) const override
+    std::shared_ptr<IService> TryGetService(const std::type_info& /*type*/) const override
     {
       return m_service;
     }
 
-    bool TryGetServices(const std::type_info& type, std::vector<std::shared_ptr<IService>>& rServices) const override
+    bool TryGetServices(const std::type_info& /*type*/, std::vector<std::shared_ptr<IService>>& rServices) const override
     {
       rServices.push_back(m_service);
       return true;

@@ -16,24 +16,29 @@
 #include <Common/AggregateException.hpp>
 #include <Test2/Framework/Exception/InvalidServiceFactoryException.hpp>
 #include <Test2/Framework/Exception/WrongThreadException.hpp>
-#include <Test2/Framework/Host/IThreadSafeServiceHost.hpp>
-#include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
+#include <Test2/Framework/Host/IServiceHost.hpp>
 #include <Test2/Framework/Host/ServiceInstanceInfo.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
 #include <Test2/Framework/Provider/ServiceProvider.hpp>
 #include <Test2/Framework/Provider/ServiceProviderProxy.hpp>
+#include <Test2/Framework/Provider/ServiceProviderServiceInstance.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
+#include <Test2/Framework/Service/Async/AsyncServiceBase.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
+#include <Test2/Framework/Service/IServiceProxyControl.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
+#include <Test2/Framework/Service/ServiceProxyCreateInfo.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <spdlog/spdlog.h>
+#include <map>
 #include <memory>
 #include <vector>
+#include "Managed/ManagedThreadServiceProvider.hpp"
 
 namespace Test2
 {
@@ -48,7 +53,7 @@ namespace Test2
   /// Thread Safety:
   /// - TryStartServicesAsync() and TryShutdownServicesAsync() can be called from any thread
   /// - All other methods must be called from the service thread (m_ioContext's thread)
-  class ServiceHostBase : public ILifeTracker
+  class ½ServiceHostBase : public ILifeTracker
   {
     std::thread::id m_ownerThreadId;
     bool m_shutdownRequested{false};
@@ -71,6 +76,11 @@ namespace Test2
     };
 
   public:
+    ServiceHostBase(const ServiceHostBase&) = delete;
+    ServiceHostBase& operator=(const ServiceHostBase&) = delete;
+    ServiceHostBase(ServiceHostBase&&) = delete;
+    ServiceHostBase& operator=(ServiceHostBase&&) = delete;
+
     virtual ~ServiceHostBase()
     {
       // Assert that destructor is called from the owner thread (debug builds)
@@ -92,10 +102,6 @@ namespace Test2
       m_ioContext.stop();
     }
 
-    ServiceHostBase(const ServiceHostBase&) = delete;
-    ServiceHostBase& operator=(const ServiceHostBase&) = delete;
-    ServiceHostBase(ServiceHostBase&&) = delete;
-    ServiceHostBase& operator=(ServiceHostBase&&) = delete;
 
     std::thread::id GetOwnerThreadId() const noexcept
     {
@@ -118,8 +124,9 @@ namespace Test2
     /// @brief Implementation of service startup logic.
     /// @param services Services to start.
     /// @param currentPriority Priority level for this group.
-    /// @return Awaitable that completes when services are started.
-    boost::asio::awaitable<void> TryStartServicesAsync(std::vector<StartServiceRecord> services, ServiceLaunchPriority currentPriority)
+    /// @return Awaitable that completes with a vector of StartedServiceInfo for each successfully started service.
+    boost::asio::awaitable<std::vector<StartedServiceInfo>> TryStartServicesAsync(std::vector<StartServiceRecord> services,
+                                                                                  ServiceLaunchPriority currentPriority)
     {
       ValidateThreadAccess();
 
@@ -127,13 +134,13 @@ namespace Test2
       if (services.empty())
       {
         spdlog::warn("TryStartServicesAsync called with empty service list at priority {}", currentPriority.GetValue());
-        co_return;
+        co_return std::vector<StartedServiceInfo>{};
       }
 
       // Validate service factories
       ValidateServiceFactories(services);
 
-      // Create proxy for provider - can be cleared on failure
+      // Cre proxy for provider - can be cleared on failure
       auto providerProxy = std::make_shared<ServiceProviderProxy>(m_provider);
       std::weak_ptr<IServiceProvider> providerWeak = providerProxy;
       ServiceProvider serviceProvider(providerWeak);
@@ -151,6 +158,24 @@ namespace Test2
 
         // Phase 3: Handle failures with rollback or register successful services
         co_await ProcessInitializationResults(initRecords, currentPriority, providerProxy);
+
+        // Build return value with executor contexts for successfully started services
+        std::vector<StartedServiceInfo> startedServices;
+        startedServices.reserve(initRecords.size());
+
+        auto executor = GetExecutor();
+        for (auto& record : initRecords)
+        {
+          if (record.InitSucceeded)
+          {
+            // Cast to IService for the executor context
+            std::shared_ptr<IService> servicePtr = std::static_pointer_cast<IService>(record.Service);
+            ExecutorContext<IService> executorContext(servicePtr, executor);
+            startedServices.emplace_back(std::move(executorContext));
+          }
+        }
+
+        co_return startedServices;
       }
       catch (...)
       {
@@ -158,19 +183,145 @@ namespace Test2
         providerProxy->Clear();
         throw;
       }
-
-      co_return;
     }
 
 
-    /// @brief Implementation of service shutdown logic for a specific priority level.
-    ///
-    /// Unregisters services at the given priority from the provider and shuts them down.
-    /// Services within the priority group are shut down in reverse registration order.
-    /// Any shutdown failures are collected and returned.
-    ///
+    /// @brief Stub implementation for service proxy startup logic.
+    /// @brief Creates and starts service proxies at the specified priority.
+    /// @param services Service proxies to start.
+    /// @param currentPriority Priority level for this group.
+    boost::asio::awaitable<void> TryStartServiceProxiesAsync(std::vector<StartServiceProxyRecord> services, ServiceLaunchPriority currentPriority)
+    {
+      ValidateThreadAccess();
+
+      // Handle empty service list
+      if (services.empty())
+      {
+        spdlog::warn("TryStartServiceProxiesAsync called with empty service list at priority {}", currentPriority.GetValue());
+        co_return;
+      }
+
+      // Validate proxy factories
+      ValidateServiceProxyFactories(services);
+
+      // Create provider proxy for dependency access
+      auto providerProxy = std::make_shared<ServiceProviderProxy>(m_provider);
+      std::weak_ptr<IServiceProvider> providerWeak = providerProxy;
+      ServiceProvider serviceProvider(providerWeak);
+
+      // Create a simple DispatchContext - proxies are created on the same thread as the host
+      // Use empty/null contexts since proxies don't need cross-thread dispatch at creation time
+      ExecutorContext<IService> emptyTarget(nullptr, GetExecutor());
+      ExecutorContext<ILifeTracker> emptySource(nullptr, GetExecutor());
+      DispatchContext<ILifeTracker, IService> dispatchContext(emptySource, emptyTarget);
+
+      ServiceProxyCreateInfo createInfo(dispatchContext, serviceProvider);
+
+      std::vector<std::shared_ptr<IServiceProxyControl>> createdProxies;
+      std::vector<ServiceProviderServiceInstance> proxyInfos;
+      std::vector<std::exception_ptr> creationErrors;
+
+      try
+      {
+        // Create all proxy instances
+        for (auto& proxyRecord : services)
+        {
+          try
+          {
+            spdlog::info("Creating proxy: {}", proxyRecord.ServiceName);
+
+            // Get the supported interfaces
+            auto interfaces = proxyRecord.Factory->GetSupportedInterfaces();
+            if (interfaces.empty())
+            {
+              throw std::runtime_error(fmt::format("Proxy factory for '{}' has no supported interfaces", proxyRecord.ServiceName));
+            }
+
+            // Create proxy for the first supported interface
+            auto proxy = proxyRecord.Factory->CreateProxy(interfaces[0], createInfo);
+            if (!proxy)
+            {
+              throw std::runtime_error(fmt::format("Factory returned null proxy for '{}'", proxyRecord.ServiceName));
+            }
+
+            // Cast to IServiceProxyControl for provider registration
+            auto proxyControl = std::dynamic_pointer_cast<IServiceProxyControl>(proxy);
+            if (!proxyControl)
+            {
+              throw std::runtime_error(fmt::format("Proxy '{}' does not implement IServiceProxyControl", proxyRecord.ServiceName));
+            }
+
+            // Build ServiceProviderServiceInstance for provider registration
+            ServiceProviderServiceInstance proxyInfo;
+            proxyInfo.Type = InstanceType::Proxy;
+            proxyInfo.Instance = proxyControl;
+            proxyInfo.SupportedInterfaces = std::vector<std::type_index>(interfaces.begin(), interfaces.end());
+
+            createdProxies.push_back(proxy);
+            proxyInfos.push_back(std::move(proxyInfo));
+            spdlog::info("Proxy created successfully: {}", proxyRecord.ServiceName);
+          }
+          catch (const std::exception& ex)
+          {
+            creationErrors.push_back(std::current_exception());
+            spdlog::error("Proxy creation failed: {} - {}", proxyRecord.ServiceName, ex.what());
+          }
+          catch (...)
+          {
+            creationErrors.push_back(std::current_exception());
+            spdlog::error("Proxy creation failed: {} - unknown exception", proxyRecord.ServiceName);
+          }
+        }
+
+        // If any creation failed, throw aggregate exception
+        if (!creationErrors.empty())
+        {
+          throw Common::AggregateException("One or more proxy creations failed", std::move(creationErrors));
+        }
+
+        // Register proxies with provider so services can access them
+        if (!proxyInfos.empty())
+        {
+          const auto proxyCount = proxyInfos.size();
+          m_provider->RegisterPriorityGroup(InstanceType::Proxy, currentPriority, std::move(proxyInfos));
+          spdlog::info("Created and registered {} proxies at priority {}", proxyCount, currentPriority.GetValue());
+        }
+
+        co_return;
+      }
+      catch (...)
+      {
+        // Clear the provider proxy on any exception
+        providerProxy->Clear();
+        throw;
+      }
+    }
+
+    /// @brief Shuts down service proxies at the specified priority.
     /// @param priority The priority level to shut down.
     /// @return Awaitable containing any exceptions that occurred during shutdown.
+    boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServiceProxiesAsync(ServiceLaunchPriority priority)
+    {
+      ValidateThreadAccess();
+
+      std::vector<std::exception_ptr> shutdownFailures;
+
+      // Unregister proxies at this priority level
+      auto proxies = m_provider->UnregisterPriorityGroup(InstanceType::Proxy, priority);
+
+      if (proxies.empty())
+      {
+        co_return shutdownFailures;
+      }
+
+      spdlog::info("Shutting down {} proxies at priority {}", proxies.size(), priority.GetValue());
+
+      // No actual shutdown logic needed since proxies don't have ShutdownAsync
+      // They're just cleaned up when references are released
+      co_return shutdownFailures;
+    }
+
+    /// @brief Shuts down services at the specified priority.
     boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(ServiceLaunchPriority priority)
     {
       ValidateThreadAccess();
@@ -178,24 +329,33 @@ namespace Test2
       std::vector<std::exception_ptr> shutdownFailures;
 
       // Unregister services at this priority level
-      auto services = m_provider->UnregisterPriorityGroup(priority);
+      auto services = m_provider->UnregisterPriorityGroup(InstanceType::Service, priority);
 
       if (services.empty())
       {
         co_return shutdownFailures;
       }
 
-      spdlog::info("Shutting down {} services at priority {}", services.size(), priority.GetValue());
+      spdlog::info("Shutting down {} services at priority {} (reverse order)", services.size(), priority.GetValue());
 
-      // Shutdown services in reverse registration order
+      // Shutdown in reverse order - services have ShutdownAsync
       for (auto it = services.rbegin(); it != services.rend(); ++it)
       {
+        // Cast to IServiceControl (we know these are services)
+        auto serviceControl = std::dynamic_pointer_cast<IServiceControl>(it->Instance);
+        if (!serviceControl)
+        {
+          spdlog::error("Failed to cast service instance to IServiceControl during shutdown");
+          shutdownFailures.push_back(std::make_exception_ptr(std::runtime_error("Service instance does not implement IServiceControl")));
+          continue;
+        }
+
         try
         {
-          auto shutdownResult = co_await it->Service->ShutdownAsync();
-          if (shutdownResult != ServiceShutdownResult::Success)
+          auto result = co_await serviceControl->ShutdownAsync();
+          if (result != ServiceShutdownResult::Success)
           {
-            spdlog::warn("Service shutdown returned non-success result: {}", static_cast<int>(shutdownResult));
+            spdlog::warn("Service shutdown returned non-success result: {}", static_cast<int>(result));
           }
         }
         catch (...)
@@ -228,24 +388,16 @@ namespace Test2
       }
     }
 
-    /// @brief Process all registered services and aggregate their results.
+    /// @brief Process all registered services and proxies.
     ///
-    /// Iterates through all services registered with the provider and calls Process()
-    /// on each one, merging the results according to ProcessResult priority rules.
+    /// Delegates to the provider's Process() method which iterates through all instances
+    /// and calls Process() on each one, merging the results according to ProcessResult priority rules.
     ///
-    /// @return Aggregated ProcessResult from all services.
+    /// @return Aggregated ProcessResult from all services and proxies.
     ProcessResult DoProcessServices()
     {
       ValidateThreadAccess();
-      ProcessResult result = ProcessResult::NoSleepLimit();
-
-      auto allServices = m_provider->GetAllServiceControls();
-      for (const auto& service : allServices)
-      {
-        result = Merge(result, service->Process());
-      }
-
-      return result;
+      return m_provider->Process();
     }
 
     std::size_t DoPoll()
@@ -287,11 +439,25 @@ namespace Test2
       }
     }
 
+    void ValidateServiceProxyFactories(const std::vector<StartServiceProxyRecord>& services)
+    {
+      ValidateThreadAccess();
+
+      for (const auto& serviceRecord : services)
+      {
+        if (!serviceRecord.Factory)
+        {
+          throw InvalidServiceFactoryException(
+            fmt::format("Invalid service proxy factory in StartServiceProxyRecord for service: {}", serviceRecord.ServiceName));
+        }
+      }
+    }
+
     /// @brief Create service instances from factories.
     /// @param services Service records with factories.
     /// @param createInfo Creation info to pass to factories.
     /// @param initRecords Output vector of init records.
-    void CreateServiceInstances(std::vector<StartServiceRecord>& services, const ServiceCreateInfo& createInfo,
+    void CreateServiceInstances(std::vector<StartServiceRecord> & services, const ServiceCreateInfo& createInfo,
                                 std::vector<ServiceInitRecord>& initRecords)
     {
       ValidateThreadAccess();
@@ -312,8 +478,8 @@ namespace Test2
           throw std::invalid_argument(fmt::format("Factory for service '{}' reports no supported interfaces", serviceRecord.ServiceName));
         }
 
-        // Create service instance using first supported interface
-        record.Service = serviceRecord.Factory->Create(supportedInterfaces[0], createInfo);
+        // Create service instance
+        record.Service = serviceRecord.Factory->Create(createInfo);
         if (!record.Service)
         {
           throw std::runtime_error(fmt::format("Factory for service '{}' returned null service", serviceRecord.ServiceName));
@@ -335,7 +501,7 @@ namespace Test2
     /// @param initRecords Service records to initialize.
     /// @param createInfo Creation info for initialization.
     /// @return Awaitable that completes when all services have been initialized.
-    boost::asio::awaitable<void> InitializeServices(std::vector<ServiceInitRecord>& initRecords, const ServiceCreateInfo& createInfo)
+    boost::asio::awaitable<void> InitializeServices(std::vector<ServiceInitRecord> & initRecords, const ServiceCreateInfo& createInfo)
     {
       ValidateThreadAccess();
 
@@ -371,7 +537,7 @@ namespace Test2
     /// @param providerProxy Proxy to clear on failure.
     /// @return Awaitable that completes when processing is done.
     /// @throws AggregateException if any services failed to initialize.
-    boost::asio::awaitable<void> ProcessInitializationResults(std::vector<ServiceInitRecord>& initRecords, ServiceLaunchPriority currentPriority,
+    boost::asio::awaitable<void> ProcessInitializationResults(std::vector<ServiceInitRecord> & initRecords, ServiceLaunchPriority currentPriority,
                                                               std::shared_ptr<ServiceProviderProxy> providerProxy)
     {
       ValidateThreadAccess();
@@ -446,19 +612,24 @@ namespace Test2
     /// @brief Register successfully initialized services with the provider.
     /// @param initRecords Service init records.
     /// @param currentPriority Priority level for registration.
-    void RegisterServicesWithProvider(std::vector<ServiceInitRecord>& initRecords, ServiceLaunchPriority currentPriority)
+    void RegisterServicesWithProvider(std::vector<ServiceInitRecord> & initRecords, ServiceLaunchPriority currentPriority)
     {
       ValidateThreadAccess();
 
-      std::vector<ServiceInstanceInfo> serviceInfos;
+      std::vector<ServiceProviderServiceInstance> serviceInfos;
       serviceInfos.reserve(initRecords.size());
 
       for (auto& record : initRecords)
       {
-        serviceInfos.push_back(std::move(record.InstanceInfo));
+        // Convert ServiceInstanceInfo to ServiceProviderServiceInstance
+        ServiceProviderServiceInstance providerInfo;
+        providerInfo.Type = InstanceType::Service;
+        providerInfo.Instance = record.InstanceInfo.Service;
+        providerInfo.SupportedInterfaces = std::move(record.InstanceInfo.SupportedInterfaces);
+        serviceInfos.push_back(std::move(providerInfo));
       }
 
-      m_provider->RegisterPriorityGroup(currentPriority, std::move(serviceInfos));
+      m_provider->RegisterPriorityGroup(InstanceType::Service, currentPriority, std::move(serviceInfos));
 
       spdlog::info("Successfully initialized and registered {} services at priority {}", initRecords.size(), currentPriority.GetValue());
     }

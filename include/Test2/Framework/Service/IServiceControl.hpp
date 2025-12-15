@@ -13,8 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/IService.hpp>
-#include <Test2/Framework/Service/ProcessResult.hpp>
+#include <Test2/Framework/Service/IServiceControlBase.hpp>
 #include <Test2/Framework/Service/ServiceInitResult.hpp>
 #include <Test2/Framework/Service/ServiceShutdownResult.hpp>
 #include <boost/asio/awaitable.hpp>
@@ -23,15 +22,13 @@ namespace Test2
 {
   struct ServiceCreateInfo;
 
-  class IServiceControl : public IService
+  class IServiceControl : public virtual IServiceControlBase
   {
   public:
     virtual ~IServiceControl() = default;
 
-    virtual boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& creationInfo) = 0;
+    virtual boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& serviceCreationInfo) = 0;
     virtual boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() = 0;
-
-    virtual ProcessResult Process() = 0;
   };
 
 }

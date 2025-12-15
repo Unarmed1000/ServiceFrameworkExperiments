@@ -23,14 +23,12 @@
 #include <unordered_map>
 #include <vector>
 
-// Forward declarations
-namespace Test2
-{
-  class IServiceFactory;
-}
 
 namespace Test2
 {
+  // Forward declarations
+  class AsyncServiceFactory;
+
   /// @brief Concrete implementation of IServiceRegistry for managing service factory registration.
   ///
   /// ServiceRegistry maintains a collection of service factories along with their launch priorities
@@ -40,7 +38,7 @@ namespace Test2
   ///
   /// The registry enforces one-time-use semantics: once ExtractRegistrations() is called, no new
   /// factories can be registered, though thread group IDs can still be generated.
-  class ServiceRegistry : public IServiceRegistry
+  class ServiceRegistry final : public IServiceRegistry
   {
   private:
     /// @brief Map of factory type to registration record.
@@ -76,7 +74,7 @@ namespace Test2
     /// @throws InvalidServiceFactoryException if factory is null or reports zero supported interfaces
     /// @throws RegistryExtractedException if ExtractRegistrations() has already been called
     /// @throws DuplicateServiceRegistrationException if this factory type is already registered
-    void RegisterService(std::unique_ptr<IServiceFactory> factory, ServiceLaunchPriority priority, ServiceThreadGroupId threadGroupId) override;
+    void RegisterService(std::unique_ptr<AsyncServiceFactory> factory, ServiceLaunchPriority priority, ServiceThreadGroupId threadGroupId) final;
 
     /// @brief Creates a new unique service thread group identifier.
     ///
@@ -84,7 +82,7 @@ namespace Test2
     /// generates monotonically increasing unique identifiers starting from 1.
     ///
     /// @return A new unique ServiceThreadGroupId for organizing services.
-    ServiceThreadGroupId CreateServiceThreadGroupId() override;
+    ServiceThreadGroupId CreateServiceThreadGroupId() final;
 
     /// @brief Retrieves the main service thread group identifier.
     ///
@@ -93,7 +91,7 @@ namespace Test2
     /// distinct from dynamically created thread groups (which start from 1).
     ///
     /// @return The ServiceThreadGroupId for the main thread group.
-    ServiceThreadGroupId GetMainServiceThreadGroupId() override;
+    ServiceThreadGroupId GetMainServiceThreadGroupId() final;
 
     /// @brief Extracts all registered service factories and their metadata.
     ///

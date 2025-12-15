@@ -178,8 +178,7 @@ namespace Test2
 
     void TearDown() override
     {
-      // Stop any pending work and reset io_context to ensure clean state for next test
-      m_ioContext.stop();
+      // Restart io_context for next test (only resets stopped flag)
       m_ioContext.restart();
     }
   };
@@ -198,9 +197,7 @@ namespace Test2
 
     void TearDown() override
     {
-      // Stop any pending work and reset io_contexts to ensure clean state for next test
-      m_sourceIoContext.stop();
-      m_targetIoContext.stop();
+      // Restart io_contexts for next test (only resets stopped flag)
       m_sourceIoContext.restart();
       m_targetIoContext.restart();
     }

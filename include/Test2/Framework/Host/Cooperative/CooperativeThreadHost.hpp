@@ -20,7 +20,7 @@
 
 namespace Test2
 {
-  class IThreadSafeServiceHost;
+  class IServiceHost;
   class CooperativeThreadServiceHost;
   class ServiceHostBase;
   struct ProcessResult;
@@ -32,7 +32,7 @@ namespace Test2
     ExecutorContext<ILifeTracker> m_sourceContext;
     ExecutorContext<ServiceHostBase> m_targetContext;
 
-    std::shared_ptr<IThreadSafeServiceHost> m_serviceHostProxy;
+    std::shared_ptr<IServiceHost> m_serviceHostProxy;
     boost::asio::cancellation_signal m_cancellationSignal;
 
   public:
@@ -51,7 +51,7 @@ namespace Test2
       return m_sourceContext;
     }
 
-    std::shared_ptr<IThreadSafeServiceHost> GetServiceHost();
+    std::shared_ptr<IServiceHost> GetServiceHost();
 
     /// @brief Polls the io_context and processes all services.
     ///

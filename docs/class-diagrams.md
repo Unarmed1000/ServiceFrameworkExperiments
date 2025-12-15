@@ -135,7 +135,7 @@ classDiagram
         +Poll() size_t
     }
 
-    class IThreadSafeServiceHost {
+    class IServiceHost {
         <<interface>>
         +TryStartServicesAsync() awaitable~void~
         +TryShutdownServicesAsync() vector~exception_ptr~
@@ -153,11 +153,11 @@ classDiagram
     ServiceHostBase <|-- CooperativeThreadServiceHost
     ServiceHostBase <|-- ManagedThreadServiceHost
     ServiceHostBase --> ManagedThreadServiceProvider : owns
-    IThreadSafeServiceHost <|.. ServiceHostBase
+    IServiceHost <|.. ServiceHostBase
 
     ManagedThreadHost *-- ManagedThreadServiceHost : contains
     ManagedThreadHost ..> ManagedThreadRecord : creates
-    ServiceHostProxy --> IThreadSafeServiceHost : wraps
+    ServiceHostProxy --> IServiceHost : wraps
     ManagedThreadHost --> ServiceHostProxy : provides
 ```
 
@@ -267,7 +267,7 @@ classDiagram
         +Process() ProcessResult
     }
 
-    class ASyncServiceBase {
+    class AsyncServiceBase {
         <<abstract>>
     }
 
@@ -313,7 +313,7 @@ classDiagram
     }
 
     IService <|-- IServiceControl
-    IServiceControl <|-- ASyncServiceBase
+    IServiceControl <|-- AsyncServiceBase
     ProcessResult --> ProcessStatus
     IServiceFactory ..> IServiceControl : creates
     ServiceCreateInfo --> ServiceProvider : contains
@@ -364,7 +364,7 @@ classDiagram
 
 ## Service Implementations
 
-Concrete service implementations demonstrating the dual inheritance pattern (extends `ASyncServiceBase` and implements service-specific interface).
+Concrete service implementations demonstrating the dual inheritance pattern (extends `AsyncServiceBase` and implements service-specific interface).
 
 ```mermaid
 classDiagram
@@ -374,7 +374,7 @@ classDiagram
         <<interface>>
     }
 
-    class ASyncServiceBase {
+    class AsyncServiceBase {
         <<abstract>>
     }
 
@@ -421,11 +421,11 @@ classDiagram
     IService <|-- IDivideService
     IService <|-- ICalculatorService
 
-    ASyncServiceBase <|-- AddService
-    ASyncServiceBase <|-- SubtractService
-    ASyncServiceBase <|-- MultiplyService
-    ASyncServiceBase <|-- DivideService
-    ASyncServiceBase <|-- CalculatorService
+    AsyncServiceBase <|-- AddService
+    AsyncServiceBase <|-- SubtractService
+    AsyncServiceBase <|-- MultiplyService
+    AsyncServiceBase <|-- DivideService
+    AsyncServiceBase <|-- CalculatorService
 
     IAddService <|.. AddService
     ISubtractService <|.. SubtractService

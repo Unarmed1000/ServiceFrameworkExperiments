@@ -28,7 +28,7 @@ namespace Test2
     /// @param a The first operand.
     /// @param b The second operand.
     /// @return An awaitable yielding the sum of a and b.
-    virtual boost::asio::awaitable<double> AddAsync(double a, double b) = 0;
+    virtual boost::asio::awaitable<double> AddAsync(const double a, const double b) = 0;
   };
 
 }

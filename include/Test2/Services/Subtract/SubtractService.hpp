@@ -28,12 +28,12 @@ namespace Test2
 {
   /// @brief Subtract Service implementation - runs in its own thread.
   class SubtractService final
-    : public ASyncServiceBase
+    : public AsyncServiceBase
     , public ISubtractService
   {
   public:
     explicit SubtractService(const ServiceCreateInfo& createInfo)
-      : ASyncServiceBase(createInfo)
+      : AsyncServiceBase(createInfo)
     {
       spdlog::debug("SubtractService: constructed");
     }

@@ -29,15 +29,28 @@ namespace Test2
   ServiceHostProxy::~ServiceHostProxy() = default;
 
 
-  boost::asio::awaitable<void> ServiceHostProxy::TryStartServicesAsync(std::vector<StartServiceRecord> services,
-                                                                       const ServiceLaunchPriority currentPriority)
+  boost::asio::awaitable<std::vector<StartedServiceInfo>> ServiceHostProxy::TryStartServicesAsync(std::vector<StartServiceRecord> services,
+                                                                                                  const ServiceLaunchPriority currentPriority)
   {
-    co_await Util::InvokeAsync<kProxyName>(m_dispatchContext, &ServiceHostBase::TryStartServicesAsync, std::move(services), currentPriority);
+    co_return co_await Util::InvokeAsync<kProxyName>(m_dispatchContext, &ServiceHostBase::TryStartServicesAsync, std::move(services),
+                                                     currentPriority);
   }
 
   boost::asio::awaitable<std::vector<std::exception_ptr>> ServiceHostProxy::TryShutdownServicesAsync(const ServiceLaunchPriority priority)
   {
     co_return co_await Util::InvokeAsync<kProxyName>(m_dispatchContext, &ServiceHostBase::TryShutdownServicesAsync, priority);
+  }
+
+  boost::asio::awaitable<void> ServiceHostProxy::TryStartServiceProxiesAsync(std::vector<StartServiceProxyRecord> services,
+                                                                             const ServiceLaunchPriority currentPriority)
+  {
+    co_return co_await Util::InvokeAsync<kProxyName>(m_dispatchContext, &ServiceHostBase::TryStartServiceProxiesAsync, std::move(services),
+                                                     currentPriority);
+  }
+
+  boost::asio::awaitable<std::vector<std::exception_ptr>> ServiceHostProxy::TryShutdownServiceProxiesAsync(const ServiceLaunchPriority priority)
+  {
+    co_return co_await Util::InvokeAsync<kProxyName>(m_dispatchContext, &ServiceHostBase::TryShutdownServiceProxiesAsync, priority);
   }
 
   boost::asio::awaitable<bool> ServiceHostProxy::TryRequestShutdownAsync()

@@ -105,6 +105,35 @@ ServiceManager
 └── ... continue for remaining priority levels
 ```
 
+## Service Proxy Lifecycle (Implemented December 2025)
+
+### Overview
+Service proxies provide cross-thread access to services. Unlike services, proxies don't have Init/Shutdown lifecycle methods - they only need construction.
+
+### Implementation
+Added proxy lifecycle methods to IServiceHost, ServiceHostBase, and ServiceHostProxy:
+- `TryStartServiceProxiesAsync`: Validates and registers proxy factories by priority
+- `TryShutdownServiceProxiesAsync`: Unregisters proxy factories for a priority level
+
+### Lifecycle Ordering
+1. **Startup**: Services first, then proxies (proxies may depend on services)
+2. **Shutdown**: Proxies first, then services (proxies should release before services shutdown)
+
+### Integration Points
+- **Phase 1-4**: Core implementation complete with TDD tests (15 tests passing)
+- **Phase 5**: ServiceHostProxy marshalling verified
+- **Phase 6-7**: LifecycleManager integration marked with TODO comments
+  - Requires extending ServiceRegistrationRecord to include proxy factories
+  - Proxy startup called after service startup at each priority
+  - Proxy shutdown called before service shutdown at each priority
+
+### Testing Infrastructure
+Created reusable MockServiceFactory with:
+- InitializationOrderTracker for verifying creation order
+- MockServiceConfig for behavior control
+- MockService and MockServiceProxy implementations
+- Thread-safe design for concurrent testing
+
 ## Key Design Points
 
 - **Thread affinity**: Each service instance is created, initialized, and destroyed only on its designated thread group thread
@@ -112,3 +141,4 @@ ServiceManager
 - **Orchestration**: Manager coordinates launch sequence from outside, posting work and waiting for completion
 - **Main thread**: Thread group ID 0 runs on calling thread, all others get dedicated worker threads
 - **Priority ordering**: Higher priority values launch first, can be dependencies for lower priority
+- **Proxy lifecycle**: Proxies are simpler - no Init/Shutdown, just factory registration/unregistration

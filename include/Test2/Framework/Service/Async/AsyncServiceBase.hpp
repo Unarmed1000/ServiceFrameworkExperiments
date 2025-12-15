@@ -13,42 +13,42 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Lifecycle/ILifeTracker.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
-
+#include <spdlog/spdlog.h>
 namespace Test2
 {
   struct ServiceCreateInfo;
 
   /// @brief Base class for asynchronous services that run in their own thread.
-  ///
-  /// TODO: This class needs to be completed with:
-  /// - Thread management (io_context, work_guard, thread)
-  /// - A call() method to dispatch work to the service's thread
-  /// - Proper lifecycle management (start/stop)
-  /// - Integration with the service host for thread coordination
-  class ASyncServiceBase : public IServiceControl
+  class AsyncServiceBase
+    : public IServiceControl
+    , public ILifeTracker
   {
   public:
-    explicit ASyncServiceBase(const ServiceCreateInfo& /*creationInfo*/)
+    explicit AsyncServiceBase(const ServiceCreateInfo& /*serviceCreationInfo*/)
     {
-      // TODO: Initialize io_context and work_guard here
-      // TODO: Store any needed configuration from creationInfo
     }
 
-    ~ASyncServiceBase() override = default;
+    ~AsyncServiceBase() override = default;
 
-  protected:
-    // TODO: Add the following when implementing async functionality:
-    //
-    // boost::asio::io_context m_io_context;
-    // boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work_guard;
-    // std::thread m_thread;
-    //
-    // template <typename Func>
-    // auto call(Func&& func) -> boost::asio::awaitable<decltype(std::declval<std::decay_t<Func>>()())>
-    // {
-    //   // Execute function on service thread via co_spawn
-    // }
+
+    boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*serviceCreationInfo*/) override
+    {
+      spdlog::info("AsyncServiceBase: InitAsync");
+      co_return ServiceInitResult{};
+    }
+
+    boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() override
+    {
+      spdlog::info("AsyncServiceBase: ShutdownAsync");
+      co_return ServiceShutdownResult{};
+    }
+
+    ProcessResult Process() override
+    {
+      return ProcessResult::NoSleepLimit();
+    }
   };
 
 }

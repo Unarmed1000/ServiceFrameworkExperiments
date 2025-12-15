@@ -14,7 +14,6 @@
 //****************************************************************************************************************************************************
 
 #include <Common/AggregateException.hpp>
-#include <Test2/Framework/Config/ThreadGroupConfig.hpp>
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp>
 #include <Test2/Framework/Host/Managed/ManagedThreadHost.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
@@ -24,6 +23,7 @@
 #include <Test2/Framework/Service/ProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceShutdownResult.hpp>
 #include <boost/asio/awaitable.hpp>
+#include <spdlog/spdlog.h>
 #include <map>
 #include <memory>
 #include <set>
@@ -81,6 +81,10 @@ namespace Test2
     /// Used for rollback on failure and for normal shutdown (processed in reverse).
     std::vector<StartedPriorityRecord> m_startedPriorities;
 
+    /// @brief Priority levels where proxies were successfully started, in start order.
+    /// Used for rollback on failure and for normal shutdown (processed in reverse).
+    std::vector<StartedPriorityRecord> m_startedProxyPriorities;
+
     /// @brief Stop source to signal when the LifecycleManager is being destroyed.
     std::stop_source m_stopSource;
 
@@ -89,16 +93,9 @@ namespace Test2
     ///
     /// @param config Configuration options for the lifecycle manager.
     /// @param registrations Service registrations to manage. Ownership is transferred.
-    explicit LifecycleManager(LifecycleManagerConfig config, std::vector<ServiceRegistrationRecord> registrations)
-      : m_config(std::move(config))
-      , m_registrations(std::move(registrations))
-    {
-    }
+    explicit LifecycleManager(LifecycleManagerConfig config, std::vector<ServiceRegistrationRecord> registrations);
 
-    ~LifecycleManager()
-    {
-      m_stopSource.request_stop();
-    }
+    ~LifecycleManager();
 
     LifecycleManager(const LifecycleManager&) = delete;
     LifecycleManager& operator=(const LifecycleManager&) = delete;
@@ -114,15 +111,7 @@ namespace Test2
     ///
     /// @return Awaitable that completes when all services are started.
     /// @throws AggregateException if any service fails to start (after rollback).
-    boost::asio::awaitable<void> StartServicesAsync()
-    {
-      if (m_registrations.empty())
-      {
-        co_return;
-      }
-
-      co_await DoStartServicesAsync(m_registrations, m_startedPriorities, m_mainHost, m_threadHosts, m_stopSource.get_token());
-    }
+    boost::asio::awaitable<void> StartServicesAsync();
 
     /// @brief Shuts down all started services in reverse priority order.
     ///
@@ -131,13 +120,7 @@ namespace Test2
     /// After all services are stopped, managed threads are also shut down.
     ///
     /// @return Vector of any exceptions that occurred during shutdown.
-    boost::asio::awaitable<std::vector<std::exception_ptr>> ShutdownServicesAsync()
-    {
-      auto allErrors =
-        co_await DoShutdownServicesAsync(std::move(m_startedPriorities), m_mainHost, std::move(m_threadHosts), m_stopSource.get_token());
-      m_startedPriorities = {};
-      co_return allErrors;
-    }
+    boost::asio::awaitable<std::vector<std::exception_ptr>> ShutdownServicesAsync();
 
 
     /// @brief Polls the main thread's io_context and processes all services.
@@ -184,21 +167,7 @@ namespace Test2
     /// @return Set of thread group IDs that require managed thread hosts.
     static std::set<ServiceThreadGroupId>
       CollectRequiredThreadGroups(const std::map<ServiceLaunchPriority, std::map<ServiceThreadGroupId, std::vector<ServiceRegistrationRecord*>>,
-                                                 std::greater<ServiceLaunchPriority>>& priorityGroups)
-    {
-      std::set<ServiceThreadGroupId> requiredThreadGroups;
-      for (const auto& [priority, threadGroups] : priorityGroups)
-      {
-        for (const auto& [threadGroupId, regsInGroup] : threadGroups)
-        {
-          if (threadGroupId != ThreadGroupConfig::MainThreadGroupId)
-          {
-            requiredThreadGroups.insert(threadGroupId);
-          }
-        }
-      }
-      return requiredThreadGroups;
-    }
+                                                 std::greater<ServiceLaunchPriority>>& priorityGroups);
 
     /// @brief Performs the actual startup of services across thread groups.
     ///
@@ -210,97 +179,7 @@ namespace Test2
     /// @throws AggregateException if any service fails to start (after rollback).
     static boost::asio::awaitable<void> DoStartServicesAsync(std::vector<ServiceRegistrationRecord>& registrations,
                                                              std::vector<StartedPriorityRecord>& startedPriorities, CooperativeThreadHost& mainHost,
-                                                             ThreadGroupHostsMap& threadHosts, std::stop_token stopToken)
-    {
-      // Group registrations by priority, then by thread group
-      // Outer map: priority (highest first via std::greater)
-      // Inner map: thread group ID -> services for that thread group at this priority
-      std::map<ServiceLaunchPriority, std::map<ServiceThreadGroupId, std::vector<ServiceRegistrationRecord*>>, std::greater<ServiceLaunchPriority>>
-        priorityGroups;
-
-      for (auto& reg : registrations)
-      {
-        priorityGroups[reg.Priority][reg.ThreadGroupId].push_back(&reg);
-      }
-
-      // First pass: Start all required thread hosts before starting any services
-      auto requiredThreadGroups = CollectRequiredThreadGroups(priorityGroups);
-
-      for (const auto& threadGroupId : requiredThreadGroups)
-      {
-        auto host = std::make_unique<ManagedThreadHost>(mainHost.GetExecutorContext());
-        // Start the thread (it will run io_context.run())
-        co_await host->StartAsync();
-        threadHosts.emplace(threadGroupId, std::move(host));
-      }
-
-      // Second pass: Start services in priority order (highest first due to std::greater comparator)
-      for (auto& [priority, threadGroups] : priorityGroups)
-      {
-        // For each thread group at this priority level
-        for (auto& [threadGroupId, regsInGroup] : threadGroups)
-        {
-          std::vector<StartServiceRecord> servicesForGroup;
-
-          for (auto* reg : regsInGroup)
-          {
-            // Get service name from first supported interface
-            auto interfaces = reg->Factory->GetSupportedInterfaces();
-            std::string serviceName = interfaces.empty() ? "UnknownService" : interfaces[0].name();
-
-            servicesForGroup.emplace_back(std::move(serviceName), std::move(reg->Factory));
-          }
-
-          if (!servicesForGroup.empty())
-          {
-            std::exception_ptr startupException;
-            try
-            {
-              if (threadGroupId == ThreadGroupConfig::MainThreadGroupId)
-              {
-                // Main thread group - use cooperative host
-                co_await mainHost.GetServiceHost()->TryStartServicesAsync(std::move(servicesForGroup), priority);
-              }
-              else
-              {
-                // Non-main thread group - use the pre-started ManagedThreadHost
-                auto it = threadHosts.find(threadGroupId);
-                if (it == threadHosts.end())
-                {
-                  throw std::runtime_error("Thread host not found for thread group");
-                }
-
-                // Start services on the managed thread host
-                co_await it->second->GetServiceHost()->TryStartServicesAsync(std::move(servicesForGroup), priority);
-              }
-
-              // Track successfully started priority level
-              startedPriorities.push_back({priority, threadGroupId});
-            }
-            catch (...)
-            {
-              startupException = std::current_exception();
-            }
-
-            // Handle startup failure outside catch block (co_await not allowed in catch)
-            if (startupException)
-            {
-              // Rollback all previously started priority levels
-              auto rollbackErrors = co_await DoShutdownServicesAsync(std::move(startedPriorities), mainHost, std::move(threadHosts), stopToken);
-
-              // Combine startup error with any rollback errors
-              std::vector<std::exception_ptr> allErrors;
-              allErrors.push_back(startupException);
-              allErrors.insert(allErrors.end(), rollbackErrors.begin(), rollbackErrors.end());
-
-              throw Common::AggregateException("Service startup failed", std::move(allErrors));
-            }
-          }
-        }
-      }
-
-      co_return;
-    }
+                                                             ThreadGroupHostsMap& threadHosts, std::stop_token stopToken);
 
     /// @brief Performs the actual shutdown of services and managed threads.
     ///
@@ -314,42 +193,8 @@ namespace Test2
     /// @return Vector of any exceptions that occurred during shutdown.
     static boost::asio::awaitable<std::vector<std::exception_ptr>> DoShutdownServicesAsync(std::vector<StartedPriorityRecord> startedPriorities,
                                                                                            CooperativeThreadHost& mainHost,
-                                                                                           ThreadGroupHostsMap threadHosts, std::stop_token stopToken)
-    {
-      auto mainServiceHost = mainHost.GetServiceHost();
-      std::vector<std::exception_ptr> allErrors;
-
-      // Shutdown in reverse order of startup (lowest priority first, then higher)
-      AsyncOperationResult serviceShutdownResult;
-      try
-      {
-        serviceShutdownResult = co_await DoShutdownAllServicePrioritiesAsync(std::move(startedPriorities), mainServiceHost, std::move(threadHosts));
-        allErrors.insert(allErrors.end(), serviceShutdownResult.Errors.begin(), serviceShutdownResult.Errors.end());
-      }
-      catch (...)
-      {
-        auto exception = std::current_exception();
-        allErrors.push_back(exception);
-        spdlog::error("DoShutdownAllServicePrioritiesAsync threw an exception during shutdown");
-        // ThreadHosts were moved, so we have no hosts to shut down
-        serviceShutdownResult.ThreadHosts = {};
-      }
-
-      // Shutdown all managed threads in parallel
-      try
-      {
-        auto threadShutdownErrors = co_await DoShutdownThreadHostsAsync(std::move(serviceShutdownResult.ThreadHosts));
-        allErrors.insert(allErrors.end(), threadShutdownErrors.begin(), threadShutdownErrors.end());
-      }
-      catch (...)
-      {
-        auto exception = std::current_exception();
-        allErrors.push_back(exception);
-        spdlog::error("DoShutdownThreadHostsAsync threw an exception during shutdown");
-      }
-
-      co_return allErrors;
-    }
+                                                                                           ThreadGroupHostsMap threadHosts,
+                                                                                           std::stop_token stopToken);
 
     /// @brief Shuts down services for all priority levels in reverse order of startup.
     ///
@@ -361,28 +206,8 @@ namespace Test2
     /// @param threadHosts Map of managed thread hosts (ownership transferred).
     /// @return AsyncOperationResult containing threadHosts and any exceptions that occurred.
     static boost::asio::awaitable<AsyncOperationResult> DoShutdownAllServicePrioritiesAsync(std::vector<StartedPriorityRecord> startedPriorities,
-                                                                                            std::shared_ptr<IThreadSafeServiceHost> mainServiceHost,
-                                                                                            ThreadGroupHostsMap threadHosts)
-    {
-      // Group by priority level (use std::less for ascending order, shutting down lowest priority first)
-      PriorityMap priorityMap;
-      for (const auto& record : startedPriorities)
-      {
-        priorityMap[record.Priority].push_back(record);
-      }
-
-      std::vector<std::exception_ptr> allErrors;
-      for (auto& [priority, records] : priorityMap)
-      {
-        // FIX: threadHosts needs to be shared_ptr or similar to avoid move issues here
-        // This is necessary to ensure that if  DoShutdownServicesByPriorityAsync throws we can continue looping with the existing threadHosts
-        auto result = co_await DoShutdownServicesByPriorityAsync(std::move(records), mainServiceHost, std::move(threadHosts));
-        threadHosts = std::move(result.ThreadHosts);
-        allErrors.insert(allErrors.end(), result.Errors.begin(), result.Errors.end());
-      }
-
-      co_return AsyncOperationResult{std::move(threadHosts), std::move(allErrors)};
-    }
+                                                                                            std::shared_ptr<IServiceHost> mainServiceHost,
+                                                                                            ThreadGroupHostsMap threadHosts);
 
     /// @brief Shuts down services for a specific priority level across all thread groups in parallel.
     ///
@@ -395,48 +220,8 @@ namespace Test2
     /// @return AsyncOperationResult containing the threadHosts (for chaining) and any exceptions that occurred during shutdown.
     /// @note This does not need a stop token since it owns the lifetime of everything it touches at this point in time.
     static boost::asio::awaitable<AsyncOperationResult> DoShutdownServicesByPriorityAsync(std::vector<StartedPriorityRecord> records,
-                                                                                          std::shared_ptr<IThreadSafeServiceHost> mainServiceHost,
-                                                                                          ThreadGroupHostsMap threadHosts)
-    {
-      std::vector<std::exception_ptr> allErrors;
-
-      // Shutdown all thread groups at this priority level in parallel
-      std::vector<boost::asio::awaitable<std::vector<std::exception_ptr>>> shutdownTasks;
-
-      for (const auto& record : records)
-      {
-        if (record.ThreadGroupId == ThreadGroupConfig::MainThreadGroupId)
-        {
-          shutdownTasks.push_back(mainServiceHost->TryShutdownServicesAsync(record.Priority));
-        }
-        else
-        {
-          auto hostIt = threadHosts.find(record.ThreadGroupId);
-          if (hostIt != threadHosts.end())
-          {
-            shutdownTasks.push_back(hostIt->second->GetServiceHost()->TryShutdownServicesAsync(record.Priority));
-          }
-        }
-      }
-
-      // Wait for all shutdowns at this priority level to complete
-      for (auto& task : shutdownTasks)
-      {
-        try
-        {
-          auto errors = co_await std::move(task);
-          allErrors.insert(allErrors.end(), errors.begin(), errors.end());
-        }
-        catch (...)
-        {
-          auto exception = std::current_exception();
-          allErrors.push_back(exception);
-          spdlog::error("TryShutdownServicesAsync threw an exception during shutdown");
-        }
-      }
-
-      co_return AsyncOperationResult{std::move(threadHosts), std::move(allErrors)};
-    }
+                                                                                          std::shared_ptr<IServiceHost> mainServiceHost,
+                                                                                          ThreadGroupHostsMap threadHosts);
 
     /// @brief Shuts down all managed thread hosts in parallel.
     ///
@@ -446,31 +231,7 @@ namespace Test2
     /// @param threadHosts Map of managed thread hosts to shut down (ownership transferred).
     /// @return Vector of any exceptions that occurred during thread shutdown.
     /// @note This does not need a stop token since it owns the lifetime of everything it touches at this point in time.
-    static boost::asio::awaitable<std::vector<std::exception_ptr>> DoShutdownThreadHostsAsync(ThreadGroupHostsMap threadHosts)
-    {
-      std::vector<std::exception_ptr> allErrors;
-      std::vector<boost::asio::awaitable<bool>> threadShutdownTasks;
-
-      // Create shutdown tasks for all thread hosts
-      for (auto& [threadGroupId, host] : threadHosts)
-      {
-        threadShutdownTasks.push_back(host->TryShutdownAsync());
-      }
-
-      for (auto& task : threadShutdownTasks)
-      {
-        try
-        {
-          co_await std::move(task);
-        }
-        catch (...)
-        {
-          allErrors.push_back(std::current_exception());
-        }
-      }
-
-      co_return allErrors;
-    }
+    static boost::asio::awaitable<std::vector<std::exception_ptr>> DoShutdownThreadHostsAsync(ThreadGroupHostsMap threadHosts);
   };
 }
 
