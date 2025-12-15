@@ -19,10 +19,10 @@
 namespace Test2
 {
   /// @brief Factory for creating AddService instances.
-  class AddServiceFactory final : public AsyncServiceImplFactory
+  class AddServiceImplFactory final : public AsyncServiceImplFactory
   {
   public:
-    AddServiceFactory();
+    AddServiceImplFactory();
 
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
   };

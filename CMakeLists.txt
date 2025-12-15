@@ -373,7 +373,7 @@ endif()
 add_library(test2_add_service STATIC
     src/Test2/Service/Add/AddService.cpp
     src/Test2/Service/Add/AddServiceProxy.cpp
-    src/Test2/Service/Add/AddServiceFactory.cpp
+    src/Test2/Service/Add/AddServiceImplFactory.cpp
 )
 target_include_directories(test2_add_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test2_add_service
@@ -521,14 +521,14 @@ source_group("Header Files\\Test2\\Services" FILES
 )
 source_group("Header Files\\Test2\\Services\\Add" FILES
     include/Test2/Services/Add/IAddService.hpp
-    include/Test2/Services/Add/AddServiceFactory.hpp
+    include/Test2/Services/Add/AddServiceImplFactory.hpp
 )
 source_group("Source Files\\Test2\\Services\\Add" FILES
     src/Test2/Service/Add/AddService.hpp
     src/Test2/Service/Add/AddService.cpp
     src/Test2/Service/Add/AddServiceProxy.hpp
     src/Test2/Service/Add/AddServiceProxy.cpp
-    src/Test2/Service/Add/AddServiceFactory.cpp
+    src/Test2/Service/Add/AddServiceImplFactory.cpp
 )
 source_group("Header Files\\Test2\\Services\\Subtract" FILES
     include/Test2/Services/Subtract/ISubtractService.hpp

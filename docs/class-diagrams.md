@@ -409,7 +409,7 @@ classDiagram
     class DivideService
     class CalculatorService
 
-    class AddServiceFactory
+    class AddServiceImplFactory
     class SubtractServiceFactory
     class MultiplyServiceFactory
     class DivideServiceFactory
@@ -433,7 +433,7 @@ classDiagram
     IDivideService <|.. DivideService
     ICalculatorService <|.. CalculatorService
 
-    AddServiceFactory ..> AddService : creates
+    AddServiceImplFactory ..> AddService : creates
     SubtractServiceFactory ..> SubtractService : creates
     MultiplyServiceFactory ..> MultiplyService : creates
     DivideServiceFactory ..> DivideService : creates

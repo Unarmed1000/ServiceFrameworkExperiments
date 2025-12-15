@@ -11,7 +11,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Services/Add/AddServiceFactory.hpp>
+#include <Test2/Services/Add/AddServiceImplFactory.hpp>
 #include <Test2/Services/Add/IAddService.hpp>
 #include <memory>
 #include <stdexcept>
@@ -19,12 +19,12 @@
 
 namespace Test2
 {
-  AddServiceFactory::AddServiceFactory()
+  AddServiceImplFactory::AddServiceImplFactory()
     : AsyncServiceImplFactory(typeid(IAddService))
   {
   }
 
-  std::shared_ptr<IServiceControl> AddServiceFactory::Create(const ServiceCreateInfo& createInfo)
+  std::shared_ptr<IServiceControl> AddServiceImplFactory::Create(const ServiceCreateInfo& createInfo)
   {
     return std::make_shared<AddService>(createInfo);
   }

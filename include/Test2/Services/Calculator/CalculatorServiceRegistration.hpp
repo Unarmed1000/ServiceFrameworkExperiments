@@ -15,7 +15,7 @@
 
 #include <Test2/Framework/Registry/IServiceRegistry.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
-#include <Test2/Services/Add/AddServiceFactory.hpp>
+#include <Test2/Services/Add/AddServiceImplFactory.hpp>
 #include <Test2/Services/Calculator/CalculatorServiceFactory.hpp>
 #include <Test2/Services/Divide/DivideServiceFactory.hpp>
 #include <Test2/Services/Multiply/MultiplyServiceFactory.hpp>
@@ -57,7 +57,7 @@ namespace Test2
     constexpr ServiceLaunchPriority CalculatorServicePriority(100);
 
     // Register math services at higher priority so they are available when CalculatorService is created
-    registry.RegisterService(std::make_unique<AddServiceFactory>(), MathServicePriority, addThreadGroup);
+    registry.RegisterService(std::make_unique<AddServiceImplFactory>(), MathServicePriority, addThreadGroup);
     registry.RegisterService(std::make_unique<SubtractServiceFactory>(), MathServicePriority, subtractThreadGroup);
     registry.RegisterService(std::make_unique<MultiplyServiceFactory>(), MathServicePriority, multiplyThreadGroup);
     registry.RegisterService(std::make_unique<DivideServiceFactory>(), MathServicePriority, divideThreadGroup);

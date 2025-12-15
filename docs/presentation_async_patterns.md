@@ -1340,7 +1340,7 @@ Single location where all dependencies are wired:
 
 ```cpp
 void ConfigureServices(ServiceRegistry& registry) {
-    registry.RegisterService<AddServiceFactory>(Priority(100), MainThread);
+    registry.RegisterService<AddServiceImplFactory>(Priority(100), MainThread);
     registry.RegisterService<CalculatorServiceFactory>(Priority(50), MainThread);
 }
 ```
