@@ -23,6 +23,7 @@ namespace Test2
   class IServiceHost;
   class CooperativeThreadServiceHost;
   class ServiceHostBase;
+  class ServiceProvider;
   struct ProcessResult;
 
   /// @brief Manages a cooperative service host that runs on the current thread.
@@ -52,6 +53,14 @@ namespace Test2
     }
 
     std::shared_ptr<IServiceHost> GetServiceHost();
+
+    /// @brief Gets the service provider for accessing registered services.
+    ///
+    /// This method is thread-safe and verifies it's called from the owner thread.
+    ///
+    /// @return ServiceProvider wrapper for type-safe service access.
+    /// @throws WrongThreadException if called from wrong thread.
+    ServiceProvider GetServiceProvider();
 
     /// @brief Polls the io_context and processes all services.
     ///

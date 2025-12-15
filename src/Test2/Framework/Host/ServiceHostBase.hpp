@@ -34,6 +34,7 @@ namespace Test2
   struct ServiceCreateInfo;
   class ServiceProviderProxy;
   class ManagedThreadServiceProvider;
+  class IServiceProvider;
   class IServiceControl;
   struct ProcessResult;
 }
@@ -89,6 +90,10 @@ namespace Test2
     {
       return m_ioContext.get_executor();
     }
+
+    /// @brief Get the service provider for this host.
+    /// @return Shared pointer to the service provider.
+    std::shared_ptr<IServiceProvider> GetServiceProvider() const;
 
     virtual void RequestShutdown();
 

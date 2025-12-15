@@ -209,19 +209,6 @@ namespace Test2
     SUCCEED();
   }
 
-  TEST(LifecycleManager, GetMainHost_ReturnsValidHost)
-  {
-    LifecycleManagerConfig config;
-    std::vector<ServiceRegistrationRecord> registrations;
-
-    LifecycleManager manager(config, std::move(registrations));
-
-    // Should return a valid reference
-    auto& host = manager.GetMainHost();
-    (void)host;
-    SUCCEED();
-  }
-
   TEST(LifecycleManager, Poll_WithNoServices_ReturnsZero)
   {
     LifecycleManagerConfig config;

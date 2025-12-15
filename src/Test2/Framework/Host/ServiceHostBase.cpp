@@ -69,6 +69,12 @@ namespace Test2
     return m_ownerThreadId;
   }
 
+  std::shared_ptr<IServiceProvider> ServiceHostBase::GetServiceProvider() const
+  {
+    ValidateThreadAccess();
+    return m_provider;
+  }
+
   void ServiceHostBase::RequestShutdown()
   {
     ValidateThreadAccess();

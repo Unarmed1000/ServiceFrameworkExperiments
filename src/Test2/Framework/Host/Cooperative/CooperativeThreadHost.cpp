@@ -11,12 +11,16 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
+#include <Test2/Framework/Exception/WrongThreadException.hpp>
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadHost.hpp>
 #include <Test2/Framework/Host/IServiceHost.hpp>
 #include <Test2/Framework/Host/ServiceHostProxy.hpp>
+#include <Test2/Framework/Provider/ServiceProvider.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
+#include <fmt/std.h>
+#include <spdlog/spdlog.h>
 #include <stdexcept>
-#include "../ServiceHostBase.hpp"
+#include <thread>
 #include "CooperativeThreadServiceHost.hpp"
 
 namespace Test2
@@ -54,6 +58,24 @@ namespace Test2
       return m_serviceHostProxy;
     }
     throw std::runtime_error("Service host is no longer available");
+  }
+
+  ServiceProvider CooperativeThreadHost::GetServiceProvider()
+  {
+    if (!m_serviceHost)
+    {
+      throw std::runtime_error("Service host is no longer available");
+    }
+
+    // Verify thread access
+    const auto currentThreadId = std::this_thread::get_id();
+    if (currentThreadId != m_serviceHost->GetOwnerThreadId())
+    {
+      spdlog::error("CooperativeThreadHost accessed from wrong thread. Owner: {}, Caller: {}", m_serviceHost->GetOwnerThreadId(), currentThreadId);
+      throw WrongThreadException("CooperativeThreadHost accessed from wrong thread");
+    }
+
+    return ServiceProvider(m_serviceHost->GetServiceProvider());
   }
 
   ProcessResult CooperativeThreadHost::Update()

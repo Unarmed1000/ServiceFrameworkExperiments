@@ -75,7 +75,7 @@ namespace Test2
     CooperativeThreadHost m_mainHost;
     std::vector<ServiceRegistrationRecord> m_registrations;
     ThreadGroupHostsMap m_threadHosts;
-
+    std::thread::id m_ownerThreadId;
 
     /// @brief Priority levels that were successfully started, in start order.
     /// Used for rollback on failure and for normal shutdown (processed in reverse).
@@ -144,21 +144,29 @@ namespace Test2
       return m_mainHost.Poll();
     }
 
-    /// @brief Gets the main thread's cooperative host.
+    /// @brief Gets the service provider for accessing registered services.
     ///
-    /// Use this to access the service host via GetServiceHost().
+    /// This is the primary API for accessing services from the main thread.
+    /// Thread-safe: verifies call is from the owner thread.
     ///
-    /// @return Reference to the CooperativeThreadHost for the main thread.
-    CooperativeThreadHost& GetMainHost()
-    {
-      return m_mainHost;
-    }
+    /// @return ServiceProvider wrapper for type-safe service access.
+    /// @throws WrongThreadException if called from wrong thread.
+    ServiceProvider GetServiceProvider();
 
-    /// @brief Gets the main thread's cooperative host (const version).
-    const CooperativeThreadHost& GetMainHost() const
-    {
-      return m_mainHost;
-    }
+    /// @brief Gets the main thread's executor for spawning async operations.
+    ///
+    /// Use this to spawn coroutines or post work to the main thread's io_context.
+    ///
+    /// Example:
+    /// @code
+    /// auto future = boost::asio::co_spawn(
+    ///   manager.GetExecutor(),
+    ///   myService->DoWorkAsync(),
+    ///   boost::asio::use_future);
+    /// @endcode
+    ///
+    /// @return Executor for the main thread.
+    boost::asio::any_io_executor GetExecutor();
 
   private:
     /// @brief Collects all unique non-main thread group IDs from the priority groups.

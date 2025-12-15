@@ -12,13 +12,19 @@
 //****************************************************************************************************************************************************
 
 #include <Test2/Framework/Config/ThreadGroupConfig.hpp>
+#include <Test2/Framework/Exception/WrongThreadException.hpp>
 #include <Test2/Framework/Lifecycle/LifecycleManager.hpp>
+#include <Test2/Framework/Provider/ServiceProvider.hpp>
+#include <fmt/std.h>
+#include <spdlog/spdlog.h>
+#include <thread>
 
 namespace Test2
 {
   LifecycleManager::LifecycleManager(LifecycleManagerConfig config, std::vector<ServiceRegistrationRecord> registrations)
     : m_config(std::move(config))
     , m_registrations(std::move(registrations))
+    , m_ownerThreadId(std::this_thread::get_id())
   {
   }
 
@@ -352,6 +358,24 @@ namespace Test2
     }
 
     co_return allErrors;
+  }
+
+  ServiceProvider LifecycleManager::GetServiceProvider()
+  {
+    // Verify thread access
+    const auto currentThreadId = std::this_thread::get_id();
+    if (currentThreadId != m_ownerThreadId)
+    {
+      spdlog::error("LifecycleManager accessed from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
+      throw WrongThreadException("LifecycleManager accessed from wrong thread");
+    }
+
+    return m_mainHost.GetServiceProvider();
+  }
+
+  boost::asio::any_io_executor LifecycleManager::GetExecutor()
+  {
+    return m_mainHost.GetExecutorContext().GetExecutor();
   }
 
 }
