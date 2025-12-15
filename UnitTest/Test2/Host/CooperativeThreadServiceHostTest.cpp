@@ -299,6 +299,7 @@ namespace Test2
         [this, services = std::move(services), priority, &done]() mutable -> boost::asio::awaitable<void>
         {
           [[maybe_unused]] auto result = co_await host.TryStartServicesAsync(std::move(services), ServiceLaunchPriority(priority));
+          co_await host.TryInitializeCompletedAsync();
           done = true;
         },
         boost::asio::detached);

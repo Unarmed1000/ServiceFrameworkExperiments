@@ -131,6 +131,20 @@ namespace Test2
             }
             [[maybe_unused]] auto& capturedServices = startedServices;    // Aggregate on stack, not used yet
 
+            // Commit the staged services/proxies for this priority
+            if (threadGroupId == ThreadGroupConfig::MainThreadGroupId)
+            {
+              co_await mainHost.GetServiceHost()->TryInitializeCompletedAsync();
+            }
+            else
+            {
+              auto it = threadHosts.find(threadGroupId);
+              if (it != threadHosts.end())
+              {
+                co_await it->second->GetServiceHost()->TryInitializeCompletedAsync();
+              }
+            }
+
             // Track successfully started priority level
             startedPriorities.push_back({priority, threadGroupId});
 

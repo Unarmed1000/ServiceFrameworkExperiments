@@ -64,7 +64,7 @@ namespace Test2
     virtual boost::asio::awaitable<void> TryStartServiceProxiesAsync(std::vector<StartServiceProxyRecord> services,
                                                                      const ServiceLaunchPriority currentPriority) = 0;
 
-    virtual boost::asio::awaitable<void> TryInitializeCompleted() = 0;
+    virtual boost::asio::awaitable<void> TryInitializeCompletedAsync() = 0;
 
     /// @brief Shutdown services at a specific priority level.
     ///

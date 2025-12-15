@@ -230,6 +230,7 @@ namespace Test2
       {
         const auto proxyCount = proxyInfos.size();
         m_provider->RegisterPriorityGroup(InstanceType::Proxy, currentPriority, std::move(proxyInfos));
+        // Note: Not committing here - caller will invoke TryInitializeCompletedAsync to commit
         spdlog::info("Created and registered {} proxies at priority {}", proxyCount, currentPriority.GetValue());
       }
 
@@ -241,6 +242,16 @@ namespace Test2
       providerProxy->Clear();
       throw;
     }
+  }
+
+  boost::asio::awaitable<void> ServiceHostBase::TryInitializeCompletedAsync()
+  {
+    ValidateThreadAccess();
+
+    // Commit any staged services/proxies to make them available
+    m_provider->CommitStagedPriority();
+
+    co_return;
   }
 
   boost::asio::awaitable<std::vector<std::exception_ptr>> ServiceHostBase::TryShutdownServiceProxiesAsync(ServiceLaunchPriority priority)
@@ -262,16 +273,6 @@ namespace Test2
     // No actual shutdown logic needed since proxies don't have ShutdownAsync
     // They're just cleaned up when references are released
     co_return shutdownFailures;
-  }
-
-  boost::asio::awaitable<void> ServiceHostBase::TryInitializeCompleted()
-  {
-    ValidateThreadAccess();
-
-    // TODO: Validate that no staged services/proxies remain
-    // This will be implemented as part of the staging infrastructure
-
-    co_return;
   }
 
   boost::asio::awaitable<std::vector<std::exception_ptr>> ServiceHostBase::TryShutdownServicesAsync(ServiceLaunchPriority priority)
@@ -543,6 +544,8 @@ namespace Test2
     }
 
     m_provider->RegisterPriorityGroup(InstanceType::Service, currentPriority, std::move(serviceInfos));
+    // Note: Not committing here - caller will invoke TryInitializeCompletedAsync to commit
+    // This allows services and proxies at the same priority to be staged together
 
     spdlog::info("Successfully initialized and registered {} services at priority {}", initRecords.size(), currentPriority.GetValue());
   }

@@ -32,6 +32,9 @@ namespace Test2
     // Start services on the host
     [[maybe_unused]] auto startedServices = co_await m_host.GetServiceHost()->TryStartServicesAsync(std::move(services), priority);
 
+    // Commit the staged services/proxies
+    co_await m_host.GetServiceHost()->TryInitializeCompletedAsync();
+
     // Track the priority for automatic cleanup
     m_startedPriorities.push_back(priority);
   }

@@ -48,9 +48,9 @@ namespace Test2
                                                      currentPriority);
   }
 
-  boost::asio::awaitable<void> ServiceHostProxy::TryInitializeCompleted()
+  boost::asio::awaitable<void> ServiceHostProxy::TryInitializeCompletedAsync()
   {
-    co_return co_await Util::InvokeAsync<kProxyName>(m_dispatchContext, &ServiceHostBase::TryInitializeCompleted);
+    co_return co_await Util::InvokeAsync<kProxyName>(m_dispatchContext, &ServiceHostBase::TryInitializeCompletedAsync);
   }
 
   boost::asio::awaitable<std::vector<std::exception_ptr>> ServiceHostProxy::TryShutdownServiceProxiesAsync(const ServiceLaunchPriority priority)
