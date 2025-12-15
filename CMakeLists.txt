@@ -374,6 +374,7 @@ add_library(test2_add_service STATIC
     src/Test2/Service/Add/AddService.cpp
     src/Test2/Service/Add/AddServiceProxy.cpp
     src/Test2/Service/Add/AddServiceImplFactory.cpp
+    src/Test2/Service/Add/AddServiceProxyFactory.cpp
 )
 target_include_directories(test2_add_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test2_add_service
@@ -522,6 +523,7 @@ source_group("Header Files\\Test2\\Services" FILES
 source_group("Header Files\\Test2\\Services\\Add" FILES
     include/Test2/Services/Add/IAddService.hpp
     include/Test2/Services/Add/AddServiceImplFactory.hpp
+    include/Test2/Services/Add/AddServiceProxyFactory.hpp
 )
 source_group("Source Files\\Test2\\Services\\Add" FILES
     src/Test2/Service/Add/AddService.hpp
@@ -529,6 +531,7 @@ source_group("Source Files\\Test2\\Services\\Add" FILES
     src/Test2/Service/Add/AddServiceProxy.hpp
     src/Test2/Service/Add/AddServiceProxy.cpp
     src/Test2/Service/Add/AddServiceImplFactory.cpp
+    src/Test2/Service/Add/AddServiceProxyFactory.cpp
 )
 source_group("Header Files\\Test2\\Services\\Subtract" FILES
     include/Test2/Services/Subtract/ISubtractService.hpp
@@ -631,6 +634,15 @@ add_executable(test_process_result
 configure_target(test_process_result)
 target_link_libraries(test_process_result PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Service/ProcessResultTest.cpp)
+
+# Executable 12a: AddService test
+add_executable(test_add_service
+    UnitTest/Test2/Service/AddServiceTest.cpp
+)
+configure_target(test_add_service)
+target_include_directories(test_add_service PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_add_service PRIVATE test2_add_service test2_framework GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Service/AddServiceTest.cpp)
 
 # Executable 13: CooperativeThreadServiceHost test (tests internal implementation)
 add_executable(test_cooperative_thread_service_host

@@ -36,13 +36,13 @@ namespace Test2
     boost::asio::awaitable<ServiceInitResult> InitAsync(const ServiceCreateInfo& /*serviceCreationInfo*/) override
     {
       spdlog::info("AsyncServiceBase: InitAsync");
-      co_return ServiceInitResult{};
+      co_return ServiceInitResult::Success;
     }
 
     boost::asio::awaitable<ServiceShutdownResult> ShutdownAsync() override
     {
       spdlog::info("AsyncServiceBase: ShutdownAsync");
-      co_return ServiceShutdownResult{};
+      co_return ServiceShutdownResult::Success;
     }
 
     ProcessResult Process() override

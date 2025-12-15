@@ -74,7 +74,8 @@ namespace Test2
     /// @throws InvalidServiceFactoryException if factory is null or reports zero supported interfaces
     /// @throws RegistryExtractedException if ExtractRegistrations() has already been called
     /// @throws DuplicateServiceRegistrationException if this factory type is already registered
-    void RegisterService(std::unique_ptr<AsyncServiceFactory> factory, ServiceLaunchPriority priority, ServiceThreadGroupId threadGroupId) final;
+    void RegisterService(std::unique_ptr<AsyncServiceFactory> factory, const ServiceLaunchPriority priority,
+                         const ServiceThreadGroupId threadGroupId) final;
 
     /// @brief Creates a new unique service thread group identifier.
     ///
