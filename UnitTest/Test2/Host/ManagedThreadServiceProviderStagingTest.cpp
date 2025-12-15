@@ -118,4 +118,60 @@ namespace Test2
     // Both should now be visible
     EXPECT_EQ(provider.GetServiceCount(), 2);
   }
+
+  // Phase 5: Idempotent Discard Tests
+
+  // Test: Calling DiscardStagedPriority twice should not throw
+  TEST(ManagedThreadServiceProviderStaging, DiscardStagedPriority_CalledTwice_NoException)
+  {
+    ManagedThreadServiceProvider provider;
+
+    // Create and register service
+    auto service = std::make_shared<MockStagingService>();
+    std::vector<ServiceProviderServiceInstance> instances;
+    instances.push_back(ServiceProviderServiceInstance{InstanceType::Service, service, {std::type_index(typeid(IService))}});
+    provider.RegisterPriorityGroup(InstanceType::Service, ServiceLaunchPriority(100), std::move(instances));
+
+    // Discard once
+    EXPECT_NO_THROW(provider.DiscardStagedPriority());
+
+    // Discard again - should not throw (idempotent)
+    EXPECT_NO_THROW(provider.DiscardStagedPriority());
+
+    // Service should still not be visible
+    EXPECT_EQ(provider.GetServiceCount(), 0);
+  }
+
+  // Test: Calling DiscardStagedPriority when empty should not throw
+  TEST(ManagedThreadServiceProviderStaging, DiscardStagedPriority_WhenEmpty_NoException)
+  {
+    ManagedThreadServiceProvider provider;
+
+    // No services staged - discard should be no-op
+    EXPECT_NO_THROW(provider.DiscardStagedPriority());
+
+    // Should still be empty
+    EXPECT_EQ(provider.GetServiceCount(), 0);
+  }
+
+  // Test: Commit followed by discard on empty staging
+  TEST(ManagedThreadServiceProviderStaging, CommitThenDiscard_EmptyStaging_NoException)
+  {
+    ManagedThreadServiceProvider provider;
+
+    // Create and register service
+    auto service = std::make_shared<MockStagingService>();
+    std::vector<ServiceProviderServiceInstance> instances;
+    instances.push_back(ServiceProviderServiceInstance{InstanceType::Service, service, {std::type_index(typeid(IService))}});
+    provider.RegisterPriorityGroup(InstanceType::Service, ServiceLaunchPriority(100), std::move(instances));
+
+    // Commit staging
+    provider.CommitStagedPriority();
+
+    // Discard on empty staging - should not throw
+    EXPECT_NO_THROW(provider.DiscardStagedPriority());
+
+    // Service should still be visible (was committed)
+    EXPECT_EQ(provider.GetServiceCount(), 1);
+  }
 }
