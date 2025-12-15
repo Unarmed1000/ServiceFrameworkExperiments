@@ -209,6 +209,7 @@ TEST(ManagedThreadServiceProviderTest, RegisterSinglePriorityGroup)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2, 3});
+  provider.CommitStagedPriority();
 
   // Should not throw - verify via GetServiceCount
   EXPECT_EQ(provider.GetServiceCount(), 3);
@@ -220,8 +221,9 @@ TEST(ManagedThreadServiceProviderTest, RegisterMultiplePriorityGroupsDescending)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3, 4});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(100), {5, 6});
+  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3, 4});    // Auto-commits 1000
+  RegisterWithDefaults(provider, ServiceLaunchPriority(100), {5, 6});    // Auto-commits 500
+  provider.CommitStagedPriority();                                       // Commit final priority 100
 
   // Should not throw - verify via GetServiceCount
   EXPECT_EQ(provider.GetServiceCount(), 6);
@@ -237,8 +239,9 @@ TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_ReturnsServicesFo
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3, 4});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(100), {5, 6});
+  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3, 4});    // Auto-commits 1000
+  RegisterWithDefaults(provider, ServiceLaunchPriority(100), {5, 6});    // Auto-commits 500
+  provider.CommitStagedPriority();                                       // Commit final priority 100
 
   auto services = provider.UnregisterPriorityGroup(InstanceType::Service, ServiceLaunchPriority(500));
 
@@ -255,6 +258,7 @@ TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_ReturnsEmptyForUn
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
+  provider.CommitStagedPriority();
 
   auto services = provider.UnregisterPriorityGroup(InstanceType::Service, ServiceLaunchPriority(500));
 
@@ -271,7 +275,8 @@ TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_RemovesFromTypeIn
   auto service2 = std::make_shared<MockServiceControl>(2);
 
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service1, {std::type_index(typeid(ITestInterface1))}}});
-  RegisterServices(provider, ServiceLaunchPriority(500), {{service2, {std::type_index(typeid(ITestInterface2))}}});
+  RegisterServices(provider, ServiceLaunchPriority(500), {{service2, {std::type_index(typeid(ITestInterface2))}}});    // Auto-commits 1000
+  provider.CommitStagedPriority();                                                                                     // Commit final priority 500
 
   // Before unregister - both types available
   EXPECT_NE(provider.TryGetService(typeid(ITestInterface1)), nullptr);
@@ -302,8 +307,9 @@ TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_MultipleCallsWork
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {2});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(100), {3});
+  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {2});    // Auto-commits 1000
+  RegisterWithDefaults(provider, ServiceLaunchPriority(100), {3});    // Auto-commits 500
+  provider.CommitStagedPriority();                                    // Commit final priority 100
 
   // Unregister in shutdown order (low to high priority)
   auto services100 = provider.UnregisterPriorityGroup(InstanceType::Service, ServiceLaunchPriority(100));
@@ -325,6 +331,7 @@ TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_SecondCallForSame
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
+  provider.CommitStagedPriority();
 
   auto services1 = provider.UnregisterPriorityGroup(InstanceType::Service, ServiceLaunchPriority(1000));
   EXPECT_EQ(services1.size(), 2);
@@ -339,6 +346,7 @@ TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_PreservesServiceO
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2, 3, 4, 5});
+  provider.CommitStagedPriority();
 
   auto services = provider.UnregisterPriorityGroup(InstanceType::Service, ServiceLaunchPriority(1000));
 
@@ -354,6 +362,7 @@ TEST(ManagedThreadServiceProviderTest, UnregisterPriorityGroup_RemovesAllInterfa
   RegisterServices(
     provider, ServiceLaunchPriority(1000),
     {{service, {std::type_index(typeid(IService)), std::type_index(typeid(ITestInterface1)), std::type_index(typeid(ITestInterface2))}}});
+  provider.CommitStagedPriority();
 
   // Before unregister - all interfaces accessible
   EXPECT_NE(provider.TryGetService(typeid(IService)), nullptr);
@@ -416,6 +425,7 @@ TEST(ManagedThreadServiceProviderTest, RegisterSamePriorityTwiceThrows)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1});
+  provider.CommitStagedPriority();
 
   EXPECT_THROW(RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {2}), InvalidPriorityOrderException);
 }
@@ -427,6 +437,7 @@ TEST(ManagedThreadServiceProviderTest, RegisterHigherPriorityAfterLowerThrows)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(500), {1});
+  provider.CommitStagedPriority();
 
   EXPECT_THROW(RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {2}), InvalidPriorityOrderException);
 }
@@ -438,6 +449,7 @@ TEST(ManagedThreadServiceProviderTest, RegisterEqualPriorityThrows)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1});
+  provider.CommitStagedPriority();
 
   EXPECT_THROW(RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {2}), InvalidPriorityOrderException);
 }
@@ -449,6 +461,7 @@ TEST(ManagedThreadServiceProviderTest, InvalidPriorityOrderExceptionMessage)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(500), {1});
+  provider.CommitStagedPriority();
 
   try
   {
@@ -472,7 +485,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterIncrementingPrioritiesThrows)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(100), {1});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(50), {2});
+  RegisterWithDefaults(provider, ServiceLaunchPriority(50), {2});    // Auto-commits 100
+  provider.CommitStagedPriority();                                   // Commit final priority 50
 
   // This should throw because 200 > 50
   EXPECT_THROW(RegisterWithDefaults(provider, ServiceLaunchPriority(200), {3}), InvalidPriorityOrderException);
@@ -489,6 +503,7 @@ TEST(ManagedThreadServiceProviderTest, ZeroPriorityIsValid)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(0), {1});
+  provider.CommitStagedPriority();
 
   EXPECT_EQ(provider.GetServiceCount(), 1);
 }
@@ -500,6 +515,7 @@ TEST(ManagedThreadServiceProviderTest, MaxPriorityIsValid)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(UINT32_MAX), {1});
+  provider.CommitStagedPriority();
 
   EXPECT_EQ(provider.GetServiceCount(), 1);
 }
@@ -510,9 +526,10 @@ TEST(ManagedThreadServiceProviderTest, DescendingFromMaxToZero)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(UINT32_MAX), {1});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {2});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3});
-  RegisterWithDefaults(provider, ServiceLaunchPriority(0), {4});
+  RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {2});    // Auto-commits UINT32_MAX
+  RegisterWithDefaults(provider, ServiceLaunchPriority(500), {3});     // Auto-commits 1000
+  RegisterWithDefaults(provider, ServiceLaunchPriority(0), {4});       // Auto-commits 500
+  provider.CommitStagedPriority();                                     // Commit final priority 0
 
   EXPECT_EQ(provider.GetServiceCount(), 4);
 }
@@ -524,8 +541,9 @@ TEST(ManagedThreadServiceProviderTest, ConsecutivePriorities)
   ManagedThreadServiceProvider provider;
 
   RegisterServices(provider, ServiceLaunchPriority(100), CreateServices({1}));
-  RegisterServices(provider, ServiceLaunchPriority(99), CreateServices({2}));
-  RegisterServices(provider, ServiceLaunchPriority(98), CreateServices({3}));
+  RegisterServices(provider, ServiceLaunchPriority(99), CreateServices({2}));    // Auto-commits 100
+  RegisterServices(provider, ServiceLaunchPriority(98), CreateServices({3}));    // Auto-commits 99
+  provider.CommitStagedPriority();                                               // Commit final priority 98
 
   EXPECT_EQ(provider.GetServiceCount(), 3);
 }
@@ -540,14 +558,17 @@ TEST(ManagedThreadServiceProviderTest, FirstRegistrationCanBeAnyPriority)
 {
   ManagedThreadServiceProvider provider1;
   RegisterServices(provider1, ServiceLaunchPriority(0), CreateServices({1}));
+  provider1.CommitStagedPriority();
   EXPECT_EQ(provider1.GetServiceCount(), 1);
 
   ManagedThreadServiceProvider provider2;
   RegisterServices(provider2, ServiceLaunchPriority(UINT32_MAX), CreateServices({1}));
+  provider2.CommitStagedPriority();
   EXPECT_EQ(provider2.GetServiceCount(), 1);
 
   ManagedThreadServiceProvider provider3;
   RegisterServices(provider3, ServiceLaunchPriority(500), CreateServices({1}));
+  provider3.CommitStagedPriority();
   EXPECT_EQ(provider3.GetServiceCount(), 1);
 }
 
@@ -563,7 +584,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterUnregisterRegisterAgain)
 
   // First cycle
   RegisterServices(provider, ServiceLaunchPriority(1000), CreateServices({1, 2}));
-  RegisterServices(provider, ServiceLaunchPriority(500), CreateServices({3, 4}));
+  RegisterServices(provider, ServiceLaunchPriority(500), CreateServices({3, 4}));    // Auto-commits 1000
+  provider.CommitStagedPriority();                                                   // Commit final priority 500
   EXPECT_EQ(provider.GetServiceCount(), 4);
 
   // Unregister both
@@ -573,7 +595,8 @@ TEST(ManagedThreadServiceProviderTest, RegisterUnregisterRegisterAgain)
 
   // Second cycle - should work fine after unregister
   RegisterServices(provider, ServiceLaunchPriority(2000), CreateServices({5, 6}));
-  RegisterServices(provider, ServiceLaunchPriority(1500), CreateServices({7, 8}));
+  RegisterServices(provider, ServiceLaunchPriority(1500), CreateServices({7, 8}));    // Auto-commits 2000
+  provider.CommitStagedPriority();                                                    // Commit final priority 1500
   EXPECT_EQ(provider.GetServiceCount(), 4);
 }
 
@@ -584,9 +607,10 @@ TEST(ManagedThreadServiceProviderTest, MixedServiceCountsPerGroup)
   ManagedThreadServiceProvider provider;
 
   RegisterServices(provider, ServiceLaunchPriority(1000), CreateServices({1}));
-  RegisterServices(provider, ServiceLaunchPriority(900), CreateServices({2, 3}));
-  RegisterServices(provider, ServiceLaunchPriority(800), CreateServices({4, 5, 6}));
-  RegisterServices(provider, ServiceLaunchPriority(700), CreateServices({7, 8, 9, 10}));
+  RegisterServices(provider, ServiceLaunchPriority(900), CreateServices({2, 3}));           // Auto-commits 1000
+  RegisterServices(provider, ServiceLaunchPriority(800), CreateServices({4, 5, 6}));        // Auto-commits 900
+  RegisterServices(provider, ServiceLaunchPriority(700), CreateServices({7, 8, 9, 10}));    // Auto-commits 800
+  provider.CommitStagedPriority();                                                          // Commit final priority 700
 
   EXPECT_EQ(provider.GetServiceCount(), 10);
 }
@@ -612,6 +636,7 @@ TEST(ManagedThreadServiceProviderTest, ServicePointersPersistAfterRegistration)
   service1.reset();    // Release our reference
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(serviceInfos));
+  provider.CommitStagedPriority();
 
   EXPECT_FALSE(weakService.expired()) << "Service should still be alive in provider";
 
@@ -640,6 +665,7 @@ TEST(ManagedThreadServiceProviderTest, ServicePointersPersistAfterUnregister)
   service1.reset();    // Release our reference
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(serviceInfos));
+  provider.CommitStagedPriority();
 
   EXPECT_FALSE(weakService.expired()) << "Service should still be alive in provider";
 
@@ -670,6 +696,7 @@ TEST(ManagedThreadServiceProviderTest, MultipleReferencesToSameService)
   }
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(serviceInfos));
+  provider.CommitStagedPriority();
 
   auto services = provider.UnregisterPriorityGroup(InstanceType::Service, ServiceLaunchPriority(1000));
 
@@ -734,6 +761,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceReturnsRegisteredService)
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   auto retrieved = provider.GetService(typeid(ITestInterface1));
   ASSERT_NE(retrieved, nullptr);
@@ -751,6 +779,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceThrowsForUnknownType)
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   EXPECT_THROW(provider.GetService(typeid(ITestInterface2)), UnknownServiceException);
 }
@@ -769,6 +798,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceThrowsForMultipleServices)
   services.push_back({service2, {std::type_index(typeid(ITestInterface1))}});
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(services));
+  provider.CommitStagedPriority();
 
   EXPECT_THROW(provider.GetService(typeid(ITestInterface1)), MultipleServicesFoundException);
 }
@@ -805,6 +835,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceMultipleServicesExceptionMessag
   services.push_back({service2, {std::type_index(typeid(ITestInterface1))}});
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(services));
+  provider.CommitStagedPriority();
 
   try
   {
@@ -827,6 +858,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceWorksWithIService)
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(IService))}}});
+  provider.CommitStagedPriority();
 
   auto retrieved = provider.GetService(typeid(IService));
   ASSERT_NE(retrieved, nullptr);
@@ -846,7 +878,9 @@ TEST(ManagedThreadServiceProviderTest, GetServiceWorksAcrossPriorityGroups)
   auto service2 = std::make_shared<MockServiceControl>(2);
 
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service1, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
   RegisterServices(provider, ServiceLaunchPriority(500), {{service2, {std::type_index(typeid(ITestInterface2))}}});
+  provider.CommitStagedPriority();
 
   auto retrieved1 = provider.GetService(typeid(ITestInterface1));
   auto retrieved2 = provider.GetService(typeid(ITestInterface2));
@@ -872,6 +906,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsRegisteredService)
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   auto retrieved = provider.TryGetService(typeid(ITestInterface1));
   ASSERT_NE(retrieved, nullptr);
@@ -889,6 +924,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullForUnknownType)
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   auto retrieved = provider.TryGetService(typeid(ITestInterface2));
   EXPECT_EQ(retrieved, nullptr);
@@ -908,6 +944,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsFirstWhenMultiple)
   services.push_back({service2, {std::type_index(typeid(ITestInterface1))}});
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(services));
+  provider.CommitStagedPriority();
 
   // Should return one of them (first found in the map)
   auto retrieved = provider.TryGetService(typeid(ITestInterface1));
@@ -941,6 +978,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsSingleService)
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   std::vector<std::shared_ptr<IService>> services;
   bool result = provider.TryGetServices(typeid(ITestInterface1), services);
@@ -969,6 +1007,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsMultipleServices)
   serviceInfos.push_back({service3, {std::type_index(typeid(ITestInterface1))}});
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(serviceInfos));
+  provider.CommitStagedPriority();
 
   std::vector<std::shared_ptr<IService>> services;
   bool result = provider.TryGetServices(typeid(ITestInterface1), services);
@@ -999,6 +1038,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseForUnknownType)
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   std::vector<std::shared_ptr<IService>> services;
   bool result = provider.TryGetServices(typeid(ITestInterface2), services);
@@ -1017,6 +1057,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesAppendsToExistingVector)
   auto service2 = std::make_shared<MockServiceControl>(2);
 
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service1, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   std::vector<std::shared_ptr<IService>> services;
   services.push_back(service2);    // Pre-existing entry
@@ -1037,7 +1078,8 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesAcrossPriorityGroups)
   auto service2 = std::make_shared<MockServiceControl>(2);
 
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service1, {std::type_index(typeid(ITestInterface1))}}});
-  RegisterServices(provider, ServiceLaunchPriority(500), {{service2, {std::type_index(typeid(ITestInterface1))}}});
+  RegisterServices(provider, ServiceLaunchPriority(500), {{service2, {std::type_index(typeid(ITestInterface1))}}});    // Auto-commits 1000
+  provider.CommitStagedPriority();                                                                                     // Commit final priority 500
 
   std::vector<std::shared_ptr<IService>> services;
   bool result = provider.TryGetServices(typeid(ITestInterface1), services);
@@ -1073,6 +1115,7 @@ TEST(ManagedThreadServiceProviderTest, ServiceWithMultipleInterfacesAccessibleBy
   RegisterServices(
     provider, ServiceLaunchPriority(1000),
     {{service, {std::type_index(typeid(IService)), std::type_index(typeid(ITestInterface1)), std::type_index(typeid(ITestInterface2))}}});
+  provider.CommitStagedPriority();
 
   auto byIService = provider.GetService(typeid(IService));
   auto byInterface1 = provider.GetService(typeid(ITestInterface1));
@@ -1097,6 +1140,7 @@ TEST(ManagedThreadServiceProviderTest, DifferentServicesForDifferentInterfaces)
   services.push_back({service2, {std::type_index(typeid(ITestInterface2))}});
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(services));
+  provider.CommitStagedPriority();
 
   auto retrieved1 = provider.GetService(typeid(ITestInterface1));
   auto retrieved2 = provider.GetService(typeid(ITestInterface2));
@@ -1127,6 +1171,7 @@ TEST(ManagedThreadServiceProviderTest, MultipleServicesWithOverlappingInterfaces
   services.push_back({service2, {std::type_index(typeid(ITestInterface2)), std::type_index(typeid(ITestInterface3))}});
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(services));
+  provider.CommitStagedPriority();
 
   // ITestInterface1 - only service1
   auto interface1 = provider.GetService(typeid(ITestInterface1));
@@ -1160,6 +1205,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceThrowsAfterUnregister)
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   // Should work before unregister
   EXPECT_NO_THROW(provider.GetService(typeid(ITestInterface1)));
@@ -1179,6 +1225,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceReturnsNullAfterUnregister)
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   // Should work before unregister
   ASSERT_NE(provider.TryGetService(typeid(ITestInterface1)), nullptr);
@@ -1198,6 +1245,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesReturnsFalseAfterUnregister
 
   auto service = std::make_shared<MockServiceControl>(42);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   std::vector<std::shared_ptr<IService>> services;
   EXPECT_TRUE(provider.TryGetServices(typeid(ITestInterface1), services));
@@ -1220,6 +1268,7 @@ TEST(ManagedThreadServiceProviderTest, CanReregisterAfterUnregister)
 
   auto service1 = std::make_shared<MockServiceControl>(1);
   RegisterServices(provider, ServiceLaunchPriority(1000), {{service1, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   auto retrieved1 = provider.GetService(typeid(ITestInterface1));
   auto mock1 = std::dynamic_pointer_cast<MockServiceControl>(retrieved1);
@@ -1231,6 +1280,7 @@ TEST(ManagedThreadServiceProviderTest, CanReregisterAfterUnregister)
   // Register different service
   auto service2 = std::make_shared<MockServiceControl>(2);
   RegisterServices(provider, ServiceLaunchPriority(2000), {{service2, {std::type_index(typeid(ITestInterface1))}}});
+  provider.CommitStagedPriority();
 
   auto retrieved2 = provider.GetService(typeid(ITestInterface1));
   auto mock2 = std::dynamic_pointer_cast<MockServiceControl>(retrieved2);
@@ -1256,6 +1306,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceWithManyServicesOfDifferentType
   }
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(services));
+  provider.CommitStagedPriority();
 
   // Should throw because multiple services support IService
   EXPECT_THROW(provider.GetService(typeid(IService)), MultipleServicesFoundException);
@@ -1275,6 +1326,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesWithManyMatchingServices)
   }
 
   RegisterServices(provider, ServiceLaunchPriority(1000), std::move(services));
+  provider.CommitStagedPriority();
 
   std::vector<std::shared_ptr<IService>> retrievedServices;
   bool result = provider.TryGetServices(typeid(ITestInterface1), retrievedServices);
@@ -1298,6 +1350,7 @@ TEST(ManagedThreadServiceProviderTest, ServiceLookupPreservesServiceLifetime)
     auto service = std::make_shared<MockServiceControl>(42);
     weakService = service;
     RegisterServices(provider, ServiceLaunchPriority(1000), {{service, {std::type_index(typeid(ITestInterface1))}}});
+    provider.CommitStagedPriority();
   }
 
   // Service should still be alive because provider holds it
@@ -1325,6 +1378,7 @@ TEST(ManagedThreadServiceProviderTest, SameThreadAccess_Succeeds)
   ManagedThreadServiceProvider provider;
 
   RegisterWithDefaults(provider, ServiceLaunchPriority(1000), {1, 2});
+  provider.CommitStagedPriority();
 
   // All operations on same thread should succeed (not throw)
   auto tryService = provider.TryGetService(typeid(ITestInterface1));
@@ -1342,6 +1396,7 @@ TEST(ManagedThreadServiceProviderTest, GetService_FromWrongThread_ThrowsExceptio
   auto provider = std::make_shared<ManagedThreadServiceProvider>();
 
   RegisterWithDefaults(*provider, ServiceLaunchPriority(1000), {1, 2});
+  provider->CommitStagedPriority();
 
   // Verify works on owner thread
   auto service = provider->TryGetService(typeid(ITestInterface1));
@@ -1372,6 +1427,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetService_FromWrongThread_ThrowsExcep
   auto provider = std::make_shared<ManagedThreadServiceProvider>();
 
   RegisterWithDefaults(*provider, ServiceLaunchPriority(1000), {1, 2});
+  provider->CommitStagedPriority();
 
   // Try to access from different thread
   bool exceptionThrown = false;
@@ -1398,6 +1454,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServices_FromWrongThread_ThrowsExce
   auto provider = std::make_shared<ManagedThreadServiceProvider>();
 
   RegisterWithDefaults(*provider, ServiceLaunchPriority(1000), {1, 2});
+  provider->CommitStagedPriority();
 
   // Try to access from different thread
   bool exceptionThrown = false;
@@ -1442,6 +1499,7 @@ TEST(ManagedThreadServiceProviderTest, UnregisterServiceDoesNotAffectProxies)
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface3))}},
                                                          {InstanceType::Proxy, proxy2, {std::type_index(typeid(IService))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   // Verify all are registered
   EXPECT_EQ(provider.GetServiceCount(), 4);
@@ -1487,6 +1545,7 @@ TEST(ManagedThreadServiceProviderTest, UnregisterProxyDoesNotAffectServices)
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface3))}},
                                                          {InstanceType::Proxy, proxy2, {std::type_index(typeid(IService))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   // Verify all are registered
   EXPECT_EQ(provider.GetServiceCount(), 4);
@@ -1527,6 +1586,7 @@ TEST(ManagedThreadServiceProviderTest, UnregisterBothTypesSequentially)
   auto proxy1 = std::make_shared<MockProxyControl>(101);
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface2))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   EXPECT_EQ(provider.GetServiceCount(), 2);
 
@@ -1555,6 +1615,7 @@ TEST(ManagedThreadServiceProviderTest, UnregisterNonExistentTypeReturnsEmpty)
   auto proxy1 = std::make_shared<MockProxyControl>(101);
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface1))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   EXPECT_EQ(provider.GetServiceCount(), 1);
 
@@ -1580,6 +1641,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceRetrievesProxy)
   auto proxy1 = std::make_shared<MockProxyControl>(101);
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface1))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   auto retrieved = provider.GetService(typeid(ITestInterface1));
   EXPECT_NE(retrieved, nullptr);
@@ -1598,6 +1660,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServiceRetrievesProxy)
   auto proxy1 = std::make_shared<MockProxyControl>(101);
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface2))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   auto retrieved = provider.TryGetService(typeid(ITestInterface2));
   EXPECT_NE(retrieved, nullptr);
@@ -1620,6 +1683,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesRetrievesMultipleProxies)
                                                          {InstanceType::Proxy, proxy2, {std::type_index(typeid(ITestInterface1))}},
                                                          {InstanceType::Proxy, proxy3, {std::type_index(typeid(ITestInterface1))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   std::vector<std::shared_ptr<IService>> retrieved;
   bool result = provider.TryGetServices(typeid(ITestInterface1), retrieved);
@@ -1660,6 +1724,7 @@ TEST(ManagedThreadServiceProviderTest, TryGetServicesRetrievesMixedServicesAndPr
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface1))}},
                                                          {InstanceType::Proxy, proxy2, {std::type_index(typeid(ITestInterface1))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   std::vector<std::shared_ptr<IService>> retrieved;
   bool result = provider.TryGetServices(typeid(ITestInterface1), retrieved);
@@ -1700,6 +1765,7 @@ TEST(ManagedThreadServiceProviderTest, GetServiceThrowsForMixedTypes)
   auto proxy1 = std::make_shared<MockProxyControl>(101);
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface1))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   // Should throw because multiple instances support the interface
   EXPECT_THROW(provider.GetService(typeid(ITestInterface1)), MultipleServicesFoundException);
@@ -1724,14 +1790,15 @@ TEST(ManagedThreadServiceProviderTest, GetServiceCountIncludesBothTypes)
                     {service2, {std::type_index(typeid(ITestInterface2))}},
                     {service3, {std::type_index(typeid(ITestInterface3))}}});
 
-  EXPECT_EQ(provider.GetServiceCount(), 3);
+  EXPECT_EQ(provider.GetStagedServiceCount(), 3);    // 3 services staged but not committed
 
   // Register 2 proxies at different priority
   auto proxy1 = std::make_shared<MockProxyControl>(101);
   auto proxy2 = std::make_shared<MockProxyControl>(102);
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(IService))}},
                                                          {InstanceType::Proxy, proxy2, {std::type_index(typeid(IService))}}};
-  provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));    // Auto-commits 2000
+  provider.CommitStagedPriority();                                                                         // Commit final priority 1000
 
   EXPECT_EQ(provider.GetServiceCount(), 5);
 
@@ -1754,6 +1821,7 @@ TEST(ManagedThreadServiceProviderTest, CannotRegisterServicesAfterProxiesAtSameP
   auto proxy1 = std::make_shared<MockProxyControl>(101);
   std::vector<ServiceProviderServiceInstance> proxies = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface1))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies));
+  provider.CommitStagedPriority();
 
   // Try to register services at same priority (should throw)
   auto service1 = std::make_shared<MockServiceControl>(1);
@@ -1773,7 +1841,7 @@ TEST(ManagedThreadServiceProviderTest, CanRegisterServicesBeforeProxiesAtSamePri
   RegisterServices(provider, ServiceLaunchPriority(1000),
                    {{service1, {std::type_index(typeid(ITestInterface1))}}, {service2, {std::type_index(typeid(ITestInterface2))}}});
 
-  EXPECT_EQ(provider.GetServiceCount(), 2);
+  EXPECT_EQ(provider.GetStagedServiceCount(), 2);    // 2 services staged
 
   // Register proxies at same priority (should succeed)
   auto proxy1 = std::make_shared<MockProxyControl>(101);
@@ -1782,7 +1850,11 @@ TEST(ManagedThreadServiceProviderTest, CanRegisterServicesBeforeProxiesAtSamePri
                                                          {InstanceType::Proxy, proxy2, {std::type_index(typeid(IService))}}};
   EXPECT_NO_THROW(provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies)));
 
-  EXPECT_EQ(provider.GetServiceCount(), 4);
+  EXPECT_EQ(provider.GetStagedServiceCount(), 4);    // 2 services + 2 proxies staged at same priority
+
+  provider.CommitStagedPriority();    // Commit services + proxies at priority 1000
+
+  EXPECT_EQ(provider.GetServiceCount(), 4);    // Now committed
 }
 
 // Tests: Proxy retrieval after partial unregister
@@ -1797,11 +1869,13 @@ TEST(ManagedThreadServiceProviderTest, ProxyRetrievalAfterPartialUnregister)
   std::vector<ServiceProviderServiceInstance> proxies1 = {{InstanceType::Proxy, proxy1, {std::type_index(typeid(ITestInterface1))}},
                                                           {InstanceType::Proxy, proxy2, {std::type_index(typeid(ITestInterface2))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(2000), std::move(proxies1));
+  provider.CommitStagedPriority();
 
   // Register more proxies at priority 1000
   auto proxy3 = std::make_shared<MockProxyControl>(103);
   std::vector<ServiceProviderServiceInstance> proxies2 = {{InstanceType::Proxy, proxy3, {std::type_index(typeid(ITestInterface3))}}};
   provider.RegisterPriorityGroup(InstanceType::Proxy, ServiceLaunchPriority(1000), std::move(proxies2));
+  provider.CommitStagedPriority();
 
   EXPECT_EQ(provider.GetServiceCount(), 3);
 

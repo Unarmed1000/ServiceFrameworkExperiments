@@ -54,6 +54,8 @@ namespace Test2
     boost::asio::awaitable<void> TryStartServiceProxiesAsync(std::vector<StartServiceProxyRecord> services,
                                                              const ServiceLaunchPriority currentPriority) final;
     //! @see IServiceHost
+    boost::asio::awaitable<void> TryInitializeCompleted() final;
+    //! @see IServiceHost
     boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServicesAsync(const ServiceLaunchPriority priority) final;
     //! @see IServiceHost
     boost::asio::awaitable<std::vector<std::exception_ptr>> TryShutdownServiceProxiesAsync(const ServiceLaunchPriority priority) final;

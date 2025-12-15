@@ -104,6 +104,10 @@ namespace Test2
     /// @param currentPriority Priority level for this group.
     boost::asio::awaitable<void> TryStartServiceProxiesAsync(std::vector<StartServiceProxyRecord> services, ServiceLaunchPriority currentPriority);
 
+    /// @brief Called after all services and proxies have been initialized.
+    /// @return Awaitable that completes when initialization is validated.
+    boost::asio::awaitable<void> TryInitializeCompleted();
+
     /// @brief Shuts down service proxies at the specified priority.
     /// @param priority The priority level to shut down.
     /// @return Awaitable containing any exceptions that occurred during shutdown.

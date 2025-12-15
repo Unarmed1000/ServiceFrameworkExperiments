@@ -55,6 +55,13 @@ namespace Test2
     std::unordered_multimap<std::type_index, std::shared_ptr<IServiceControlBase>> m_servicesByType;
     std::thread::id m_ownerThreadId;
 
+    /// @brief Staging area for instances before they are committed.
+    /// Staged instances are not visible via GetService/TryGetService until CommitStagedPriority() is called.
+    std::vector<ServiceProviderServiceInstance> m_stagedInstances;
+
+    /// @brief Priority level of currently staged instances.
+    ServiceLaunchPriority m_stagedPriority{0};
+
     /// @brief Validates that the current thread is the owner thread.
     /// @throws ServiceProviderException if called from a different thread.
     void ValidateThreadAccess() const
@@ -82,6 +89,9 @@ namespace Test2
     ///
     /// Each instance must have a valid pointer and at least one supported interface.
     ///
+    /// AUTO-COMMIT BEHAVIOR: If there are staged instances at a different priority level,
+    /// they will be automatically committed before staging the new instances.
+    ///
     /// @param instanceType Whether these are services or proxies.
     /// @param priority The priority level for this group.
     /// @param instances The instance info structs to register (will be moved).
@@ -93,6 +103,12 @@ namespace Test2
       if (instances.empty())
       {
         throw EmptyPriorityGroupException(fmt::format("Cannot register empty priority group for priority {}", priority.GetValue()));
+      }
+
+      // AUTO-COMMIT: If staging a different priority, commit the current staged priority first
+      if (!m_stagedInstances.empty() && m_stagedPriority != priority)
+      {
+        CommitStagedPriority();
       }
 
       // Validate all instances have correct type
@@ -143,7 +159,7 @@ namespace Test2
           }
         }
 
-        // Validate and index new instances
+        // Validate instances before staging
         for (size_t i = 0; i < instances.size(); ++i)
         {
           if (!instances[i].Instance)
@@ -154,16 +170,11 @@ namespace Test2
           {
             throw std::invalid_argument(fmt::format("Instance at index {} has no supported interfaces", i));
           }
-
-          // Index by each supported interface type
-          for (const std::type_index& typeIndex : instances[i].SupportedInterfaces)
-          {
-            m_servicesByType.emplace(typeIndex, instances[i].Instance);
-          }
         }
 
-        // Append to existing group
-        it->Instances.insert(it->Instances.end(), std::make_move_iterator(instances.begin()), std::make_move_iterator(instances.end()));
+        // Stage instances instead of immediately committing
+        m_stagedPriority = priority;
+        m_stagedInstances.insert(m_stagedInstances.end(), std::make_move_iterator(instances.begin()), std::make_move_iterator(instances.end()));
       }
       else
       {
@@ -180,7 +191,7 @@ namespace Test2
           }
         }
 
-        // Validate and index instances
+        // Validate instances before staging
         for (size_t i = 0; i < instances.size(); ++i)
         {
           if (!instances[i].Instance)
@@ -191,17 +202,84 @@ namespace Test2
           {
             throw std::invalid_argument(fmt::format("Instance at index {} has no supported interfaces", i));
           }
+        }
 
-          // Index by each supported interface type
-          for (const std::type_index& typeIndex : instances[i].SupportedInterfaces)
+        // Stage instances instead of immediately committing
+        m_stagedPriority = priority;
+        m_stagedInstances.insert(m_stagedInstances.end(), std::make_move_iterator(instances.begin()), std::make_move_iterator(instances.end()));
+      }
+    }
+
+    /// @brief Commits all staged instances, making them visible via GetService/TryGetService.
+    ///
+    /// All staged instances must have the same priority value. This method will:
+    /// 1. Create or append to the appropriate priority group
+    /// 2. Index all instances by their supported interfaces
+    /// 3. Clear the staging area
+    ///
+    /// @throws std::runtime_error if staged instances have mismatched priorities
+    void CommitStagedPriority()
+    {
+      ValidateThreadAccess();
+
+      if (m_stagedInstances.empty())
+      {
+        return;
+      }
+
+      // Track size before moving
+      const size_t stagedCount = m_stagedInstances.size();
+
+      // Find or create priority group
+      auto it = std::find_if(m_priorityGroups.begin(), m_priorityGroups.end(),
+                             [this](const PriorityGroup& group) { return group.Priority == m_stagedPriority; });
+
+      if (it != m_priorityGroups.end())
+      {
+        // Priority group exists - append staged instances
+        size_t oldSize = it->Instances.size();
+        it->Instances.insert(it->Instances.end(), std::make_move_iterator(m_stagedInstances.begin()),
+                             std::make_move_iterator(m_stagedInstances.end()));
+
+        // Index newly added instances
+        for (size_t i = oldSize; i < it->Instances.size(); ++i)
+        {
+          for (const std::type_index& typeIndex : it->Instances[i].SupportedInterfaces)
           {
-            m_servicesByType.emplace(typeIndex, instances[i].Instance);
+            m_servicesByType.emplace(typeIndex, it->Instances[i].Instance);
+          }
+        }
+      }
+      else
+      {
+        // Create new priority group with moved instances
+        PriorityGroup newGroup{m_stagedPriority, std::move(m_stagedInstances)};
+
+        // Index all instances in the new group
+        for (const auto& instance : newGroup.Instances)
+        {
+          for (const std::type_index& typeIndex : instance.SupportedInterfaces)
+          {
+            m_servicesByType.emplace(typeIndex, instance.Instance);
           }
         }
 
-        // Create new priority group
-        m_priorityGroups.emplace_back(PriorityGroup{priority, std::move(instances)});
+        m_priorityGroups.emplace_back(std::move(newGroup));
       }
+
+      // Clear staging
+      m_stagedInstances.clear();
+      m_stagedPriority = ServiceLaunchPriority{0};
+    }
+
+    /// @brief Discards all staged instances without committing them.
+    ///
+    /// Clears the staging area, making staged instances unavailable.
+    /// This is typically called on initialization failure to rollback.
+    void DiscardStagedPriority() noexcept
+    {
+      // No thread validation - this may be called during cleanup
+      m_stagedInstances.clear();
     }
 
     /// @brief Unregisters instances of a specific type at a specific priority level.
@@ -263,6 +341,9 @@ namespace Test2
     }
 
     // IServiceProvider interface implementations
+    // MISSING FEATURE: GetService does NOT enforce priority-based access restrictions.
+    // TODO: This method should filter results based on the calling service's priority level.
+    //       Services at priority N should only access services at priority > N (strictly higher).
     std::shared_ptr<IService> GetService(const std::type_info& type) const override
     {
       ValidateThreadAccess();
@@ -341,6 +422,20 @@ namespace Test2
         count += group.Instances.size();
       }
       return count;
+    }
+
+    /// @brief Get the count of staged (uncommitted) instances.
+    /// @return The number of instances currently staged but not yet committed.
+    [[nodiscard]] std::size_t GetStagedServiceCount() const noexcept
+    {
+      const auto currentThreadId = std::this_thread::get_id();
+      if (currentThreadId != m_ownerThreadId)
+      {
+        spdlog::warn("GetStagedServiceCount called from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
+        return 0;
+      }
+
+      return m_stagedInstances.size();
     }
 
     /// @brief Process all registered instances (services and proxies).

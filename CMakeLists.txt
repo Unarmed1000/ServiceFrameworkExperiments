@@ -233,6 +233,9 @@ project(ServiceFramework2025
     LANGUAGES CXX
 )
 
+# Enable testing support
+enable_testing()
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -647,6 +650,15 @@ target_include_directories(test_lifecycle_manager PRIVATE ${CMAKE_SOURCE_DIR}/sr
 target_link_libraries(test_lifecycle_manager PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Lifecycle" FILES UnitTest/Test2/Lifecycle/LifecycleManagerTest.cpp)
 
+# Executable 14b: ManagedThreadServiceProvider Staging test
+add_executable(test_managed_thread_service_provider_staging
+    UnitTest/Test2/Host/ManagedThreadServiceProviderStagingTest.cpp
+)
+configure_target(test_managed_thread_service_provider_staging)
+target_include_directories(test_managed_thread_service_provider_staging PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_managed_thread_service_provider_staging PRIVATE test2_framework GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Host" FILES UnitTest/Test2/Host/ManagedThreadServiceProviderStagingTest.cpp)
+
 # Executable 15: ExecutorContext test
 add_executable(test_executor_context
     UnitTest/Test2/Lifecycle/ExecutorContextTest.cpp
@@ -686,3 +698,20 @@ target_include_directories(test_mock_service_factory PRIVATE ${CMAKE_SOURCE_DIR}
 target_include_directories(test_mock_service_factory PRIVATE ${CMAKE_SOURCE_DIR}/UnitTest)
 target_link_libraries(test_mock_service_factory PRIVATE test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Util" FILES UnitTest/Test2/Util/MockServiceFactory.cpp UnitTest/Test2/Util/MockServiceFactoryTest.cpp)
+
+# Register all tests with CTest
+add_test(NAME AggregateException COMMAND test_aggregate_exception)
+add_test(NAME ServiceRegistry COMMAND test_service_registry)
+add_test(NAME ServiceProvider COMMAND test_service_provider)
+add_test(NAME ServiceProviderProxy COMMAND test_service_provider_proxy)
+add_test(NAME ManagedThreadServiceProvider COMMAND test_managed_thread_service_provider)
+add_test(NAME ManagedThreadServiceProviderStaging COMMAND test_managed_thread_service_provider_staging)
+add_test(NAME CooperativeThreadServiceHost COMMAND test_cooperative_thread_service_host)
+add_test(NAME ManagedThreadServiceHost COMMAND test_managed_thread_service_host)
+add_test(NAME ServiceHostBase COMMAND test_service_host_base)
+add_test(NAME LifecycleManager COMMAND test_lifecycle_manager)
+add_test(NAME ExecutorContext COMMAND test_executor_context)
+add_test(NAME DispatchContext COMMAND test_dispatch_context)
+add_test(NAME ProcessResult COMMAND test_process_result)
+add_test(NAME AsyncProxyHelper COMMAND test_async_proxy_helper)
+add_test(NAME MockServiceFactory COMMAND test_mock_service_factory)

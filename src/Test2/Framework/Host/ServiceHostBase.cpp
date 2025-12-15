@@ -264,6 +264,16 @@ namespace Test2
     co_return shutdownFailures;
   }
 
+  boost::asio::awaitable<void> ServiceHostBase::TryInitializeCompleted()
+  {
+    ValidateThreadAccess();
+
+    // TODO: Validate that no staged services/proxies remain
+    // This will be implemented as part of the staging infrastructure
+
+    co_return;
+  }
+
   boost::asio::awaitable<std::vector<std::exception_ptr>> ServiceHostBase::TryShutdownServicesAsync(ServiceLaunchPriority priority)
   {
     ValidateThreadAccess();

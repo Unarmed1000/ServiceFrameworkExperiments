@@ -32,6 +32,12 @@ namespace Test2
   /// the provider to be "cleared" (disconnected), after which all service access attempts will
   /// fail gracefully. This is useful for preventing services from accessing the provider after
   /// initialization failures or during shutdown sequences.
+  ///
+  /// @note MISSING FEATURE: This proxy currently does NOT enforce priority-based access restrictions.
+  ///       According to ServiceLaunchPriority documentation, services/proxies at priority N should only
+  ///       be able to access services at priority > N (strictly higher). Currently, this proxy provides
+  ///       unrestricted access to ALL registered services regardless of priority levels.
+  ///       TODO: Implement priority-based filtering in the proxy to enforce proper dependency ordering.
   class ServiceProviderProxy : public IServiceProvider
   {
     std::shared_ptr<IServiceProvider> m_provider;
