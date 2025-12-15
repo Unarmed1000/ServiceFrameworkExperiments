@@ -36,6 +36,36 @@
 
 namespace Test2
 {
+  /// @brief Thread-local service provider with staged registration for priority-based access control.
+  ///
+  /// This provider manages service and proxy lifetimes using a two-phase registration pattern:
+  /// 1. STAGING: RegisterPriorityGroup() stages instances (not yet visible via GetService/TryGetService)
+  /// 2. COMMIT: CommitStagedPriority() makes staged instances visible to dependency lookups
+  ///
+  /// STAGING BEHAVIOR:
+  /// - Instances are staged when RegisterPriorityGroup() is called
+  /// - Staged instances are NOT visible via GetService/TryGetService until committed
+  /// - This ensures services at priority N cannot access other services at priority N during initialization
+  /// - Services can only access higher-priority services (already committed)
+  ///
+  /// AUTO-COMMIT:
+  /// - When RegisterPriorityGroup() is called with a different priority than currently staged,
+  ///   the previously staged priority is automatically committed first
+  /// - This simplifies the common case of registering multiple priorities sequentially
+  ///
+  /// LIFECYCLE:
+  /// - Services must be registered before proxies at the same priority
+  /// - Priority groups must be registered in strictly decreasing order
+  /// - Call CommitStagedPriority() to make staged instances visible
+  /// - Call DiscardStagedPriority() to rollback staging on initialization failure
+  ///
+  /// THREAD SAFETY:
+  /// - All methods must be called from the owner thread (thread that constructed the provider)
+  /// - Thread validation occurs on each method call
+  ///
+  /// @see CommitStagedPriority()
+  /// @see DiscardStagedPriority()
+  /// @see RegisterPriorityGroup()
   class ManagedThreadServiceProvider : public IServiceProvider
   {
   public:
@@ -61,6 +91,10 @@ namespace Test2
 
     /// @brief Priority level of currently staged instances.
     ServiceLaunchPriority m_stagedPriority{0};
+
+    /// @brief Flag indicating if staging is in error state (commit failed).
+    /// When true, new registrations are blocked until proper shutdown occurs.
+    bool m_stagingInErrorState{false};
 
     /// @brief Validates that the current thread is the owner thread.
     /// @throws ServiceProviderException if called from a different thread.
@@ -98,11 +132,20 @@ namespace Test2
     /// @throws EmptyPriorityGroupException if the instances vector is empty.
     /// @throws InvalidPriorityOrderException if priority ordering is violated or service-before-proxy rule violated.
     /// @throws std::invalid_argument if any instance has no supported interfaces or null pointer.
+    /// @throws ServiceProviderException if staging is in error state (must shutdown before new registrations).
     void RegisterPriorityGroup(InstanceType instanceType, ServiceLaunchPriority priority, std::vector<ServiceProviderServiceInstance>&& instances)
     {
       if (instances.empty())
       {
         throw EmptyPriorityGroupException(fmt::format("Cannot register empty priority group for priority {}", priority.GetValue()));
+      }
+
+      // Check if staging is in error state - must shutdown before new registrations
+      if (m_stagingInErrorState)
+      {
+        throw ServiceProviderException(
+          fmt::format("Cannot register new instances - staging is in error state. "
+                      "Must call TryShutdownServiceProxiesAsync + TryShutdownServicesAsync before new registrations."));
       }
 
       // AUTO-COMMIT: If staging a different priority, commit the current staged priority first
@@ -217,6 +260,9 @@ namespace Test2
     /// 2. Index all instances by their supported interfaces
     /// 3. Clear the staging area
     ///
+    /// If this method throws an exception, staging enters error state and new registrations
+    /// are blocked until proper shutdown (TryShutdownServiceProxiesAsync + TryShutdownServicesAsync).
+    ///
     /// @throws std::runtime_error if staged instances have mismatched priorities
     void CommitStagedPriority()
     {
@@ -227,59 +273,95 @@ namespace Test2
         return;
       }
 
-      // Track size before moving
-      const size_t stagedCount = m_stagedInstances.size();
-
-      // Find or create priority group
-      auto it = std::find_if(m_priorityGroups.begin(), m_priorityGroups.end(),
-                             [this](const PriorityGroup& group) { return group.Priority == m_stagedPriority; });
-
-      if (it != m_priorityGroups.end())
+      try
       {
-        // Priority group exists - append staged instances
-        size_t oldSize = it->Instances.size();
-        it->Instances.insert(it->Instances.end(), std::make_move_iterator(m_stagedInstances.begin()),
-                             std::make_move_iterator(m_stagedInstances.end()));
+        // Find or create priority group
+        auto it = std::find_if(m_priorityGroups.begin(), m_priorityGroups.end(),
+                               [this](const PriorityGroup& group) { return group.Priority == m_stagedPriority; });
 
-        // Index newly added instances
-        for (size_t i = oldSize; i < it->Instances.size(); ++i)
+        if (it != m_priorityGroups.end())
         {
-          for (const std::type_index& typeIndex : it->Instances[i].SupportedInterfaces)
+          // Priority group exists - append staged instances
+          size_t oldSize = it->Instances.size();
+          it->Instances.insert(it->Instances.end(), std::make_move_iterator(m_stagedInstances.begin()),
+                               std::make_move_iterator(m_stagedInstances.end()));
+
+          // Index newly added instances
+          for (size_t i = oldSize; i < it->Instances.size(); ++i)
           {
-            m_servicesByType.emplace(typeIndex, it->Instances[i].Instance);
+            for (const std::type_index& typeIndex : it->Instances[i].SupportedInterfaces)
+            {
+              m_servicesByType.emplace(typeIndex, it->Instances[i].Instance);
+            }
           }
         }
+        else
+        {
+          // Create new priority group with moved instances
+          PriorityGroup newGroup{m_stagedPriority, std::move(m_stagedInstances)};
+
+          // Index all instances in the new group
+          for (const auto& instance : newGroup.Instances)
+          {
+            for (const std::type_index& typeIndex : instance.SupportedInterfaces)
+            {
+              m_servicesByType.emplace(typeIndex, instance.Instance);
+            }
+          }
+
+          m_priorityGroups.emplace_back(std::move(newGroup));
+        }
+
+        // Clear staging
+        m_stagedInstances.clear();
+        m_stagedPriority = ServiceLaunchPriority{0};
+      }
+      catch (...)
+      {
+        // Mark staging as in error state - new registrations blocked until shutdown
+        m_stagingInErrorState = true;
+        spdlog::error("CommitStagedPriority failed - staging now in error state. Must shutdown before new registrations.");
+        throw;
+      }
+    }
+
+    /// @brief Discards staged instances of the specified type without committing them.
+    ///
+    /// Removes only staged instances matching the specified type from the staging area.
+    /// This is typically called during shutdown to cleanup uncommitted instances.
+    ///
+    /// @param type The instance type to discard (Proxy or Service)
+    ///
+    /// IDEMPOTENT: Safe to call multiple times or when staging is already empty.
+    /// No-op if there are no staged instances of the specified type.
+    ///
+    /// Clears error state if ALL staged instances are discarded.
+    ///
+    /// @note Does not perform thread validation - safe to call during cleanup/exception handling.
+    void DiscardStagedPriority(InstanceType type) noexcept
+    {
+      // No thread validation - this may be called during cleanup
+
+      // Remove instances matching the specified type
+      auto it = std::remove_if(m_stagedInstances.begin(), m_stagedInstances.end(),
+                               [type](const ServiceProviderServiceInstance& instance) { return instance.Type == type; });
+
+      const size_t removedCount = std::distance(it, m_stagedInstances.end());
+      m_stagedInstances.erase(it, m_stagedInstances.end());
+
+      // If all staged instances are now gone, clear staging completely
+      if (m_stagedInstances.empty())
+      {
+        m_stagedPriority = ServiceLaunchPriority(0);
+        m_stagingInErrorState = false;    // Clear error state - cleanup complete
+        spdlog::info("DiscardStagedPriority({}) - all staged instances cleared, error state reset",
+                     type == InstanceType::Proxy ? "Proxy" : "Service");
       }
       else
       {
-        // Create new priority group with moved instances
-        PriorityGroup newGroup{m_stagedPriority, std::move(m_stagedInstances)};
-
-        // Index all instances in the new group
-        for (const auto& instance : newGroup.Instances)
-        {
-          for (const std::type_index& typeIndex : instance.SupportedInterfaces)
-          {
-            m_servicesByType.emplace(typeIndex, instance.Instance);
-          }
-        }
-
-        m_priorityGroups.emplace_back(std::move(newGroup));
+        spdlog::info("DiscardStagedPriority({}) - removed {} instances, {} remaining", type == InstanceType::Proxy ? "Proxy" : "Service",
+                     removedCount, m_stagedInstances.size());
       }
-
-      // Clear staging
-      m_stagedInstances.clear();
-      m_stagedPriority = ServiceLaunchPriority{0};
-    }
-
-    /// @brief Discards all staged instances without committing them.
-    ///
-    /// Clears the staging area, making staged instances unavailable.
-    /// This is typically called on initialization failure to rollback.
-    void DiscardStagedPriority() noexcept
-    {
-      // No thread validation - this may be called during cleanup
-      m_stagedInstances.clear();
     }
 
     /// @brief Unregisters instances of a specific type at a specific priority level.
@@ -436,6 +518,22 @@ namespace Test2
       }
 
       return m_stagedInstances.size();
+    }
+
+    /// @brief Get the count of staged instances of a specific type.
+    /// @param type The instance type to count (Proxy or Service)
+    /// @return The number of instances of the specified type currently staged.
+    [[nodiscard]] std::size_t GetStagedInstanceCount(InstanceType type) const noexcept
+    {
+      const auto currentThreadId = std::this_thread::get_id();
+      if (currentThreadId != m_ownerThreadId)
+      {
+        spdlog::warn("GetStagedInstanceCount called from wrong thread. Owner: {}, Caller: {}", m_ownerThreadId, currentThreadId);
+        return 0;
+      }
+
+      return std::count_if(m_stagedInstances.begin(), m_stagedInstances.end(),
+                           [type](const ServiceProviderServiceInstance& instance) { return instance.Type == type; });
     }
 
     /// @brief Process all registered instances (services and proxies).

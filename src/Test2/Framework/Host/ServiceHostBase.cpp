@@ -249,6 +249,7 @@ namespace Test2
     ValidateThreadAccess();
 
     // Commit any staged services/proxies to make them available
+    // On failure, propagate exception - caller must use shutdown methods to cleanup
     m_provider->CommitStagedPriority();
 
     co_return;
@@ -260,7 +261,16 @@ namespace Test2
 
     std::vector<std::exception_ptr> shutdownFailures;
 
-    // Unregister proxies at this priority level
+    // First, discard any staged proxies at this priority
+    // Check if there are staged instances and if they match this priority
+    if (m_provider->GetStagedServiceCount() > 0)
+    {
+      // Discard only PROXY instances - services handled separately
+      m_provider->DiscardStagedPriority(InstanceType::Proxy);
+      spdlog::info("Discarded staged proxy instances during proxy shutdown at priority {}", priority.GetValue());
+    }
+
+    // Then unregister committed proxies at this priority level
     auto proxies = m_provider->UnregisterPriorityGroup(InstanceType::Proxy, priority);
 
     if (proxies.empty())
@@ -268,7 +278,7 @@ namespace Test2
       co_return shutdownFailures;
     }
 
-    spdlog::info("Shutting down {} proxies at priority {}", proxies.size(), priority.GetValue());
+    spdlog::info("Shutting down {} committed proxies at priority {}", proxies.size(), priority.GetValue());
 
     // No actual shutdown logic needed since proxies don't have ShutdownAsync
     // They're just cleaned up when references are released
@@ -281,7 +291,26 @@ namespace Test2
 
     std::vector<std::exception_ptr> shutdownFailures;
 
-    // Unregister services at this priority level
+    // VALIDATION: There should NOT be any staged proxies at this point
+    // Proxies should have been handled by TryShutdownServiceProxiesAsync
+    if (m_provider->GetStagedInstanceCount(InstanceType::Proxy) > 0)
+    {
+      spdlog::error(
+        "CRITICAL: Staged proxies detected during service shutdown at priority {} - proxies should have been handled by "
+        "TryShutdownServiceProxiesAsync",
+        priority.GetValue());
+    }
+
+    // First, discard any staged services at this priority
+    // Note: Proxies handled separately in TryShutdownServiceProxiesAsync
+    // This only discards SERVICE instances
+    if (m_provider->GetStagedServiceCount() > 0)
+    {
+      m_provider->DiscardStagedPriority(InstanceType::Service);
+      spdlog::info("Discarded staged service instances during service shutdown at priority {}", priority.GetValue());
+    }
+
+    // Then unregister committed services at this priority level
     auto services = m_provider->UnregisterPriorityGroup(InstanceType::Service, priority);
 
     if (services.empty())
@@ -289,7 +318,7 @@ namespace Test2
       co_return shutdownFailures;
     }
 
-    spdlog::info("Shutting down {} services at priority {} (reverse order)", services.size(), priority.GetValue());
+    spdlog::info("Shutting down {} committed services at priority {} (reverse order)", services.size(), priority.GetValue());
 
     // Shutdown in reverse order - services have ShutdownAsync
     for (auto it = services.rbegin(); it != services.rend(); ++it)

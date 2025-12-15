@@ -35,7 +35,7 @@ namespace Test2
   class ServiceProviderProxy;
   class ManagedThreadServiceProvider;
   class IServiceControl;
-  class ProcessResult;
+  struct ProcessResult;
 }
 
 namespace Test2
