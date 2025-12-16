@@ -445,6 +445,25 @@ else()
     target_compile_options(test2_divide_service PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# Test2 Calculator Service library - CalculatorService implementation
+add_library(test2_calculator_service STATIC
+    src/Test2/Service/Calculator/CalculatorService.cpp
+    src/Test2/Service/Calculator/CalculatorServiceProxy.cpp
+    src/Test2/Service/Calculator/CalculatorServiceImplFactory.cpp
+    src/Test2/Service/Calculator/CalculatorServiceProxyFactory.cpp
+)
+target_include_directories(test2_calculator_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test2_calculator_service
+    PUBLIC
+        test2_framework
+)
+target_compile_features(test2_calculator_service PUBLIC cxx_std_20)
+if(MSVC)
+    target_compile_options(test2_calculator_service PRIVATE /W4)
+else()
+    target_compile_options(test2_calculator_service PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 # ============================================================
 # Executables
 # ============================================================
@@ -727,6 +746,15 @@ configure_target(test_divide_service)
 target_include_directories(test_divide_service PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_divide_service PRIVATE test2_divide_service test2_framework GTest::gtest GTest::gtest_main)
 source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Service/DivideServiceTest.cpp)
+
+# Executable 12e: CalculatorService test
+add_executable(test_calculator_service
+    UnitTest/Test2/Service/CalculatorServiceTest.cpp
+)
+configure_target(test_calculator_service)
+target_include_directories(test_calculator_service PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_calculator_service PRIVATE test2_calculator_service test2_add_service test2_subtract_service test2_multiply_service test2_divide_service test2_framework GTest::gtest GTest::gtest_main)
+source_group("Source Files\\UnitTest\\Test2\\Service" FILES UnitTest/Test2/Service/CalculatorServiceTest.cpp)
 
 # Executable 13: CooperativeThreadServiceHost test (tests internal implementation)
 add_executable(test_cooperative_thread_service_host
