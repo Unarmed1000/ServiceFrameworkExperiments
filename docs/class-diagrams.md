@@ -149,16 +149,27 @@ classDiagram
 
     class ManagedThreadRecord
 
-    CooperativeThreadHost o-- CooperativeThreadServiceHost : wraps
+    class CooperativeThreadServiceHost {
+        <<internal>>
+    }
+
+    class ManagedThreadServiceHost {
+        <<internal>>
+    }
+
+    CooperativeThreadHost *-- CooperativeThreadServiceHost : owns
     ServiceHostBase <|-- CooperativeThreadServiceHost
     ServiceHostBase <|-- ManagedThreadServiceHost
     ServiceHostBase --> ManagedThreadServiceProvider : owns
     IServiceHost <|.. ServiceHostBase
 
-    ManagedThreadHost *-- ManagedThreadServiceHost : contains
+    ManagedThreadHost *-- ManagedThreadServiceHost : owns
     ManagedThreadHost ..> ManagedThreadRecord : creates
     ServiceHostProxy --> IServiceHost : wraps
     ManagedThreadHost --> ServiceHostProxy : provides
+
+    note for CooperativeThreadServiceHost "Internal implementation<br/>inherits from ServiceHostBase"
+    note for ManagedThreadServiceHost "Internal implementation<br/>inherits from ServiceHostBase"
 ```
 
 ---
@@ -271,10 +282,32 @@ classDiagram
         <<abstract>>
     }
 
-    class IServiceFactory {
+    class IServiceFactoryInfo {
         <<interface>>
-        +GetSupportedInterfaces() span~type_info~
-        +Create(type_info, ServiceCreateInfo) shared_ptr~IServiceControl~
+        +GetSupportedInterfaces() span~type_index~
+    }
+
+    class AsyncServiceFactory {
+        +GetProxyFactory() IAsyncServiceProxyFactory
+        +GetImplFactory() IAsyncServiceImplFactory
+    }
+
+    class IAsyncServiceImplFactory {
+        <<interface>>
+        +Create(ServiceCreateInfo) shared_ptr~IServiceControl~
+    }
+
+    class IAsyncServiceProxyFactory {
+        <<interface>>
+        +Create(ServiceProxyCreateInfo) shared_ptr~IServiceProxyControl~
+    }
+
+    class AsyncServiceImplFactory {
+        <<abstract>>
+    }
+
+    class AsyncServiceProxyFactory {
+        <<abstract>>
     }
 
     class ProcessResult {
@@ -315,7 +348,15 @@ classDiagram
     IService <|-- IServiceControl
     IServiceControl <|-- AsyncServiceBase
     ProcessResult --> ProcessStatus
-    IServiceFactory ..> IServiceControl : creates
+
+    IServiceFactoryInfo <|.. AsyncServiceFactory
+    AsyncServiceFactory --> IAsyncServiceProxyFactory : owns
+    AsyncServiceFactory --> IAsyncServiceImplFactory : owns
+    IAsyncServiceImplFactory <|.. AsyncServiceImplFactory
+    IAsyncServiceProxyFactory <|.. AsyncServiceProxyFactory
+    AsyncServiceImplFactory ..> IServiceControl : creates
+    AsyncServiceProxyFactory ..> IServiceProxyControl : creates
+
     ServiceCreateInfo --> ServiceProvider : contains
 ```
 
@@ -364,7 +405,10 @@ classDiagram
 
 ## Service Implementations
 
-Concrete service implementations demonstrating the dual inheritance pattern (extends `AsyncServiceBase` and implements service-specific interface).
+Concrete service implementations demonstrating the dual factory pattern with implementation and proxy services. Each service has:
+- An implementation class extending `AsyncServiceBase` (runs on dedicated thread)
+- A proxy class extending `AsyncServiceProxyBase` (enables cross-thread access)
+- Both implement the same service interface
 
 ```mermaid
 classDiagram
@@ -404,16 +448,30 @@ classDiagram
     }
 
     class AddService
+    class AddServiceProxy
     class SubtractService
+    class SubtractServiceProxy
     class MultiplyService
+    class MultiplyServiceProxy
     class DivideService
+    class DivideServiceProxy
     class CalculatorService
+    class CalculatorServiceProxy
 
     class AddServiceImplFactory
-    class SubtractServiceFactory
-    class MultiplyServiceFactory
-    class DivideServiceFactory
-    class CalculatorServiceFactory
+    class AddServiceProxyFactory
+    class SubtractServiceImplFactory
+    class SubtractServiceProxyFactory
+    class MultiplyServiceImplFactory
+    class MultiplyServiceProxyFactory
+    class DivideServiceImplFactory
+    class DivideServiceProxyFactory
+    class CalculatorServiceImplFactory
+    class CalculatorServiceProxyFactory
+
+    class AsyncServiceProxyBase {
+        <<abstract>>
+    }
 
     IService <|-- IAddService
     IService <|-- ISubtractService
@@ -427,22 +485,43 @@ classDiagram
     AsyncServiceBase <|-- DivideService
     AsyncServiceBase <|-- CalculatorService
 
+    AsyncServiceProxyBase <|-- AddServiceProxy
+    AsyncServiceProxyBase <|-- SubtractServiceProxy
+    AsyncServiceProxyBase <|-- MultiplyServiceProxy
+    AsyncServiceProxyBase <|-- DivideServiceProxy
+    AsyncServiceProxyBase <|-- CalculatorServiceProxy
+
     IAddService <|.. AddService
+    IAddService <|.. AddServiceProxy
     ISubtractService <|.. SubtractService
+    ISubtractService <|.. SubtractServiceProxy
     IMultiplyService <|.. MultiplyService
+    IMultiplyService <|.. MultiplyServiceProxy
     IDivideService <|.. DivideService
+    IDivideService <|.. DivideServiceProxy
     ICalculatorService <|.. CalculatorService
+    ICalculatorService <|.. CalculatorServiceProxy
 
     AddServiceImplFactory ..> AddService : creates
-    SubtractServiceFactory ..> SubtractService : creates
-    MultiplyServiceFactory ..> MultiplyService : creates
-    DivideServiceFactory ..> DivideService : creates
-    CalculatorServiceFactory ..> CalculatorService : creates
+    AddServiceProxyFactory ..> AddServiceProxy : creates
+    SubtractServiceImplFactory ..> SubtractService : creates
+    SubtractServiceProxyFactory ..> SubtractServiceProxy : creates
+    MultiplyServiceImplFactory ..> MultiplyService : creates
+    MultiplyServiceProxyFactory ..> MultiplyServiceProxy : creates
+    DivideServiceImplFactory ..> DivideService : creates
+    DivideServiceProxyFactory ..> DivideServiceProxy : creates
+    CalculatorServiceImplFactory ..> CalculatorService : creates
+    CalculatorServiceProxyFactory ..> CalculatorServiceProxy : creates
 
     CalculatorService --> IAddService : uses
     CalculatorService --> ISubtractService : uses
     CalculatorService --> IMultiplyService : uses
     CalculatorService --> IDivideService : uses
+
+    CalculatorServiceProxy --> IAddService : uses
+    CalculatorServiceProxy --> ISubtractService : uses
+    CalculatorServiceProxy --> IMultiplyService : uses
+    CalculatorServiceProxy --> IDivideService : uses
 ```
 
 ---
