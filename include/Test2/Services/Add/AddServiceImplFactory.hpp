@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
 #include <Test2/Services/Add/IAddService.hpp>
 
 namespace Test2

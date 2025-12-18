@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_ASYNCSERVICEFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_ASYNCSERVICEFACTORY_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_FACTORY_ASYNCSERVICEFACTORY_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_FACTORY_ASYNCSERVICEFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/IAsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceFactory.hpp>
 #include <memory>
 
 namespace Test2

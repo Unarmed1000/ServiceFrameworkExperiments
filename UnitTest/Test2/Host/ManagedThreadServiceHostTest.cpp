@@ -20,8 +20,8 @@
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
-#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>

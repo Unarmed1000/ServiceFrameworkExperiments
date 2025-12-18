@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/AsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceProxyFactory.hpp>
 #include <Test2/Framework/Service/ServiceProxyCreateInfo.hpp>
 #include <Test2/Services/Calculator/ICalculatorService.hpp>
 #include <memory>

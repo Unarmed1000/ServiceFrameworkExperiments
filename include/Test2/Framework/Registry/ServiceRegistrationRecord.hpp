@@ -15,7 +15,7 @@
 
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceThreadGroupId.hpp>
-#include <Test2/Framework/Service/Async/IAsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceFactory.hpp>
 #include <memory>
 
 namespace Test2

@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_ASYNCSERVICEPROXYFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_ASYNCSERVICEPROXYFACTORY_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_FACTORY_ASYNCSERVICEFACTORYUTIL_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_FACTORY_ASYNCSERVICEFACTORYUTIL_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,25 +13,22 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/IAsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceFactory.hpp>
 
-namespace Test2
+namespace Test2::AsyncServiceFactoryUtil
 {
-  class AsyncServiceProxyFactory : public IAsyncServiceProxyFactory
+  inline std::shared_ptr<IAsyncServiceFactory> CreateAsyncServiceFactory(std::shared_ptr<IAsyncServiceProxyFactory> proxyFactory,
+                                                                         std::shared_ptr<IAsyncServiceImplFactory> implFactory)
   {
-    const std::type_index m_supportedInterfaces;
+    return std::make_shared<AsyncServiceFactory>(std::move(proxyFactory), std::move(implFactory));
+  }
 
-  public:
-    AsyncServiceProxyFactory(const std::type_index supportedInterfaces)
-      : m_supportedInterfaces(supportedInterfaces)
-    {
-    }
-
-    std::span<const std::type_index> GetSupportedInterfaces() const final
-    {
-      return std::span<const std::type_index>(&m_supportedInterfaces, 1);
-    }
-  };
+  template <typename TProxyFactory, typename TImplFactory>
+  inline std::shared_ptr<IAsyncServiceFactory> CreateAsyncServiceFactory()
+  {
+    return std::make_shared<AsyncServiceFactory>(std::make_shared<TProxyFactory>(), std::make_shared<TImplFactory>());
+  }
 }
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_ASYNCSERVICEFACTORYUTIL_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_ASYNCSERVICEFACTORYUTIL_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_FACTORY_ASYNCSERVICEPROXYFACTORY_HPP
+#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_FACTORY_ASYNCSERVICEPROXYFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,22 +13,25 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/AsyncServiceFactory.hpp>
-#include <Test2/Framework/Service/Async/IAsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceProxyFactory.hpp>
 
-namespace Test2::AsyncServiceFactoryUtil
+namespace Test2
 {
-  inline std::shared_ptr<IAsyncServiceFactory> CreateAsyncServiceFactory(std::shared_ptr<IAsyncServiceProxyFactory> proxyFactory,
-                                                                         std::shared_ptr<IAsyncServiceImplFactory> implFactory)
+  class AsyncServiceProxyFactory : public IAsyncServiceProxyFactory
   {
-    return std::make_shared<AsyncServiceFactory>(std::move(proxyFactory), std::move(implFactory));
-  }
+    const std::type_index m_supportedInterfaces;
 
-  template <typename TProxyFactory, typename TImplFactory>
-  inline std::shared_ptr<IAsyncServiceFactory> CreateAsyncServiceFactory()
-  {
-    return std::make_shared<AsyncServiceFactory>(std::make_shared<TProxyFactory>(), std::make_shared<TImplFactory>());
-  }
+  public:
+    AsyncServiceProxyFactory(const std::type_index supportedInterfaces)
+      : m_supportedInterfaces(supportedInterfaces)
+    {
+    }
+
+    std::span<const std::type_index> GetSupportedInterfaces() const final
+    {
+      return std::span<const std::type_index>(&m_supportedInterfaces, 1);
+    }
+  };
 }
 
 #endif

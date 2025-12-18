@@ -11,9 +11,9 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/AsyncServiceFactory.hpp>
-#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/Async/IAsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceProxyFactory.hpp>
 
 
 namespace Test2

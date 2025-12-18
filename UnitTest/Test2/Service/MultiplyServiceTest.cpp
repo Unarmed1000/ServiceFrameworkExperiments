@@ -17,7 +17,7 @@
 #include <Test2/Framework/Provider/ServiceProvider.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
-#include <Test2/Framework/Service/Async/AsyncServiceFactoryUtil.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactoryUtil.hpp>
 #include <Test2/Services/Multiply/IMultiplyService.hpp>
 #include <Test2/Services/Multiply/MultiplyServiceImplFactory.hpp>
 #include <Test2/Services/Multiply/MultiplyServiceProxyFactory.hpp>

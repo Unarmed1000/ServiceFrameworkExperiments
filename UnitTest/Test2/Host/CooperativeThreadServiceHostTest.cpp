@@ -14,8 +14,8 @@
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
-#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>

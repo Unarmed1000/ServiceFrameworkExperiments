@@ -346,7 +346,7 @@ add_library(test2_framework STATIC
     src/Test2/Framework/Host/ServiceHostProxy.cpp
     src/Test2/Framework/Host/Cooperative/CooperativeThreadHost.cpp
     src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
-    src/Test2/Framework/Service/Async/AsyncServiceFactory.cpp
+    src/Test2/Framework/Service/Async/Factory/AsyncServiceFactory.cpp
 )
 target_include_directories(test2_framework
     PUBLIC

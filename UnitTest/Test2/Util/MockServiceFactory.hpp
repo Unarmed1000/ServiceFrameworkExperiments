@@ -14,9 +14,9 @@
 //****************************************************************************************************************************************************
 
 #include <Test2/Framework/Service/Async/AsyncServiceBase.hpp>
-#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/Async/AsyncServiceProxyBase.hpp>
-#include <Test2/Framework/Service/Async/AsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceProxyFactory.hpp>
 #include <Test2/Framework/Service/IService.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
 #include <Test2/Framework/Service/IServiceProxyControl.hpp>

@@ -15,11 +15,11 @@
 #include <Test2/Framework/Exception/InvalidServiceFactoryException.hpp>
 #include <Test2/Framework/Exception/RegistryExtractedException.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
-#include <Test2/Framework/Service/Async/AsyncServiceFactory.hpp>
-#include <Test2/Framework/Service/Async/AsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/Async/AsyncServiceProxyFactory.hpp>
-#include <Test2/Framework/Service/Async/IAsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/Async/IAsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/IAsyncServiceProxyFactory.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
 #include <Test2/Framework/Service/IServiceProxyControl.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
