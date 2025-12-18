@@ -178,7 +178,8 @@ namespace Test2
 
     void TearDown() override
     {
-      // Restart io_context for next test (only resets stopped flag)
+      // Properly clean up io_context
+      m_ioContext.stop();
       m_ioContext.restart();
     }
   };
@@ -197,7 +198,9 @@ namespace Test2
 
     void TearDown() override
     {
-      // Restart io_contexts for next test (only resets stopped flag)
+      // Properly clean up io_contexts
+      m_sourceIoContext.stop();
+      m_targetIoContext.stop();
       m_sourceIoContext.restart();
       m_targetIoContext.restart();
     }
