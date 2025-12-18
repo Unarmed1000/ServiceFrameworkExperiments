@@ -40,14 +40,12 @@ A production-grade service framework with comprehensive architecture demonstrati
 - `ServiceInitResult`, `ServiceShutdownResult`: Lifecycle operation results
 - `ServiceCreateInfo`, `ServiceProxyCreateInfo`: Service instantiation context
 
-**Service Factory Pattern** (`Framework/Service/Async/`):
+**Service Factory Pattern** (`Framework/Service/Async/Factory/`):
 - `IAsyncServiceFactory`: Combined factory interface for both impl and proxy factories
 - `IAsyncServiceImplFactory`: Factory interface for service implementations
 - `IAsyncServiceProxyFactory`: Factory interface for service proxies
-- `AsyncServiceFactory`: Abstract factory base class combining impl and proxy factories
-- `AsyncServiceImplFactory`: Base implementation factory
-- `AsyncServiceProxyFactory`: Base proxy factory
-- `AsyncServiceFactoryUtil`: Utilities for factory type checks
+- `AsyncServiceFactory`: Abstract factory base class combining impl and proxy factories (single interface support)
+- `AsyncServiceFactoryEx`: Extended factory base class supporting multiple interfaces via constructor
 - **Thread-Safety Requirement**: All factory implementations MUST be immutable and thread-safe, allowing safe concurrent access across multiple threads without synchronization
 
 **Lifecycle Management** (`Framework/Lifecycle/`):
@@ -118,23 +116,25 @@ The framework includes example service implementations demonstrating patterns:
 
 - **AddService** (`Services/Add/`): Simple addition service
   - `IAddService`: Interface with `AddAsync(double, double)`
-  - `AddServiceImplFactory`: Implementation factory
-  - `AddServiceProxyFactory`: Cross-thread proxy factory
+  - `AddAsyncServiceFactory`: Combined factory for implementation and proxy
 
 - **CalculatorService** (`Services/Calculator/`): Expression evaluation service
   - `ICalculatorService`: Interface with `EvaluateAsync(string expression)`
   - Demonstrates service composition (uses Add, Subtract, Multiply, Divide services)
-  - `CalculatorServiceImplFactory`, `CalculatorServiceProxyFactory`: Factories
+  - `CalculatorAsyncServiceFactory`: Combined factory for implementation and proxy
 
 - **SubtractService** (`Services/Subtract/`): Subtraction service
+  - `SubtractAsyncServiceFactory`: Combined factory
 - **MultiplyService** (`Services/Multiply/`): Multiplication service
+  - `MultiplyAsyncServiceFactory`: Combined factory
 - **DivideService** (`Services/Divide/`): Division service
+  - `DivideAsyncServiceFactory`: Combined factory
 
 All services follow the pattern:
 1. Interface inherits from `IService`
 2. Implementation inherits from `AsyncServiceBase` and implements interface
 3. Proxy inherits from `AsyncServiceProxyBase` and implements interface (for cross-thread access)
-4. Factory classes create instances based on `ServiceCreateInfo`/`ServiceProxyCreateInfo`
+4. Combined factory class (e.g., `*AsyncServiceFactory`) creates both impl and proxy instances based on `ServiceCreateInfo`/`ServiceProxyCreateInfo`
 
 **Service Configuration** (`Services/ServiceConfig.hpp`):
 - Centralized timing constants for service delays (for testing/demonstration)
