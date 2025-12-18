@@ -22,6 +22,14 @@ namespace Test2
 {
   struct ServiceProxyCreateInfo;
 
+  /// @brief Interface for creating service proxy instances.
+  ///
+  /// Implementations of this interface MUST be:
+  /// - Immutable: Factory state cannot change after construction
+  /// - Thread-safe: All methods must be safely callable from multiple threads concurrently
+  ///
+  /// These requirements allow the framework to safely share factory instances across
+  /// multiple threads without synchronization overhead.
   class IAsyncServiceProxyFactory : public virtual IServiceFactoryInfo
   {
   public:

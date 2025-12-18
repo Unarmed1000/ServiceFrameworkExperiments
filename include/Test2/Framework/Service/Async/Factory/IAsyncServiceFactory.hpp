@@ -23,6 +23,13 @@ namespace Test2
   /// The IAsyncServiceFactory interface combines both proxy and implementation factory capabilities
   /// for asynchronous services. This unified interface allows the framework to create both the
   /// service implementation and its corresponding proxies for cross-thread communication.
+  ///
+  /// Implementations of this interface MUST be:
+  /// - Immutable: Factory state cannot change after construction
+  /// - Thread-safe: All methods must be safely callable from multiple threads concurrently
+  ///
+  /// These requirements allow the framework to safely share factory instances across
+  /// multiple threads without synchronization overhead.
   class IAsyncServiceFactory
     : public virtual IAsyncServiceProxyFactory
     , public virtual IAsyncServiceImplFactory
