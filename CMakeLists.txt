@@ -620,7 +620,6 @@ source_group("Header Files\\Test2\\Services\\Calculator" FILES
     include/Test2/Services/Calculator/ICalculatorService.hpp
     include/Test2/Services/Calculator/CalculatorService.hpp
     include/Test2/Services/Calculator/CalculatorServiceFactory.hpp
-    include/Test2/Services/Calculator/CalculatorServiceRegistration.hpp
 )
 source_group("Source Files\\Test2\\Framework\\Provider" FILES
     src/Test2/Framework/Provider/ServiceProvider.cpp

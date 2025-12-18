@@ -123,7 +123,6 @@ The framework includes example service implementations demonstrating patterns:
   - `ICalculatorService`: Interface with `EvaluateAsync(string expression)`
   - Demonstrates service composition (uses Add, Subtract, Multiply, Divide services)
   - `CalculatorServiceImplFactory`, `CalculatorServiceProxyFactory`: Factories
-  - `CalculatorServiceRegistration`: Registration helper
 
 - **SubtractService** (`Services/Subtract/`): Subtraction service
 - **MultiplyService** (`Services/Multiply/`): Multiplication service
