@@ -19,7 +19,7 @@
 #include <Test2/Framework/Host/StartServiceProxyRecord.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
 #include <Test2/Framework/Service/Async/Factory/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <Test2/Util/MockServiceFactory.hpp>
@@ -61,14 +61,16 @@ namespace Test2
     bool m_initShouldFail;
     bool m_shutdownShouldFail;
     std::shared_ptr<ServiceLifecycleTracker> m_tracker;
+    UnitTest::InitializationOrderTracker* m_initOrderTracker;
 
   public:
     explicit MockService(std::string name, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr, bool initShouldFail = false,
-                         bool shutdownShouldFail = false)
+                         bool shutdownShouldFail = false, UnitTest::InitializationOrderTracker* initOrderTracker = nullptr)
       : m_name(std::move(name))
       , m_initShouldFail(initShouldFail)
       , m_shutdownShouldFail(shutdownShouldFail)
       , m_tracker(std::move(tracker))
+      , m_initOrderTracker(initOrderTracker)
     {
     }
 
@@ -83,6 +85,10 @@ namespace Test2
       if (m_tracker)
       {
         m_tracker->RecordInit(m_name);
+      }
+      if (m_initOrderTracker)
+      {
+        m_initOrderTracker->RecordInit(m_name);
       }
       if (m_initShouldFail)
       {
@@ -116,29 +122,75 @@ namespace Test2
   {
   };
 
-  // Mock factory
-  class MockServiceFactory : public AsyncServiceImplFactory
+  // Mock service proxy for testing
+  class MockServiceProxy : public IServiceProxyControl
+  {
+  private:
+    std::string m_name;
+    UnitTest::InitializationOrderTracker* m_initOrderTracker;
+
+  public:
+    explicit MockServiceProxy(std::string name, UnitTest::InitializationOrderTracker* initOrderTracker = nullptr)
+      : m_name(std::move(name))
+      , m_initOrderTracker(initOrderTracker)
+    {
+      if (m_initOrderTracker)
+      {
+        m_initOrderTracker->RecordInit(m_name);
+      }
+    }
+
+    [[nodiscard]] const std::string& GetName() const noexcept
+    {
+      return m_name;
+    }
+
+    ProcessResult Process() override
+    {
+      return ProcessResult::NoSleepLimit();
+    }
+  };
+
+  // Mock unified async service factory
+  class MockAsyncServiceFactory : public AsyncServiceFactory
   {
   private:
     std::string m_serviceName;
     std::shared_ptr<ServiceLifecycleTracker> m_tracker;
+    UnitTest::InitializationOrderTracker* m_initOrderTracker;
     bool m_initShouldFail;
     bool m_shutdownShouldFail;
 
   public:
-    explicit MockServiceFactory(std::string serviceName, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr, bool initShouldFail = false,
-                                bool shutdownShouldFail = false)
-      : AsyncServiceImplFactory(typeid(ITestInterface))
+    explicit MockAsyncServiceFactory(std::string serviceName, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr, bool initShouldFail = false,
+                                     bool shutdownShouldFail = false)
+      : AsyncServiceFactory(typeid(ITestInterface))
       , m_serviceName(std::move(serviceName))
       , m_tracker(std::move(tracker))
+      , m_initOrderTracker(nullptr)
       , m_initShouldFail(initShouldFail)
       , m_shutdownShouldFail(shutdownShouldFail)
     {
     }
 
+    explicit MockAsyncServiceFactory(const UnitTest::MockServiceConfig& config)
+      : AsyncServiceFactory(typeid(ITestInterface))
+      , m_serviceName(config.Name)
+      , m_tracker(nullptr)
+      , m_initOrderTracker(config.InitTracker)
+      , m_initShouldFail(config.InitShouldFail)
+      , m_shutdownShouldFail(config.ShutdownShouldFail)
+    {
+    }
+
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
+    {
+      return std::make_shared<MockServiceProxy>(m_serviceName, m_initOrderTracker);
+    }
+
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
     {
-      return std::make_shared<MockService>(m_serviceName, m_tracker, m_initShouldFail, m_shutdownShouldFail);
+      return std::make_shared<MockService>(m_serviceName, m_tracker, m_initShouldFail, m_shutdownShouldFail, m_initOrderTracker);
     }
   };
 
@@ -261,7 +313,7 @@ namespace Test2
     auto tracker = std::make_shared<ServiceLifecycleTracker>();
 
     std::vector<StartServiceRecord> services;
-    services.emplace_back("TestService", std::make_unique<MockServiceFactory>("TestService", tracker));
+    services.emplace_back("TestService", std::make_unique<MockAsyncServiceFactory>("TestService", tracker));
 
     RegisterServices(std::move(services), 1000);
 
@@ -276,9 +328,9 @@ namespace Test2
     auto tracker3 = std::make_shared<ServiceLifecycleTracker>();
 
     std::vector<StartServiceRecord> services;
-    services.emplace_back("Service1", std::make_unique<MockServiceFactory>("Service1", tracker1));
-    services.emplace_back("Service2", std::make_unique<MockServiceFactory>("Service2", tracker2));
-    services.emplace_back("Service3", std::make_unique<MockServiceFactory>("Service3", tracker3));
+    services.emplace_back("Service1", std::make_unique<MockAsyncServiceFactory>("Service1", tracker1));
+    services.emplace_back("Service2", std::make_unique<MockAsyncServiceFactory>("Service2", tracker2));
+    services.emplace_back("Service3", std::make_unique<MockAsyncServiceFactory>("Service3", tracker3));
 
     RegisterServices(std::move(services), 1000);
 
@@ -298,9 +350,9 @@ namespace Test2
     auto tracker3 = std::make_shared<ServiceLifecycleTracker>();
 
     std::vector<StartServiceRecord> services;
-    services.emplace_back("Service1", std::make_unique<MockServiceFactory>("Service1", tracker1, false));
-    services.emplace_back("Service2", std::make_unique<MockServiceFactory>("Service2", tracker2, true));    // This will fail
-    services.emplace_back("Service3", std::make_unique<MockServiceFactory>("Service3", tracker3, false));
+    services.emplace_back("Service1", std::make_unique<MockAsyncServiceFactory>("Service1", tracker1, false));
+    services.emplace_back("Service2", std::make_unique<MockAsyncServiceFactory>("Service2", tracker2, true));    // This will fail
+    services.emplace_back("Service3", std::make_unique<MockAsyncServiceFactory>("Service3", tracker3, false));
 
     auto exception = TryRegisterServicesExpectingFailure(std::move(services), 1000);
 
@@ -316,7 +368,7 @@ namespace Test2
     auto tracker = std::make_shared<ServiceLifecycleTracker>();
 
     std::vector<StartServiceRecord> services;
-    services.emplace_back("Service1", std::make_unique<MockServiceFactory>("Service1", tracker, true));
+    services.emplace_back("Service1", std::make_unique<MockAsyncServiceFactory>("Service1", tracker, true));
 
     auto exception = TryRegisterServicesExpectingFailure(std::move(services), 1000);
 
@@ -336,9 +388,9 @@ namespace Test2
     auto tracker3 = std::make_shared<ServiceLifecycleTracker>();
 
     std::vector<StartServiceRecord> services;
-    services.emplace_back("Service1", std::make_unique<MockServiceFactory>("Service1", tracker1, true));    // Fails
-    services.emplace_back("Service2", std::make_unique<MockServiceFactory>("Service2", tracker2, false));
-    services.emplace_back("Service3", std::make_unique<MockServiceFactory>("Service3", tracker3, true));    // Fails
+    services.emplace_back("Service1", std::make_unique<MockAsyncServiceFactory>("Service1", tracker1, true));    // Fails
+    services.emplace_back("Service2", std::make_unique<MockAsyncServiceFactory>("Service2", tracker2, false));
+    services.emplace_back("Service3", std::make_unique<MockAsyncServiceFactory>("Service3", tracker3, true));    // Fails
 
     auto exception = TryRegisterServicesExpectingFailure(std::move(services), 1000);
 
@@ -352,8 +404,8 @@ namespace Test2
     auto tracker2 = std::make_shared<ServiceLifecycleTracker>();
 
     std::vector<StartServiceRecord> services;
-    services.emplace_back("Service1", std::make_unique<MockServiceFactory>("Service1", tracker1, false, true));    // Shutdown fails
-    services.emplace_back("Service2", std::make_unique<MockServiceFactory>("Service2", tracker2, true));           // Init fails
+    services.emplace_back("Service1", std::make_unique<MockAsyncServiceFactory>("Service1", tracker1, false, true));    // Shutdown fails
+    services.emplace_back("Service2", std::make_unique<MockAsyncServiceFactory>("Service2", tracker2, true));           // Init fails
 
     auto exception = TryRegisterServicesExpectingFailure(std::move(services), 1000);
 
@@ -384,7 +436,7 @@ namespace Test2
     config.InitTracker = &tracker;
 
     std::vector<StartServiceProxyRecord> proxies;
-    proxies.emplace_back("TestProxy", std::make_unique<MockServiceProxyFactory>(config));
+    proxies.emplace_back("TestProxy", std::make_unique<MockAsyncServiceFactory>(config));
 
     RunAsync([this, &proxies]() -> boost::asio::awaitable<void>
              { co_await host.TryStartServiceProxiesAsync(std::move(proxies), ServiceLaunchPriority(1000)); });
@@ -409,9 +461,9 @@ namespace Test2
     config3.InitTracker = &tracker;
 
     std::vector<StartServiceProxyRecord> proxies;
-    proxies.emplace_back("Proxy1", std::make_unique<MockServiceProxyFactory>(config1));
-    proxies.emplace_back("Proxy2", std::make_unique<MockServiceProxyFactory>(config2));
-    proxies.emplace_back("Proxy3", std::make_unique<MockServiceProxyFactory>(config3));
+    proxies.emplace_back("Proxy1", std::make_unique<MockAsyncServiceFactory>(config1));
+    proxies.emplace_back("Proxy2", std::make_unique<MockAsyncServiceFactory>(config2));
+    proxies.emplace_back("Proxy3", std::make_unique<MockAsyncServiceFactory>(config3));
 
     RunAsync([this, &proxies]() -> boost::asio::awaitable<void>
              { co_await host.TryStartServiceProxiesAsync(std::move(proxies), ServiceLaunchPriority(1000)); });
@@ -470,7 +522,7 @@ namespace Test2
 
     // Start a proxy first
     std::vector<StartServiceProxyRecord> proxies;
-    proxies.emplace_back("TestProxy", std::make_unique<MockServiceProxyFactory>(config));
+    proxies.emplace_back("TestProxy", std::make_unique<MockAsyncServiceFactory>(config));
 
     RunAsync([this, &proxies]() -> boost::asio::awaitable<void>
              { co_await host.TryStartServiceProxiesAsync(std::move(proxies), ServiceLaunchPriority(1000)); });
@@ -500,9 +552,9 @@ namespace Test2
 
     // Start proxies
     std::vector<StartServiceProxyRecord> proxies;
-    proxies.emplace_back("Proxy1", std::make_unique<MockServiceProxyFactory>(config1));
-    proxies.emplace_back("Proxy2", std::make_unique<MockServiceProxyFactory>(config2));
-    proxies.emplace_back("Proxy3", std::make_unique<MockServiceProxyFactory>(config3));
+    proxies.emplace_back("Proxy1", std::make_unique<MockAsyncServiceFactory>(config1));
+    proxies.emplace_back("Proxy2", std::make_unique<MockAsyncServiceFactory>(config2));
+    proxies.emplace_back("Proxy3", std::make_unique<MockAsyncServiceFactory>(config3));
 
     RunAsync([this, &proxies]() -> boost::asio::awaitable<void>
              { co_await host.TryStartServiceProxiesAsync(std::move(proxies), ServiceLaunchPriority(1000)); });
@@ -532,10 +584,10 @@ namespace Test2
 
     // Start proxies at different priorities (descending order: high to low)
     std::vector<StartServiceProxyRecord> proxies1000;
-    proxies1000.emplace_back("Proxy1000", std::make_unique<MockServiceProxyFactory>(config1000));
+    proxies1000.emplace_back("Proxy1000", std::make_unique<MockAsyncServiceFactory>(config1000));
 
     std::vector<StartServiceProxyRecord> proxies2000;
-    proxies2000.emplace_back("Proxy2000", std::make_unique<MockServiceProxyFactory>(config2000));
+    proxies2000.emplace_back("Proxy2000", std::make_unique<MockAsyncServiceFactory>(config2000));
 
     // Register higher priority (2000) first, then lower priority (1000)
     RunAsync([this, &proxies2000]() -> boost::asio::awaitable<void>

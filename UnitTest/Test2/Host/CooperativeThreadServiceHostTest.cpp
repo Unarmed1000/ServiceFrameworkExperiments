@@ -14,7 +14,7 @@
 #include <Test2/Framework/Host/Cooperative/CooperativeThreadServiceHost.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
 #include <Test2/Framework/Service/Async/Factory/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
@@ -81,17 +81,22 @@ namespace Test2
   {
   };
 
-  // Mock factory
-  class MockCooperativeServiceFactory : public AsyncServiceImplFactory
+  // Mock unified async service factory
+  class MockCooperativeAsyncServiceFactory : public AsyncServiceFactory
   {
   private:
     std::shared_ptr<MockCooperativeService> m_service;
 
   public:
-    explicit MockCooperativeServiceFactory(std::shared_ptr<MockCooperativeService> service)
-      : AsyncServiceImplFactory(typeid(ITestInterface))
+    explicit MockCooperativeAsyncServiceFactory(std::shared_ptr<MockCooperativeService> service)
+      : AsyncServiceFactory(typeid(ITestInterface))
       , m_service(std::move(service))
     {
+    }
+
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;
     }
 
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
@@ -290,7 +295,7 @@ namespace Test2
     void RegisterService(std::shared_ptr<MockCooperativeService> service, const std::string& name, uint32_t priority)
     {
       std::vector<StartServiceRecord> services;
-      services.emplace_back(name, std::make_unique<MockCooperativeServiceFactory>(service));
+      services.emplace_back(name, std::make_unique<MockCooperativeAsyncServiceFactory>(service));
 
       // Run the async registration synchronously using poll
       bool done = false;

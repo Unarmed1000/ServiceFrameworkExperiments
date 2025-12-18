@@ -346,7 +346,6 @@ add_library(test2_framework STATIC
     src/Test2/Framework/Host/ServiceHostProxy.cpp
     src/Test2/Framework/Host/Cooperative/CooperativeThreadHost.cpp
     src/Test2/Framework/Host/Managed/ManagedThreadHost.cpp
-    src/Test2/Framework/Service/Async/Factory/AsyncServiceFactory.cpp
 )
 target_include_directories(test2_framework
     PUBLIC
@@ -373,8 +372,7 @@ endif()
 add_library(test2_add_service STATIC
     src/Test2/Service/Add/AddService.cpp
     src/Test2/Service/Add/AddServiceProxy.cpp
-    src/Test2/Service/Add/AddServiceImplFactory.cpp
-    src/Test2/Service/Add/AddServiceProxyFactory.cpp
+    src/Test2/Service/Add/AddAsyncServiceFactory.cpp
 )
 target_include_directories(test2_add_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test2_add_service
@@ -392,8 +390,7 @@ endif()
 add_library(test2_subtract_service STATIC
     src/Test2/Service/Subtract/SubtractService.cpp
     src/Test2/Service/Subtract/SubtractServiceProxy.cpp
-    src/Test2/Service/Subtract/SubtractServiceImplFactory.cpp
-    src/Test2/Service/Subtract/SubtractServiceProxyFactory.cpp
+    src/Test2/Service/Subtract/SubtractAsyncServiceFactory.cpp
 )
 target_include_directories(test2_subtract_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test2_subtract_service
@@ -411,8 +408,7 @@ endif()
 add_library(test2_multiply_service STATIC
     src/Test2/Service/Multiply/MultiplyService.cpp
     src/Test2/Service/Multiply/MultiplyServiceProxy.cpp
-    src/Test2/Service/Multiply/MultiplyServiceImplFactory.cpp
-    src/Test2/Service/Multiply/MultiplyServiceProxyFactory.cpp
+    src/Test2/Service/Multiply/MultiplyAsyncServiceFactory.cpp
 )
 target_include_directories(test2_multiply_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test2_multiply_service
@@ -430,8 +426,7 @@ endif()
 add_library(test2_divide_service STATIC
     src/Test2/Service/Divide/DivideService.cpp
     src/Test2/Service/Divide/DivideServiceProxy.cpp
-    src/Test2/Service/Divide/DivideServiceImplFactory.cpp
-    src/Test2/Service/Divide/DivideServiceProxyFactory.cpp
+    src/Test2/Service/Divide/DivideAsyncServiceFactory.cpp
 )
 target_include_directories(test2_divide_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test2_divide_service
@@ -449,8 +444,7 @@ endif()
 add_library(test2_calculator_service STATIC
     src/Test2/Service/Calculator/CalculatorService.cpp
     src/Test2/Service/Calculator/CalculatorServiceProxy.cpp
-    src/Test2/Service/Calculator/CalculatorServiceImplFactory.cpp
-    src/Test2/Service/Calculator/CalculatorServiceProxyFactory.cpp
+    src/Test2/Service/Calculator/CalculatorAsyncServiceFactory.cpp
 )
 target_include_directories(test2_calculator_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(test2_calculator_service
@@ -598,16 +592,14 @@ source_group("Header Files\\Test2\\Services" FILES
 )
 source_group("Header Files\\Test2\\Services\\Add" FILES
     include/Test2/Services/Add/IAddService.hpp
-    include/Test2/Services/Add/AddServiceImplFactory.hpp
-    include/Test2/Services/Add/AddServiceProxyFactory.hpp
+    include/Test2/Services/Add/AddAsyncServiceFactory.hpp
 )
 source_group("Source Files\\Test2\\Services\\Add" FILES
     src/Test2/Service/Add/AddService.hpp
     src/Test2/Service/Add/AddService.cpp
     src/Test2/Service/Add/AddServiceProxy.hpp
     src/Test2/Service/Add/AddServiceProxy.cpp
-    src/Test2/Service/Add/AddServiceImplFactory.cpp
-    src/Test2/Service/Add/AddServiceProxyFactory.cpp
+    src/Test2/Service/Add/AddAsyncServiceFactory.cpp
 )
 source_group("Header Files\\Test2\\Services\\Subtract" FILES
     include/Test2/Services/Subtract/ISubtractService.hpp

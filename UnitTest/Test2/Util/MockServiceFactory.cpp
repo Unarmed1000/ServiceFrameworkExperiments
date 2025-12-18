@@ -115,33 +115,23 @@ namespace Test2::UnitTest
   }
 
   // ========================================
-  // MockServiceImplFactory Implementation
+  // MockAsyncServiceFactory Implementation
   // ========================================
 
-  MockServiceImplFactory::MockServiceImplFactory(MockServiceConfig config)
-    : AsyncServiceImplFactory(typeid(ITestInterface))
+  MockAsyncServiceFactory::MockAsyncServiceFactory(MockServiceConfig config)
+    : AsyncServiceFactory(typeid(ITestInterface))
     , m_config(std::move(config))
   {
   }
 
-  std::shared_ptr<IServiceControl> MockServiceImplFactory::Create(const ServiceCreateInfo& createInfo)
-  {
-    return std::make_shared<MockService>(createInfo, m_config);
-  }
-
-  // ========================================
-  // MockServiceProxyFactory Implementation
-  // ========================================
-
-  MockServiceProxyFactory::MockServiceProxyFactory(MockServiceConfig config)
-    : AsyncServiceProxyFactory(typeid(ITestInterface))
-    , m_config(std::move(config))
-  {
-  }
-
-  std::shared_ptr<IServiceProxyControl> MockServiceProxyFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
+  std::shared_ptr<IServiceProxyControl> MockAsyncServiceFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
   {
     return std::make_shared<MockServiceProxy>(createInfo, m_config);
+  }
+
+  std::shared_ptr<IServiceControl> MockAsyncServiceFactory::Create(const ServiceCreateInfo& createInfo)
+  {
+    return std::make_shared<MockService>(createInfo, m_config);
   }
 
 }    // namespace Test2::UnitTest

@@ -20,7 +20,7 @@
 #include <Test2/Framework/Host/Managed/ManagedThreadServiceProvider.hpp>
 #include <Test2/Framework/Host/StartServiceRecord.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
 #include <Test2/Framework/Service/Async/Factory/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -119,8 +119,8 @@ namespace Test2
   {
   };
 
-  // Mock factory
-  class MockServiceFactory : public AsyncServiceImplFactory
+  // Mock unified async service factory
+  class MockAsyncServiceFactory : public AsyncServiceFactory
   {
   private:
     std::string m_serviceName;
@@ -129,14 +129,19 @@ namespace Test2
     bool m_shutdownShouldFail;
 
   public:
-    explicit MockServiceFactory(std::string serviceName, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr, bool initShouldFail = false,
-                                bool shutdownShouldFail = false)
-      : AsyncServiceImplFactory(typeid(ITestInterface))
+    explicit MockAsyncServiceFactory(std::string serviceName, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr, bool initShouldFail = false,
+                                     bool shutdownShouldFail = false)
+      : AsyncServiceFactory(typeid(ITestInterface))
       , m_serviceName(std::move(serviceName))
       , m_tracker(std::move(tracker))
       , m_initShouldFail(initShouldFail)
       , m_shutdownShouldFail(shutdownShouldFail)
     {
+    }
+
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;
     }
 
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
@@ -234,10 +239,10 @@ namespace Test2
     }
 
     /// @brief Create a mock service factory.
-    std::unique_ptr<MockServiceFactory> CreateMockFactory(const std::string& name, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr,
+    std::unique_ptr<MockAsyncServiceFactory> CreateMockFactory(const std::string& name, std::shared_ptr<ServiceLifecycleTracker> tracker = nullptr,
                                                           bool initFails = false, bool shutdownFails = false)
     {
-      return std::make_unique<MockServiceFactory>(name, tracker, initFails, shutdownFails);
+      return std::make_unique<MockAsyncServiceFactory>(name, tracker, initFails, shutdownFails);
     }
 
     /// @brief Create tracked service records for multiple services.

@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_FACTORY_ASYNCSERVICEPROXYFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_FRAMEWORK_SERVICE_ASYNC_FACTORY_ASYNCSERVICEPROXYFACTORY_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDASYNCSERVICEFACTORY_HPP
+#define SERVICE_FRAMEWORK_TEST2_SERVICES_ADD_ADDASYNCSERVICEFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,25 +13,21 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/Factory/IAsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
+#include <Test2/Services/Add/IAddService.hpp>
 
 namespace Test2
 {
-  class AsyncServiceProxyFactory : public IAsyncServiceProxyFactory
+  /// @brief Factory for creating AddService proxy and implementation instances.
+  class AddAsyncServiceFactory final : public AsyncServiceFactory
   {
-    const std::type_index m_supportedInterfaces;
-
   public:
-    AsyncServiceProxyFactory(const std::type_index supportedInterfaces)
-      : m_supportedInterfaces(supportedInterfaces)
-    {
-    }
+    AddAsyncServiceFactory();
 
-    std::span<const std::type_index> GetSupportedInterfaces() const final
-    {
-      return std::span<const std::type_index>(&m_supportedInterfaces, 1);
-    }
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) override;
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
   };
+
 }
 
 #endif

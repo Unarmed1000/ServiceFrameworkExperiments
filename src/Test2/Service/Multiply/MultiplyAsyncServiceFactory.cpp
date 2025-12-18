@@ -1,5 +1,3 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_SUBTRACTSERVICEPROXYFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_SUBTRACTSERVICEPROXYFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,20 +11,25 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceProxyFactory.hpp>
-#include <Test2/Services/Subtract/ISubtractService.hpp>
+#include <Test2/Services/Multiply/MultiplyAsyncServiceFactory.hpp>
+#include "MultiplyService.hpp"
+#include "MultiplyServiceProxy.hpp"
 
 namespace Test2
 {
-  /// @brief Factory for creating SubtractServiceProxy instances.
-  class SubtractServiceProxyFactory final : public AsyncServiceProxyFactory
+  MultiplyAsyncServiceFactory::MultiplyAsyncServiceFactory()
+    : AsyncServiceFactory(typeid(IMultiplyService))
   {
-  public:
-    SubtractServiceProxyFactory();
+  }
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) override;
-  };
+  std::shared_ptr<IServiceProxyControl> MultiplyAsyncServiceFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
+  {
+    return std::make_shared<MultiplyServiceProxy>(createInfo);
+  }
+
+  std::shared_ptr<IServiceControl> MultiplyAsyncServiceFactory::Create(const ServiceCreateInfo& createInfo)
+  {
+    return std::make_shared<MultiplyService>(createInfo);
+  }
 
 }
-
-#endif

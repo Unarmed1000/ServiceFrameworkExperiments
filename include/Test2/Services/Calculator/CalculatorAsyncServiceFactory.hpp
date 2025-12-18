@@ -1,5 +1,5 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_CALCULATOR_CALCULATORSERVICEIMPLFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_CALCULATOR_CALCULATORSERVICEIMPLFACTORY_HPP
+#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_CALCULATOR_CALCULATORASYNCSERVICEFACTORY_HPP
+#define SERVICE_FRAMEWORK_TEST2_SERVICES_CALCULATOR_CALCULATORASYNCSERVICEFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,20 +13,18 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/ServiceCreateInfo.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
 #include <Test2/Services/Calculator/ICalculatorService.hpp>
-#include <memory>
 
 namespace Test2
 {
-  /// @brief Factory for creating CalculatorService implementations.
-  class CalculatorServiceImplFactory final : public AsyncServiceImplFactory
+  /// @brief Factory for creating CalculatorService proxy and implementation instances.
+  class CalculatorAsyncServiceFactory final : public AsyncServiceFactory
   {
   public:
-    CalculatorServiceImplFactory();
-    ~CalculatorServiceImplFactory() override = default;
+    CalculatorAsyncServiceFactory();
 
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) override;
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
   };
 

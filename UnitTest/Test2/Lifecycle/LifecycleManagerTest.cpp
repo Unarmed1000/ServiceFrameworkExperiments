@@ -18,10 +18,7 @@
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceRegistrationRecord.hpp>
 #include <Test2/Framework/Registry/ServiceThreadGroupId.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactoryUtil.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceProxyFactory.hpp>
-#include <Test2/Framework/Service/Async/Factory/IAsyncServiceImplFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
 #include <Test2/Framework/Service/ProcessResult.hpp>
 #include <Test2/Framework/Service/ServiceCreateInfo.hpp>
@@ -143,32 +140,22 @@ namespace Test2
   {
   };
 
-  // Mock proxy factory
-  class MockLifecycleServiceProxyFactory : public AsyncServiceProxyFactory
+  // Mock unified async service factory
+  class MockLifecycleAsyncServiceFactory : public AsyncServiceFactory
   {
+  private:
+    std::shared_ptr<MockLifecycleService> m_service;
+
   public:
-    MockLifecycleServiceProxyFactory()
-      : AsyncServiceProxyFactory(typeid(ITestInterface))
+    explicit MockLifecycleAsyncServiceFactory(std::shared_ptr<MockLifecycleService> service)
+      : AsyncServiceFactory(typeid(ITestInterface))
+      , m_service(std::move(service))
     {
     }
 
     std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;    // Not used in these tests
-    }
-  };
-
-  // Mock impl factory
-  class MockLifecycleServiceFactory : public AsyncServiceImplFactory
-  {
-  private:
-    std::shared_ptr<MockLifecycleService> m_service;
-
-  public:
-    explicit MockLifecycleServiceFactory(std::shared_ptr<MockLifecycleService> service)
-      : AsyncServiceImplFactory(typeid(ITestInterface))
-      , m_service(std::move(service))
-    {
     }
 
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
@@ -180,8 +167,7 @@ namespace Test2
   // Helper to create IAsyncServiceFactory for tests
   std::shared_ptr<IAsyncServiceFactory> CreateMockFactory(std::shared_ptr<MockLifecycleService> service)
   {
-    return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
-                                                              std::make_shared<MockLifecycleServiceFactory>(std::move(service)));
+    return std::make_shared<MockLifecycleAsyncServiceFactory>(std::move(service));
   }
 
   // ============================================================================
@@ -745,17 +731,22 @@ namespace Test2
     }
   };
 
-  // Mock factory for failing service
-  class FailingMockServiceFactory : public AsyncServiceImplFactory
+  // Mock unified factory for failing service
+  class FailingMockAsyncServiceFactory : public AsyncServiceFactory
   {
   private:
     std::shared_ptr<FailingMockService> m_service;
 
   public:
-    explicit FailingMockServiceFactory(std::shared_ptr<FailingMockService> service)
-      : AsyncServiceImplFactory(typeid(ITestInterface))
+    explicit FailingMockAsyncServiceFactory(std::shared_ptr<FailingMockService> service)
+      : AsyncServiceFactory(typeid(ITestInterface))
       , m_service(std::move(service))
     {
+    }
+
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;
     }
 
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
@@ -767,8 +758,7 @@ namespace Test2
   // Helper to create IAsyncServiceFactory for failing mock
   std::shared_ptr<IAsyncServiceFactory> CreateFailingMockFactory(std::shared_ptr<FailingMockService> service)
   {
-    return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
-                                                              std::make_shared<FailingMockServiceFactory>(std::move(service)));
+    return std::make_shared<FailingMockAsyncServiceFactory>(std::move(service));
   }
 
   // Shutdown-tracking mock service
@@ -825,17 +815,22 @@ namespace Test2
     }
   };
 
-  // Mock factory for shutdown-tracking service
-  class ShutdownTrackingMockServiceFactory : public AsyncServiceImplFactory
+  // Mock unified factory for shutdown-tracking service
+  class ShutdownTrackingMockAsyncServiceFactory : public AsyncServiceFactory
   {
   private:
     std::shared_ptr<ShutdownTrackingMockService> m_service;
 
   public:
-    explicit ShutdownTrackingMockServiceFactory(std::shared_ptr<ShutdownTrackingMockService> service)
-      : AsyncServiceImplFactory(typeid(ITestInterface))
+    explicit ShutdownTrackingMockAsyncServiceFactory(std::shared_ptr<ShutdownTrackingMockService> service)
+      : AsyncServiceFactory(typeid(ITestInterface))
       , m_service(std::move(service))
     {
+    }
+
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;
     }
 
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
@@ -847,8 +842,7 @@ namespace Test2
   // Helper to create IAsyncServiceFactory for shutdown-tracking mock
   std::shared_ptr<IAsyncServiceFactory> CreateShutdownTrackingMockFactory(std::shared_ptr<ShutdownTrackingMockService> service)
   {
-    return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
-                                                              std::make_shared<ShutdownTrackingMockServiceFactory>(std::move(service)));
+    return std::make_shared<ShutdownTrackingMockAsyncServiceFactory>(std::move(service));
   }
 
   TEST(LifecycleManager, StartServicesAsync_ServiceInitFails_ThrowsAggregateException)
@@ -1203,16 +1197,21 @@ namespace Test2
     }
   };
 
-  class FailingShutdownMockServiceFactory : public AsyncServiceImplFactory
+  class FailingShutdownMockAsyncServiceFactory : public AsyncServiceFactory
   {
   private:
     std::shared_ptr<FailingShutdownMockService> m_service;
 
   public:
-    explicit FailingShutdownMockServiceFactory(std::shared_ptr<FailingShutdownMockService> service)
-      : AsyncServiceImplFactory(typeid(ITestInterface))
+    explicit FailingShutdownMockAsyncServiceFactory(std::shared_ptr<FailingShutdownMockService> service)
+      : AsyncServiceFactory(typeid(ITestInterface))
       , m_service(std::move(service))
     {
+    }
+
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
+    {
+      return nullptr;
     }
 
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
@@ -1224,8 +1223,7 @@ namespace Test2
   // Helper to create IAsyncServiceFactory for failing shutdown mock
   std::shared_ptr<IAsyncServiceFactory> CreateFailingShutdownMockFactory(std::shared_ptr<FailingShutdownMockService> service)
   {
-    return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
-                                                              std::make_shared<FailingShutdownMockServiceFactory>(std::move(service)));
+    return std::make_shared<FailingShutdownMockAsyncServiceFactory>(std::move(service));
   }
 
   TEST(LifecycleManager, ShutdownServicesAsync_ServiceShutdownFails_ReturnsErrors)

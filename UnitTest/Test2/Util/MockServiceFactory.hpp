@@ -15,8 +15,7 @@
 
 #include <Test2/Framework/Service/Async/AsyncServiceBase.hpp>
 #include <Test2/Framework/Service/Async/AsyncServiceProxyBase.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceProxyFactory.hpp>
+#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
 #include <Test2/Framework/Service/IService.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
 #include <Test2/Framework/Service/IServiceProxyControl.hpp>
@@ -137,28 +136,17 @@ namespace Test2::UnitTest
     }
   };
 
-  /// @brief Reusable mock service implementation factory
-  class MockServiceImplFactory : public AsyncServiceImplFactory
+  /// @brief Reusable unified mock service factory
+  class MockAsyncServiceFactory : public AsyncServiceFactory
   {
   private:
     MockServiceConfig m_config;
 
   public:
-    explicit MockServiceImplFactory(MockServiceConfig config);
-
-    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
-  };
-
-  /// @brief Reusable mock service proxy factory
-  class MockServiceProxyFactory : public AsyncServiceProxyFactory
-  {
-  private:
-    MockServiceConfig m_config;
-
-  public:
-    explicit MockServiceProxyFactory(MockServiceConfig config);
+    explicit MockAsyncServiceFactory(MockServiceConfig config);
 
     std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) override;
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
   };
 
 }    // namespace Test2::UnitTest

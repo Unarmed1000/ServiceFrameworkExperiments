@@ -1,5 +1,3 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_MULTIPLY_MULTIPLYSERVICEIMPLFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_MULTIPLY_MULTIPLYSERVICEIMPLFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,23 +11,27 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/ServiceCreateInfo.hpp>
-#include <Test2/Services/Multiply/IMultiplyService.hpp>
+#include <Test2/Services/Add/AddAsyncServiceFactory.hpp>
+#include <Test2/Services/Add/IAddService.hpp>
 #include <memory>
+#include <stdexcept>
+#include "AddService.hpp"
+#include "AddServiceProxy.hpp"
 
 namespace Test2
 {
-  /// @brief Factory for creating MultiplyService implementations.
-  class MultiplyServiceImplFactory final : public AsyncServiceImplFactory
+  AddAsyncServiceFactory::AddAsyncServiceFactory()
+    : AsyncServiceFactory(typeid(IAddService))
   {
-  public:
-    MultiplyServiceImplFactory();
-    ~MultiplyServiceImplFactory() override = default;
+  }
 
-    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
-  };
+  std::shared_ptr<IServiceProxyControl> AddAsyncServiceFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
+  {
+    return std::make_shared<AddServiceProxy>(createInfo);
+  }
 
+  std::shared_ptr<IServiceControl> AddAsyncServiceFactory::Create(const ServiceCreateInfo& createInfo)
+  {
+    return std::make_shared<AddService>(createInfo);
+  }
 }
-
-#endif

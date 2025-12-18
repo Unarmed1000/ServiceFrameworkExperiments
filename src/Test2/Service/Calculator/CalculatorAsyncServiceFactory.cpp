@@ -1,5 +1,3 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_DIVIDE_DIVIDESERVICEIMPLFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_DIVIDE_DIVIDESERVICEIMPLFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,23 +11,24 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/ServiceCreateInfo.hpp>
-#include <Test2/Services/Divide/IDivideService.hpp>
-#include <memory>
+#include <Test2/Services/Calculator/CalculatorAsyncServiceFactory.hpp>
+#include "CalculatorService.hpp"
+#include "CalculatorServiceProxy.hpp"
 
 namespace Test2
 {
-  /// @brief Factory for creating DivideService implementations.
-  class DivideServiceImplFactory final : public AsyncServiceImplFactory
+  CalculatorAsyncServiceFactory::CalculatorAsyncServiceFactory()
+    : AsyncServiceFactory(typeid(ICalculatorService))
   {
-  public:
-    DivideServiceImplFactory();
-    ~DivideServiceImplFactory() override = default;
+  }
 
-    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
-  };
+  std::shared_ptr<IServiceProxyControl> CalculatorAsyncServiceFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
+  {
+    return std::make_shared<CalculatorServiceProxy>(createInfo);
+  }
 
+  std::shared_ptr<IServiceControl> CalculatorAsyncServiceFactory::Create(const ServiceCreateInfo& createInfo)
+  {
+    return std::make_shared<CalculatorService>(createInfo);
+  }
 }
-
-#endif

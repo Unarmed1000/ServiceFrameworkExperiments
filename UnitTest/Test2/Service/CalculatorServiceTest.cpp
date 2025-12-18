@@ -17,18 +17,12 @@
 #include <Test2/Framework/Provider/ServiceProvider.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactoryUtil.hpp>
-#include <Test2/Services/Add/AddServiceImplFactory.hpp>
-#include <Test2/Services/Add/AddServiceProxyFactory.hpp>
-#include <Test2/Services/Calculator/CalculatorServiceImplFactory.hpp>
-#include <Test2/Services/Calculator/CalculatorServiceProxyFactory.hpp>
+#include <Test2/Services/Add/AddAsyncServiceFactory.hpp>
+#include <Test2/Services/Calculator/CalculatorAsyncServiceFactory.hpp>
 #include <Test2/Services/Calculator/ICalculatorService.hpp>
-#include <Test2/Services/Divide/DivideServiceImplFactory.hpp>
-#include <Test2/Services/Divide/DivideServiceProxyFactory.hpp>
-#include <Test2/Services/Multiply/MultiplyServiceImplFactory.hpp>
-#include <Test2/Services/Multiply/MultiplyServiceProxyFactory.hpp>
-#include <Test2/Services/Subtract/SubtractServiceImplFactory.hpp>
-#include <Test2/Services/Subtract/SubtractServiceProxyFactory.hpp>
+#include <Test2/Services/Divide/DivideAsyncServiceFactory.hpp>
+#include <Test2/Services/Multiply/MultiplyAsyncServiceFactory.hpp>
+#include <Test2/Services/Subtract/SubtractAsyncServiceFactory.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
@@ -103,18 +97,13 @@ namespace Test2
       constexpr ServiceLaunchPriority CalculatorServicePriority(100);
 
       // Register math services at higher priority so they are available when CalculatorService is created
-      registry.RegisterService(AsyncServiceFactoryUtil::CreateAsyncServiceFactory<AddServiceProxyFactory, AddServiceImplFactory>(),
-                               MathServicePriority, ThreadGroupConfig::MainThreadGroupId);
-      registry.RegisterService(AsyncServiceFactoryUtil::CreateAsyncServiceFactory<SubtractServiceProxyFactory, SubtractServiceImplFactory>(),
-                               MathServicePriority, ThreadGroupConfig::MainThreadGroupId);
-      registry.RegisterService(AsyncServiceFactoryUtil::CreateAsyncServiceFactory<MultiplyServiceProxyFactory, MultiplyServiceImplFactory>(),
-                               MathServicePriority, ThreadGroupConfig::MainThreadGroupId);
-      registry.RegisterService(AsyncServiceFactoryUtil::CreateAsyncServiceFactory<DivideServiceProxyFactory, DivideServiceImplFactory>(),
-                               MathServicePriority, ThreadGroupConfig::MainThreadGroupId);
+      registry.RegisterService(std::make_shared<AddAsyncServiceFactory>(), MathServicePriority, ThreadGroupConfig::MainThreadGroupId);
+      registry.RegisterService(std::make_shared<SubtractAsyncServiceFactory>(), MathServicePriority, ThreadGroupConfig::MainThreadGroupId);
+      registry.RegisterService(std::make_shared<MultiplyAsyncServiceFactory>(), MathServicePriority, ThreadGroupConfig::MainThreadGroupId);
+      registry.RegisterService(std::make_shared<DivideAsyncServiceFactory>(), MathServicePriority, ThreadGroupConfig::MainThreadGroupId);
 
       // Register Calculator service at lower priority (depends on math services)
-      registry.RegisterService(AsyncServiceFactoryUtil::CreateAsyncServiceFactory<CalculatorServiceProxyFactory, CalculatorServiceImplFactory>(),
-                               CalculatorServicePriority, ThreadGroupConfig::MainThreadGroupId);
+      registry.RegisterService(std::make_shared<CalculatorAsyncServiceFactory>(), CalculatorServicePriority, ThreadGroupConfig::MainThreadGroupId);
 
       // Extract registrations and create lifecycle manager
       auto registrations = registry.ExtractRegistrations();

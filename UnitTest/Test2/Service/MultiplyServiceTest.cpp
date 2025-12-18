@@ -17,10 +17,8 @@
 #include <Test2/Framework/Provider/ServiceProvider.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactoryUtil.hpp>
 #include <Test2/Services/Multiply/IMultiplyService.hpp>
-#include <Test2/Services/Multiply/MultiplyServiceImplFactory.hpp>
-#include <Test2/Services/Multiply/MultiplyServiceProxyFactory.hpp>
+#include <Test2/Services/Multiply/MultiplyAsyncServiceFactory.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
@@ -90,8 +88,7 @@ namespace Test2
       ServiceRegistry registry;
 
       // Register Multiply service on main thread group
-      registry.RegisterService(AsyncServiceFactoryUtil::CreateAsyncServiceFactory<MultiplyServiceProxyFactory, MultiplyServiceImplFactory>(),
-                               ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+      registry.RegisterService(std::make_shared<MultiplyAsyncServiceFactory>(), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
       // Extract registrations and create lifecycle manager
       auto registrations = registry.ExtractRegistrations();

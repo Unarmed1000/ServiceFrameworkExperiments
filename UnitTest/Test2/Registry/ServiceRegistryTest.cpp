@@ -16,8 +16,6 @@
 #include <Test2/Framework/Exception/RegistryExtractedException.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
 #include <Test2/Framework/Service/Async/Factory/AsyncServiceFactory.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceProxyFactory.hpp>
 #include <Test2/Framework/Service/Async/Factory/IAsyncServiceImplFactory.hpp>
 #include <Test2/Framework/Service/Async/Factory/IAsyncServiceProxyFactory.hpp>
 #include <Test2/Framework/Service/IServiceControl.hpp>
@@ -29,28 +27,18 @@
 
 namespace Test2
 {
-  // Mock proxy factory for testing
-  class MockProxyFactory : public AsyncServiceProxyFactory
+  // Mock unified async service factory for testing
+  class MockAsyncServiceFactory : public AsyncServiceFactory
   {
   public:
-    MockProxyFactory()
-      : AsyncServiceProxyFactory(typeid(IService))
+    MockAsyncServiceFactory()
+      : AsyncServiceFactory(typeid(IService))
     {
     }
 
     std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;
-    }
-  };
-
-  // Mock impl factory for testing
-  class MockImplFactory : public AsyncServiceImplFactory
-  {
-  public:
-    MockImplFactory()
-      : AsyncServiceImplFactory(typeid(IService))
-    {
     }
 
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
@@ -59,62 +47,18 @@ namespace Test2
     }
   };
 
-  // Another mock proxy factory with different type
-  class AnotherMockProxyFactory : public AsyncServiceProxyFactory
+  // Another mock unified factory with different type
+  class AnotherMockAsyncServiceFactory : public AsyncServiceFactory
   {
   public:
-    AnotherMockProxyFactory()
-      : AsyncServiceProxyFactory(typeid(IService))
+    AnotherMockAsyncServiceFactory()
+      : AsyncServiceFactory(typeid(IService))
     {
     }
 
     std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
     {
       return nullptr;
-    }
-  };
-
-  // Another mock impl factory with different type
-  class AnotherMockImplFactory : public AsyncServiceImplFactory
-  {
-  public:
-    AnotherMockImplFactory()
-      : AsyncServiceImplFactory(typeid(IService))
-    {
-    }
-
-    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
-    {
-      return nullptr;
-    }
-  };
-
-  // Empty proxy factory (reports zero interfaces) - needs custom implementation since base requires type_index
-  class EmptyProxyFactory : public IAsyncServiceProxyFactory
-  {
-  public:
-    EmptyProxyFactory() = default;
-
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      return std::span<const std::type_index>();    // Empty span
-    }
-
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
-    {
-      return nullptr;
-    }
-  };
-
-  // Empty impl factory (reports zero interfaces) - needs custom implementation since base requires type_index
-  class EmptyImplFactory : public IAsyncServiceImplFactory
-  {
-  public:
-    EmptyImplFactory() = default;
-
-    std::span<const std::type_index> GetSupportedInterfaces() const override
-    {
-      return std::span<const std::type_index>();    // Empty span
     }
 
     std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
@@ -126,17 +70,43 @@ namespace Test2
   // Helper to create IAsyncServiceFactory for tests
   std::shared_ptr<IAsyncServiceFactory> CreateMockFactory()
   {
-    return std::make_shared<AsyncServiceFactory>(std::make_shared<MockProxyFactory>(), std::make_shared<MockImplFactory>());
+    return std::make_shared<MockAsyncServiceFactory>();
   }
 
   std::shared_ptr<IAsyncServiceFactory> CreateAnotherMockFactory()
   {
-    return std::make_shared<AsyncServiceFactory>(std::make_shared<AnotherMockProxyFactory>(), std::make_shared<AnotherMockImplFactory>());
+    return std::make_shared<AnotherMockAsyncServiceFactory>();
   }
 
   std::shared_ptr<IAsyncServiceFactory> CreateEmptyFactory()
   {
-    return std::make_shared<AsyncServiceFactory>(std::make_shared<EmptyProxyFactory>(), std::make_shared<EmptyImplFactory>());
+    // For testing empty factory error handling, we need a custom implementation
+    // that returns empty interfaces. This uses IAsyncServiceFactory directly
+    class EmptyAsyncServiceFactory : public IAsyncServiceFactory
+    {
+    public:
+      std::span<const std::type_index> GetSupportedInterfaces() const override
+      {
+        return std::span<const std::type_index>();    // Empty span
+      }
+
+      std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& /*createInfo*/) override
+      {
+        return nullptr;
+      }
+
+      std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& /*createInfo*/) override
+      {
+        return nullptr;
+      }
+
+      std::type_index GetImplFactoryTypeId() const override
+      {
+        return typeid(*this);
+      }
+    };
+
+    return std::make_shared<EmptyAsyncServiceFactory>();
   }
 }
 

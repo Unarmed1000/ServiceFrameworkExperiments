@@ -18,24 +18,34 @@
 
 namespace Test2
 {
-  class IAsyncServiceProxyFactory;
-  class IAsyncServiceImplFactory;
-
-  class AsyncServiceFactory final : public IAsyncServiceFactory
+  /// @brief Abstract base class for async service factories.
+  /// Concrete service factories should inherit from this class and implement both CreateProxy and Create methods.
+  class AsyncServiceFactory : public IAsyncServiceFactory
   {
-    std::shared_ptr<IAsyncServiceProxyFactory> m_proxyFactory;
-    std::shared_ptr<IAsyncServiceImplFactory> m_implFactory;
+  protected:
+    const std::type_index m_supportedInterface;
 
   public:
-    AsyncServiceFactory(std::shared_ptr<IAsyncServiceProxyFactory> proxyFactory, std::shared_ptr<IAsyncServiceImplFactory> implFactory);
-    ~AsyncServiceFactory();
+    explicit AsyncServiceFactory(const std::type_index supportedInterface)
+      : m_supportedInterface(supportedInterface)
+    {
+    }
 
-    std::span<const std::type_index> GetSupportedInterfaces() const final;
+    virtual ~AsyncServiceFactory() = default;
 
-    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) final;
-    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) final;
+    std::span<const std::type_index> GetSupportedInterfaces() const final
+    {
+      return std::span<const std::type_index>(&m_supportedInterface, 1);
+    }
 
-    std::type_index GetImplFactoryTypeId() const final;
+    std::type_index GetImplFactoryTypeId() const final
+    {
+      return std::type_index(typeid(*this));
+    }
+
+    // Pure virtual methods for derived classes to implement
+    virtual std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) = 0;
+    virtual std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) = 0;
   };
 
 }

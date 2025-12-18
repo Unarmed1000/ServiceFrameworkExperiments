@@ -1,5 +1,3 @@
-#ifndef SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_SUBTRACTSERVICEIMPLFACTORY_HPP
-#define SERVICE_FRAMEWORK_TEST2_SERVICES_SUBTRACT_SUBTRACTSERVICEIMPLFACTORY_HPP
 //****************************************************************************************************************************************************
 //* Zero-Clause BSD (0BSD)
 //*
@@ -13,20 +11,25 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceImplFactory.hpp>
-#include <Test2/Services/Subtract/ISubtractService.hpp>
+#include <Test2/Services/Divide/DivideAsyncServiceFactory.hpp>
+#include "DivideService.hpp"
+#include "DivideServiceProxy.hpp"
 
 namespace Test2
 {
-  /// @brief Factory for creating SubtractService instances.
-  class SubtractServiceImplFactory final : public AsyncServiceImplFactory
+  DivideAsyncServiceFactory::DivideAsyncServiceFactory()
+    : AsyncServiceFactory(typeid(IDivideService))
   {
-  public:
-    SubtractServiceImplFactory();
+  }
 
-    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) override;
-  };
+  std::shared_ptr<IServiceProxyControl> DivideAsyncServiceFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
+  {
+    return std::make_shared<DivideServiceProxy>(createInfo);
+  }
+
+  std::shared_ptr<IServiceControl> DivideAsyncServiceFactory::Create(const ServiceCreateInfo& createInfo)
+  {
+    return std::make_shared<DivideService>(createInfo);
+  }
 
 }
-
-#endif

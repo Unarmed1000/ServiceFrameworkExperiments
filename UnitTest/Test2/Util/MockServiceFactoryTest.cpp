@@ -219,10 +219,10 @@ TEST(InitializationOrderTrackerTest, Clear_RemovesAllEntries)
 // Factory Tests
 // ==============================================
 
-TEST(MockServiceImplFactoryTest, Create_ReturnsValidService)
+TEST(MockAsyncServiceFactoryTest, Create_ReturnsValidService)
 {
   MockServiceConfig config("FactoryService");
-  MockServiceImplFactory factory(config);
+  MockAsyncServiceFactory factory(config);
 
   std::weak_ptr<IServiceProvider> emptyProvider;
   ServiceProvider provider(emptyProvider);
@@ -233,10 +233,10 @@ TEST(MockServiceImplFactoryTest, Create_ReturnsValidService)
   EXPECT_FALSE(std::dynamic_pointer_cast<MockService>(service)->IsInitialized());
 }
 
-TEST(MockServiceProxyFactoryTest, CreateProxy_ReturnsValidProxy)
+TEST(MockAsyncServiceFactoryTest, CreateProxy_ReturnsValidProxy)
 {
   MockServiceConfig config("FactoryProxy");
-  MockServiceProxyFactory factory(config);
+  MockAsyncServiceFactory factory(config);
 
   std::weak_ptr<IServiceProvider> emptyProvider;
   ServiceProvider provider(emptyProvider);

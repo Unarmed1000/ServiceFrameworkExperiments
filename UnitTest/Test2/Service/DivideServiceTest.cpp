@@ -17,9 +17,7 @@
 #include <Test2/Framework/Provider/ServiceProvider.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactoryUtil.hpp>
-#include <Test2/Services/Divide/DivideServiceImplFactory.hpp>
-#include <Test2/Services/Divide/DivideServiceProxyFactory.hpp>
+#include <Test2/Services/Divide/DivideAsyncServiceFactory.hpp>
 #include <Test2/Services/Divide/IDivideService.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -90,8 +88,7 @@ namespace Test2
       ServiceRegistry registry;
 
       // Register Divide service on main thread group
-      registry.RegisterService(AsyncServiceFactoryUtil::CreateAsyncServiceFactory<DivideServiceProxyFactory, DivideServiceImplFactory>(),
-                               ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+      registry.RegisterService(std::make_shared<DivideAsyncServiceFactory>(), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
       // Extract registrations and create lifecycle manager
       auto registrations = registry.ExtractRegistrations();

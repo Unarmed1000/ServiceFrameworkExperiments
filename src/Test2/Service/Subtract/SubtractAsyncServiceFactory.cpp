@@ -11,19 +11,27 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Services/Calculator/CalculatorServiceProxyFactory.hpp>
-#include "CalculatorServiceProxy.hpp"
+#include <Test2/Services/Subtract/ISubtractService.hpp>
+#include <Test2/Services/Subtract/SubtractAsyncServiceFactory.hpp>
+#include <memory>
+#include <stdexcept>
+#include "SubtractService.hpp"
+#include "SubtractServiceProxy.hpp"
 
 namespace Test2
 {
-  CalculatorServiceProxyFactory::CalculatorServiceProxyFactory()
-    : AsyncServiceProxyFactory(typeid(ICalculatorService))
+  SubtractAsyncServiceFactory::SubtractAsyncServiceFactory()
+    : AsyncServiceFactory(typeid(ISubtractService))
   {
   }
 
-  std::shared_ptr<IServiceProxyControl> CalculatorServiceProxyFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
+  std::shared_ptr<IServiceProxyControl> SubtractAsyncServiceFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
   {
-    return std::make_shared<CalculatorServiceProxy>(createInfo);
+    return std::make_shared<SubtractServiceProxy>(createInfo);
   }
 
+  std::shared_ptr<IServiceControl> SubtractAsyncServiceFactory::Create(const ServiceCreateInfo& createInfo)
+  {
+    return std::make_shared<SubtractService>(createInfo);
+  }
 }

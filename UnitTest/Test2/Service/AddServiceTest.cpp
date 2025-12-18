@@ -17,9 +17,7 @@
 #include <Test2/Framework/Provider/ServiceProvider.hpp>
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceRegistry.hpp>
-#include <Test2/Framework/Service/Async/Factory/AsyncServiceFactoryUtil.hpp>
-#include <Test2/Services/Add/AddServiceImplFactory.hpp>
-#include <Test2/Services/Add/AddServiceProxyFactory.hpp>
+#include <Test2/Services/Add/AddAsyncServiceFactory.hpp>
 #include <Test2/Services/Add/IAddService.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -90,8 +88,7 @@ namespace Test2
       ServiceRegistry registry;
 
       // Register Add service on main thread group
-      registry.RegisterService(AsyncServiceFactoryUtil::CreateAsyncServiceFactory<AddServiceProxyFactory, AddServiceImplFactory>(),
-                               ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
+      registry.RegisterService(std::make_shared<AddAsyncServiceFactory>(), ServiceLaunchPriority(100), ThreadGroupConfig::MainThreadGroupId);
 
       // Extract registrations and create lifecycle manager
       auto registrations = registry.ExtractRegistrations();
