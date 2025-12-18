@@ -43,14 +43,20 @@ namespace Test2
   }
 
 
-  std::shared_ptr<IAsyncServiceProxyFactory> AsyncServiceFactory::GetProxyFactory() const
+  std::shared_ptr<IServiceProxyControl> AsyncServiceFactory::CreateProxy(const ServiceProxyCreateInfo& createInfo)
   {
-    return m_proxyFactory;
+    return m_proxyFactory->CreateProxy(createInfo);
   }
 
 
-  std::shared_ptr<IAsyncServiceImplFactory> AsyncServiceFactory::GetImplFactory() const
+  std::shared_ptr<IServiceControl> AsyncServiceFactory::Create(const ServiceCreateInfo& createInfo)
   {
-    return m_implFactory;
+    return m_implFactory->Create(createInfo);
+  }
+
+
+  std::type_index AsyncServiceFactory::GetImplFactoryTypeId() const
+  {
+    return std::type_index(typeid(*m_implFactory));
   }
 }

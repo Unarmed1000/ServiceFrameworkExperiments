@@ -19,7 +19,7 @@
 
 namespace Test2
 {
-  class AsyncServiceFactory;
+  class IAsyncServiceFactory;
 
   /// @brief Interface for registering services with the service framework.
   ///
@@ -38,14 +38,14 @@ namespace Test2
     /// priority values launching first. A service can only access other services with higher
     /// priority (higher numerical value), ensuring proper dependency ordering.
     ///
-    /// @param factory Unique pointer to the service factory that will create service instances.
+    /// @param factory Shared pointer to the service factory that will create service instances.
     ///                Ownership is transferred to the registry.
     /// @param priority The launch priority determining initialization order (higher values first).
     ///                 Also determines service dependency access - services can only depend on
     ///                 services with higher priority values.
     /// @param threadGroupId The thread group identifier for this service's execution context.
     ///                      Services within the same thread group may share execution resources.
-    virtual void RegisterService(std::unique_ptr<AsyncServiceFactory> factory, const ServiceLaunchPriority priority,
+    virtual void RegisterService(std::shared_ptr<IAsyncServiceFactory> factory, const ServiceLaunchPriority priority,
                                  const ServiceThreadGroupId threadGroupId) = 0;
 
     /// @brief Creates a new unique service thread group identifier.

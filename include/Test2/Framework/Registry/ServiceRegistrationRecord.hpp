@@ -15,7 +15,7 @@
 
 #include <Test2/Framework/Registry/ServiceLaunchPriority.hpp>
 #include <Test2/Framework/Registry/ServiceThreadGroupId.hpp>
-#include <Test2/Framework/Service/Async/AsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceFactory.hpp>
 #include <memory>
 
 namespace Test2
@@ -29,7 +29,7 @@ namespace Test2
   {
     /// @brief The service factory that creates service instances.
     /// Ownership is held by this record.
-    std::unique_ptr<AsyncServiceFactory> Factory;
+    std::shared_ptr<IAsyncServiceFactory> Factory;
 
     /// @brief The launch priority determining initialization order.
     /// Higher values launch first and can be accessed as dependencies by lower-priority services.
@@ -44,10 +44,10 @@ namespace Test2
 
     /// @brief Constructs a registration record with the specified factory, priority, and thread group.
     ///
-    /// @param factory Unique pointer to the service factory (ownership transferred).
+    /// @param factory Shared pointer to the service factory (ownership transferred).
     /// @param priority The launch priority for services created by this factory.
     /// @param threadGroupId The thread group for services created by this factory.
-    ServiceRegistrationRecord(std::unique_ptr<AsyncServiceFactory> factory, ServiceLaunchPriority priority, ServiceThreadGroupId threadGroupId)
+    ServiceRegistrationRecord(std::shared_ptr<IAsyncServiceFactory> factory, ServiceLaunchPriority priority, ServiceThreadGroupId threadGroupId)
       : Factory(std::move(factory))
       , Priority(priority)
       , ThreadGroupId(threadGroupId)

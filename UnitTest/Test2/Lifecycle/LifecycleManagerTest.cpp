@@ -177,8 +177,8 @@ namespace Test2
     }
   };
 
-  // Helper to create AsyncServiceFactory for tests
-  std::unique_ptr<AsyncServiceFactory> CreateMockFactory(std::shared_ptr<MockLifecycleService> service)
+  // Helper to create IAsyncServiceFactory for tests
+  std::shared_ptr<IAsyncServiceFactory> CreateMockFactory(std::shared_ptr<MockLifecycleService> service)
   {
     return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
                                                               std::make_shared<MockLifecycleServiceFactory>(std::move(service)));
@@ -764,8 +764,8 @@ namespace Test2
     }
   };
 
-  // Helper to create AsyncServiceFactory for failing mock
-  std::unique_ptr<AsyncServiceFactory> CreateFailingMockFactory(std::shared_ptr<FailingMockService> service)
+  // Helper to create IAsyncServiceFactory for failing mock
+  std::shared_ptr<IAsyncServiceFactory> CreateFailingMockFactory(std::shared_ptr<FailingMockService> service)
   {
     return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
                                                               std::make_shared<FailingMockServiceFactory>(std::move(service)));
@@ -844,8 +844,8 @@ namespace Test2
     }
   };
 
-  // Helper to create AsyncServiceFactory for shutdown-tracking mock
-  std::unique_ptr<AsyncServiceFactory> CreateShutdownTrackingMockFactory(std::shared_ptr<ShutdownTrackingMockService> service)
+  // Helper to create IAsyncServiceFactory for shutdown-tracking mock
+  std::shared_ptr<IAsyncServiceFactory> CreateShutdownTrackingMockFactory(std::shared_ptr<ShutdownTrackingMockService> service)
   {
     return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
                                                               std::make_shared<ShutdownTrackingMockServiceFactory>(std::move(service)));
@@ -1221,8 +1221,8 @@ namespace Test2
     }
   };
 
-  // Helper to create AsyncServiceFactory for failing shutdown mock
-  std::unique_ptr<AsyncServiceFactory> CreateFailingShutdownMockFactory(std::shared_ptr<FailingShutdownMockService> service)
+  // Helper to create IAsyncServiceFactory for failing shutdown mock
+  std::shared_ptr<IAsyncServiceFactory> CreateFailingShutdownMockFactory(std::shared_ptr<FailingShutdownMockService> service)
   {
     return AsyncServiceFactoryUtil::CreateAsyncServiceFactory(std::make_shared<MockLifecycleServiceProxyFactory>(),
                                                               std::make_shared<FailingShutdownMockServiceFactory>(std::move(service)));

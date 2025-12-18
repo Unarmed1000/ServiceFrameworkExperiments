@@ -109,7 +109,8 @@ namespace Test2
           auto interfaces = reg->Factory->GetSupportedInterfaces();
           std::string serviceName = interfaces.empty() ? "UnknownService" : interfaces[0].name();
 
-          servicesForGroup.emplace_back(std::move(serviceName), reg->Factory->GetImplFactory());
+          // Factory already implements IAsyncServiceImplFactory through IAsyncServiceFactory
+          servicesForGroup.emplace_back(std::move(serviceName), reg->Factory);
         }
 
         if (!servicesForGroup.empty())

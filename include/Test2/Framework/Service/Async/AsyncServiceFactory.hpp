@@ -13,7 +13,7 @@
 //* OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //****************************************************************************************************************************************************
 
-#include <Test2/Framework/Service/IServiceFactoryInfo.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceFactory.hpp>
 #include <memory>
 
 namespace Test2
@@ -21,7 +21,7 @@ namespace Test2
   class IAsyncServiceProxyFactory;
   class IAsyncServiceImplFactory;
 
-  class AsyncServiceFactory final : public IServiceFactoryInfo
+  class AsyncServiceFactory final : public IAsyncServiceFactory
   {
     std::shared_ptr<IAsyncServiceProxyFactory> m_proxyFactory;
     std::shared_ptr<IAsyncServiceImplFactory> m_implFactory;
@@ -32,11 +32,10 @@ namespace Test2
 
     std::span<const std::type_index> GetSupportedInterfaces() const final;
 
-    [[nodiscard]]
-    std::shared_ptr<IAsyncServiceProxyFactory> GetProxyFactory() const;
+    std::shared_ptr<IServiceProxyControl> CreateProxy(const ServiceProxyCreateInfo& createInfo) final;
+    std::shared_ptr<IServiceControl> Create(const ServiceCreateInfo& createInfo) final;
 
-    [[nodiscard]]
-    std::shared_ptr<IAsyncServiceImplFactory> GetImplFactory() const;
+    std::type_index GetImplFactoryTypeId() const final;
   };
 
 }

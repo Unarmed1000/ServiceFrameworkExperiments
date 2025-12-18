@@ -14,19 +14,20 @@
 //****************************************************************************************************************************************************
 
 #include <Test2/Framework/Service/Async/AsyncServiceFactory.hpp>
+#include <Test2/Framework/Service/Async/IAsyncServiceFactory.hpp>
 
 namespace Test2::AsyncServiceFactoryUtil
 {
-  inline std::unique_ptr<AsyncServiceFactory> CreateAsyncServiceFactory(std::shared_ptr<IAsyncServiceProxyFactory> proxyFactory,
-                                                                        std::shared_ptr<IAsyncServiceImplFactory> implFactory)
+  inline std::shared_ptr<IAsyncServiceFactory> CreateAsyncServiceFactory(std::shared_ptr<IAsyncServiceProxyFactory> proxyFactory,
+                                                                         std::shared_ptr<IAsyncServiceImplFactory> implFactory)
   {
-    return std::make_unique<AsyncServiceFactory>(std::move(proxyFactory), std::move(implFactory));
+    return std::make_shared<AsyncServiceFactory>(std::move(proxyFactory), std::move(implFactory));
   }
 
   template <typename TProxyFactory, typename TImplFactory>
-  inline std::unique_ptr<AsyncServiceFactory> CreateAsyncServiceFactory()
+  inline std::shared_ptr<IAsyncServiceFactory> CreateAsyncServiceFactory()
   {
-    return std::make_unique<AsyncServiceFactory>(std::make_shared<TProxyFactory>(), std::make_shared<TImplFactory>());
+    return std::make_shared<AsyncServiceFactory>(std::make_shared<TProxyFactory>(), std::make_shared<TImplFactory>());
   }
 }
 

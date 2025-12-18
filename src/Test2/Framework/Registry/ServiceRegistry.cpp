@@ -24,7 +24,7 @@
 
 namespace Test2
 {
-  void ServiceRegistry::RegisterService(std::unique_ptr<AsyncServiceFactory> factory, const ServiceLaunchPriority priority,
+  void ServiceRegistry::RegisterService(std::shared_ptr<IAsyncServiceFactory> factory, const ServiceLaunchPriority priority,
                                         const ServiceThreadGroupId threadGroupId)
   {
     // Validate factory is not null
@@ -49,12 +49,8 @@ namespace Test2
       throw InvalidServiceFactoryException("Service factory must support at least one interface");
     }
 
-    // Get the proxy and impl factory for duplicate detection
-    auto proxyFactory = factory->GetProxyFactory();
-    auto implFactory = factory->GetImplFactory();
-
-    // Use impl factory type as the key since it represents the actual service being created
-    const std::type_index factoryType(typeid(*implFactory));
+    // Use impl factory type as the key for duplicate detection
+    const std::type_index factoryType = factory->GetImplFactoryTypeId();
 
     // Check if this factory type is already registered
     if (m_registrations.find(factoryType) != m_registrations.end())

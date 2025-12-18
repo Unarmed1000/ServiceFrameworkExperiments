@@ -123,20 +123,20 @@ namespace Test2
     }
   };
 
-  // Helper to create AsyncServiceFactory for tests
-  std::unique_ptr<AsyncServiceFactory> CreateMockFactory()
+  // Helper to create IAsyncServiceFactory for tests
+  std::shared_ptr<IAsyncServiceFactory> CreateMockFactory()
   {
-    return std::make_unique<AsyncServiceFactory>(std::make_shared<MockProxyFactory>(), std::make_shared<MockImplFactory>());
+    return std::make_shared<AsyncServiceFactory>(std::make_shared<MockProxyFactory>(), std::make_shared<MockImplFactory>());
   }
 
-  std::unique_ptr<AsyncServiceFactory> CreateAnotherMockFactory()
+  std::shared_ptr<IAsyncServiceFactory> CreateAnotherMockFactory()
   {
-    return std::make_unique<AsyncServiceFactory>(std::make_shared<AnotherMockProxyFactory>(), std::make_shared<AnotherMockImplFactory>());
+    return std::make_shared<AsyncServiceFactory>(std::make_shared<AnotherMockProxyFactory>(), std::make_shared<AnotherMockImplFactory>());
   }
 
-  std::unique_ptr<AsyncServiceFactory> CreateEmptyFactory()
+  std::shared_ptr<IAsyncServiceFactory> CreateEmptyFactory()
   {
-    return std::make_unique<AsyncServiceFactory>(std::make_shared<EmptyProxyFactory>(), std::make_shared<EmptyImplFactory>());
+    return std::make_shared<AsyncServiceFactory>(std::make_shared<EmptyProxyFactory>(), std::make_shared<EmptyImplFactory>());
   }
 }
 

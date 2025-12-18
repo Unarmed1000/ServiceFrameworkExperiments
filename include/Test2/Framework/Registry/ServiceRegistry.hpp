@@ -27,7 +27,7 @@
 namespace Test2
 {
   // Forward declarations
-  class AsyncServiceFactory;
+  class IAsyncServiceFactory;
 
   /// @brief Concrete implementation of IServiceRegistry for managing service factory registration.
   ///
@@ -67,14 +67,14 @@ namespace Test2
     /// and thread group. The factory type (typeid) is used as the unique key - each factory
     /// type can only be registered once.
     ///
-    /// @param factory Unique pointer to the service factory. Ownership is transferred to the registry.
+    /// @param factory Shared pointer to the service factory. Ownership is transferred to the registry.
     /// @param priority The launch priority determining initialization order (higher values first).
     /// @param threadGroupId The thread group identifier for this service's execution context.
     ///
     /// @throws InvalidServiceFactoryException if factory is null or reports zero supported interfaces
     /// @throws RegistryExtractedException if ExtractRegistrations() has already been called
     /// @throws DuplicateServiceRegistrationException if this factory type is already registered
-    void RegisterService(std::unique_ptr<AsyncServiceFactory> factory, const ServiceLaunchPriority priority,
+    void RegisterService(std::shared_ptr<IAsyncServiceFactory> factory, const ServiceLaunchPriority priority,
                          const ServiceThreadGroupId threadGroupId) final;
 
     /// @brief Creates a new unique service thread group identifier.
