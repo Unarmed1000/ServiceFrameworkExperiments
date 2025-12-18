@@ -41,12 +41,14 @@ A production-grade service framework with comprehensive architecture demonstrati
 - `ServiceCreateInfo`, `ServiceProxyCreateInfo`: Service instantiation context
 
 **Service Factory Pattern** (`Framework/Service/Async/`):
-- `AsyncServiceFactory`: Abstract factory combining impl and proxy factories
+- `IAsyncServiceFactory`: Combined factory interface for both impl and proxy factories
 - `IAsyncServiceImplFactory`: Factory interface for service implementations
 - `IAsyncServiceProxyFactory`: Factory interface for service proxies
+- `AsyncServiceFactory`: Abstract factory base class combining impl and proxy factories
 - `AsyncServiceImplFactory`: Base implementation factory
 - `AsyncServiceProxyFactory`: Base proxy factory
 - `AsyncServiceFactoryUtil`: Utilities for factory type checks
+- **Thread-Safety Requirement**: All factory implementations MUST be immutable and thread-safe, allowing safe concurrent access across multiple threads without synchronization
 
 **Lifecycle Management** (`Framework/Lifecycle/`):
 - `LifecycleManager`: Orchestrates service startup/shutdown across thread groups
@@ -460,10 +462,12 @@ Safe async invocation across thread boundaries using `AsyncProxyHelper`:
 
 ### Factory Pattern & Proxy Services
 Services use a dual-factory pattern for flexible deployment:
-- **Implementation Factory** (`AsyncServiceImplFactory`): Creates the actual service implementation
-- **Proxy Factory** (`AsyncServiceProxyFactory`): Creates a cross-thread proxy that forwards calls to the implementation
+- **Implementation Factory** (`IAsyncServiceImplFactory`): Creates the actual service implementation
+- **Proxy Factory** (`IAsyncServiceProxyFactory`): Creates a cross-thread proxy that forwards calls to the implementation
+- **Combined Factory** (`IAsyncServiceFactory`): Unified interface combining both impl and proxy factory capabilities
 - Each factory declares supported interfaces via `GetSupportedInterfaces()`
-- `AsyncServiceFactory` combines both factories into a single registration unit
+- Factories register with `ServiceRegistry` during application initialization
+- **Immutability & Thread-Safety**: Factory implementations are immutable (state fixed after construction) and thread-safe (methods safely callable from multiple threads concurrently), allowing the framework to share factory instances across threads without synchronization overhead
 
 ### Thread Group Architecture
 Services organize into thread groups for isolated execution contexts:
