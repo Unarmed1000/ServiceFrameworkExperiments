@@ -47,10 +47,13 @@ namespace Test2
     explicit CooperativeThreadHost(boost::asio::cancellation_slot cancel_slot = {});
     ~CooperativeThreadHost();
 
-    ExecutorContext<ILifeTracker> GetExecutorContext() const
-    {
-      return m_sourceContext;
-    }
+    /// @brief Gets the executor context for cross-thread communication.
+    ///
+    /// @warning Posting directly to this executor does NOT automatically wake the cooperative thread.
+    ///          The wake callback mechanism is NOT YET IMPLEMENTED for cross-thread posts.
+    ///
+    /// @return ExecutorContext for lifetime-aware cross-thread calls.
+    ExecutorContext<ILifeTracker> GetExecutorContext() const;
 
     std::shared_ptr<IServiceHost> GetServiceHost();
 

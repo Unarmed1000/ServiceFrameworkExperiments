@@ -51,6 +51,19 @@ namespace Test2
     m_cancellationSignal.emit(boost::asio::cancellation_type::terminal);
   }
 
+  ExecutorContext<ILifeTracker> CooperativeThreadHost::GetExecutorContext() const
+  {
+    static bool warningLogged = false;
+    if (!warningLogged)
+    {
+      spdlog::warn(
+        "CooperativeThreadHost::GetExecutorContext() - Automatic wake on cross-thread post is NOT YET IMPLEMENTED. "
+        "Posting to this executor will NOT trigger the wake callback.");
+      warningLogged = true;
+    }
+    return m_sourceContext;
+  }
+
   std::shared_ptr<IServiceHost> CooperativeThreadHost::GetServiceHost()
   {
     if (m_serviceHostProxy)

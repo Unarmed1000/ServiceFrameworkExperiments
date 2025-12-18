@@ -97,6 +97,13 @@ namespace Test2
       ValidateThreadAccess();
       std::lock_guard<std::mutex> lock(m_wakeMutex);
       m_wakeCallback = std::move(callback);
+
+      if (m_wakeCallback)
+      {
+        spdlog::warn(
+          "Wake callback registered, but automatic wake on ExecutorContext post is NOT YET IMPLEMENTED. "
+          "Only PostWithWake() on the host will trigger the wake callback.");
+      }
     }
 
     /// @brief Process all ready handlers without blocking.
